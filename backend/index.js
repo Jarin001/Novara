@@ -1,4 +1,6 @@
 const express = require("express");
+const { supabase } = require('./config/supabase');
+const connectDB = require('./config/mongodb');
 const app = express();
 
 
