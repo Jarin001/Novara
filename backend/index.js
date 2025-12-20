@@ -6,6 +6,7 @@ const app = express();
 
 const autocompleteRoute = require("./routes/autocompleteRoute");
 const paperSearchRoute = require("./routes/papersearch.route");
+const paperDetailsRoute = require("./routes/paperdetails.route");
 const citationRoutes = require('./routes/citation.route');
 
 
@@ -22,7 +23,10 @@ app.get("/", (req, res) => {
 app.use("/api/autocomplete", autocompleteRoute);
 
 //paper-search route
-app.use("/api/papersearch", paperSearchRoute);
+app.use("/api/papers", paperSearchRoute);
+
+//paper-details route
+app.use("/api/papers", paperDetailsRoute);
 
 //citation-route
 app.use('/api/citations', citationRoutes);
