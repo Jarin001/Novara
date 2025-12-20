@@ -5,6 +5,7 @@ const app = express();
 
 
 const autocompleteRoute = require("./routes/autocompleteRoute");
+const paperSearchRoute = require("./routes/papersearch.route");
 
 
 app.use(express.json());
@@ -18,6 +19,8 @@ app.get("/", (req, res) => {
 
 //autocomplete route
 app.use("/api/autocomplete", autocompleteRoute);
+
+app.use("/api/papersearch", paperSearchRoute);
 
 
 
