@@ -9,6 +9,7 @@ const paperSearchRoute = require("./routes/papersearch.route");
 const paperDetailsRoute = require("./routes/paperdetails.route");
 const paperCitationsRoute = require("./routes/paper-citations.route");
 const paperReferencesRoute= require("./routes/paper-references.route");
+const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
 
 
@@ -34,7 +35,10 @@ app.use("/api/papers", paperDetailsRoute);
 app.use("/api/papers", paperCitationsRoute);
 
 // route to get papers cited by a paper
-app.use("/api/papers", paperReferencesRoute)
+app.use("/api/papers", paperReferencesRoute);
+
+//route to get related papers of a papaer
+app.use("/api/papers", relatedPapersRoute)
 
 //citation generation route
 app.use('/api/citations', citationRoutes);

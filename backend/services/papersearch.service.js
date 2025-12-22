@@ -9,7 +9,6 @@ const FIELDS = [
   "year",
   "publicationDate",
   "fieldsOfStudy",
-  "tldr",
   "citationCount",
   "abstract"
 ].join(",");
@@ -61,7 +60,6 @@ exports.searchPapers = async ({
     year: paper.year,
     publicationDate: paper.publicationDate,
     fieldsOfStudy: paper.fieldsOfStudy || [],
-    tldr: paper.tldr?.text || [],
     citationCount: paper.citationCount || 0,
     abstract: paper.abstract || []
   }));

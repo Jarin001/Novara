@@ -77,7 +77,6 @@ exports.getPaperRelations = async ({
     year: p.year,
     publicationDate: p.publicationDate,
     fieldsOfStudy: p.fieldsOfStudy || [],
-    tldr: [],
     citationCount: p.citationCount || 0,
     abstract: p.abstract || []
   }));
