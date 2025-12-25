@@ -1,0 +1,573 @@
+import React, { useMemo, useState, useRef, useEffect } from "react";
+import Navbar from "../components/Navbar";
+import { useLocation, useNavigate } from "react-router-dom";
+
+function useQuery() {
+  return new URLSearchParams(useLocation().search);
+}
+
+const mockResults = (q) => {
+  // enhanced mocked results - include pdf, citationCount, fields
+  const sample = [
+    {
+      id: 1,
+      title: `Exploring the role of vocalizations in regulating ${q}`,
+      authors: ["Bing Xie", "J. B. Brask", "T. Dabelsteen"],
+      venue: "Philosophical Transactions B",
+      date: 2024,
+      snippet:
+        "The role that vocalizations play in (i) collective movement, (ii) separation risk and cohesion maintenance, (iii) fission–fusion dynamics, and (iv) social networks are reviewed.",
+      pdf: true,
+      citationCount: 18,
+      fields: ["Biology", "Environmental Science"],
+    },
+    {
+      id: 2,
+      title: `${q} when battling a pandemic`,
+      authors: ["C. Parks"],
+      venue: "Sociology",
+      date: 2020,
+      snippet:
+        "This special issue presents six articles that address aspects of how group dynamics and processes have been impacted by, and have the potential to impact, the SARS-CoV-2 pandemic.",
+      pdf: false,
+      citationCount: 4,
+      fields: ["Sociology"],
+    },
+    {
+      id: 3,
+      title: `${q} for Teams`,
+      authors: ["D. Levi"],
+      venue: "Business, Psychology",
+      date: 2020,
+      snippet:
+        "PART I: CHARACTERISTICS OF TEAMS Chapter 1: Understanding Teams Chapter 2: Defining Team Success...",
+      pdf: false,
+      citationCount: 2,
+      fields: ["Economics"],
+    },
+    {
+      id: 4,
+      title: `Vaccination rollout and ${q}`,
+      authors: ["Y. Bergeron"],
+      venue: "Nature",
+      date: 2008,
+      snippet: "A long-term study of pandemic response and the role of vaccination programs.",
+      pdf: true,
+      citationCount: 180,
+      fields: ["Medicine", "Biology"],
+    },
+  ];
+  return sample;
+};
+
+const ResultsPage = () => {
+  const query = useQuery();
+  const navigate = useNavigate();
+  const q = query.get("q") || "";
+  const [showHasPdfOnly, setShowHasPdfOnly] = useState(false);
+  const [selectedFields, setSelectedFields] = useState([]);
+  const [selectedAuthors, setSelectedAuthors] = useState([]);
+  const [selectedJournals, setSelectedJournals] = useState([]);
+  const [sortBy, setSortBy] = useState("relevance"); // 'relevance' | 'citations'
+  const [dateRange, setDateRange] = useState([1931, 2026]);
+  const [openFields, setOpenFields] = useState(false);
+  const [openDate, setOpenDate] = useState(false);
+  const [openAuthor, setOpenAuthor] = useState(false);
+  const [openJournals, setOpenJournals] = useState(false);
+  const [citeOpen, setCiteOpen] = useState(false);
+  const [citeItem, setCiteItem] = useState(null);
+  const [citeFormat, setCiteFormat] = useState('BibTeX');
+
+  const fieldsRef = useRef(null);
+  const dateRef = useRef(null);
+  const authorRef = useRef(null);
+  const journalsRef = useRef(null);
+  const containerRef = useRef(null);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (!containerRef.current) return;
+      // if click is outside the whole filters container, close all
+      if (!containerRef.current.contains(e.target)) {
+        setOpenFields(false);
+        setOpenDate(false);
+        setOpenAuthor(false);
+        setOpenJournals(false);
+      }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const results = mockResults(q);
+
+  const visible = useMemo(() => {
+    let list = results.slice();
+
+    // Has PDF filter
+    if (showHasPdfOnly) {
+      list = list.filter((r) => r.pdf === true);
+    }
+
+    // Fields filter (if selected)
+    if (selectedFields.length) {
+      list = list.filter((r) => r.fields && r.fields.some(f => selectedFields.includes(f)));
+    }
+
+    // Authors filter
+    if (selectedAuthors.length) {
+      list = list.filter((r) => r.authors && r.authors.some(a => selectedAuthors.some(sa => a.includes(sa) || sa.includes(a))));
+    }
+
+    // Journals filter
+    if (selectedJournals.length) {
+      list = list.filter((r) => selectedJournals.includes(r.venue) || selectedJournals.some(j => r.venue && r.venue.includes(j)));
+    }
+
+    // Date range filter
+    if (dateRange && dateRange.length === 2) {
+      const [minY, maxY] = dateRange;
+      list = list.filter((r) => {
+        const year = typeof r.date === 'number' ? r.date : (new Date(r.date).getFullYear() || 0);
+        return year >= minY && year <= maxY;
+      });
+    }
+
+    // Sorting
+    if (sortBy === 'citations') {
+      list.sort((a,b)=> (b.citationCount || 0) - (a.citationCount || 0));
+    }
+
+    return list;
+  }, [results, showHasPdfOnly, selectedFields, selectedAuthors, selectedJournals, dateRange, sortBy]);
+
+  const availableFields = [
+    "Environmental Science",
+    "Medicine",
+    "Biology",
+    "Agricultural and Food Sciences",
+    "Economics",
+    "Sociology",
+    "Engineering",
+    "Computer Science",
+    "History",
+    "Geography",
+  ];
+
+  const availableAuthors = [
+    "Yves Bergeron",
+    "Hans Pretzsch",
+    "Jesús Julio Camarero",
+    "Christoph Leuschner",
+    "Yang Liu",
+    "Wei Zhang",
+  ];
+
+  const availableJournals = [
+    "Forests",
+    "PLoS ONE",
+    "Plant Disease",
+    "Plant and Soil",
+    "Cureus",
+    "Scientific Reports",
+  ];
+
+  const onHeaderSearch = (e) => {
+    e && e.preventDefault && e.preventDefault();
+    const val = e.target.elements["headerSearch"].value || "";
+    navigate(`/search?q=${encodeURIComponent(val)}`);
+  };
+
+  const openCite = (item) => {
+    // open modal instead of navigating
+    setCiteItem(item);
+    setCiteFormat('BibTeX');
+    setCiteOpen(true);
+  };
+
+  const closeCite = () => {
+    setCiteOpen(false);
+    setCiteItem(null);
+  };
+
+  const getCitationText = (item, format) => {
+    if (!item) return '';
+    const authors = item.authors.join(' and ');
+    const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
+
+    if (format === 'BibTeX') {
+      const key = `${(item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
+      return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
+    }
+
+    if (format === 'MLA') {
+      return `${item.authors.join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
+    }
+
+    if (format === 'APA') {
+      return `${item.authors.join(', ')} (${year}). ${item.title}. ${item.venue}.`;
+    }
+
+    if (format === 'Chicago') {
+      return `${item.authors.join(', ')}. "${item.title}." ${item.venue} (${year}).`;
+    }
+
+    return '';
+  };
+
+  const [copied, setCopied] = useState(false);
+
+  const copyCitation = async () => {
+    const txt = getCitationText(citeItem, citeFormat);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 1600);
+    } catch (e) {
+      const el = document.getElementById('cite-textarea');
+      if (el) {
+        el.select();
+        try { document.execCommand('copy'); setCopied(true); setTimeout(()=>setCopied(false),1600); } catch(_){}
+      }
+    }
+  };
+
+  const sanitizeFilename = (s = '') => {
+    return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
+  };
+
+  const downloadFile = (filename, content, mime = 'text/plain') => {
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadBibTeX = (item) => {
+    const content = getCitationText(item, 'BibTeX');
+    const name = sanitizeFilename((item && item.title) || 'citation') + '.bib';
+    downloadFile(name, content, 'application/x-bibtex');
+  };
+
+  const downloadEndNote = (item) => {
+    if (!item) return;
+    const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || '');
+    const lines = [];
+    lines.push('%0 Journal Article');
+    lines.push('%T ' + item.title);
+    (item.authors || []).forEach(a => lines.push('%A ' + a));
+    if (item.venue) lines.push('%J ' + item.venue);
+    if (year) lines.push('%D ' + year);
+    if (item.url) lines.push('%U ' + item.url);
+    const content = lines.join('\n');
+    const name = sanitizeFilename((item && item.title) || 'citation') + '.enw';
+    downloadFile(name, content, 'application/x-endnote-refer');
+  };;
+
+  const total = 15300000; // mocked number
+
+  return (
+    <>
+      <Navbar />
+
+      <div style={{ paddingTop: 100, paddingLeft: 40, paddingRight: 40 }}>
+        <form onSubmit={onHeaderSearch} style={{ display: "flex", maxWidth: 920, marginBottom: 18 }}>
+          <input
+            name="headerSearch"
+            defaultValue={q}
+            placeholder="Search for articles..."
+            style={{ flex: 1, padding: "10px 12px", border: "1px solid #ddd", borderRadius: 4 }}
+          />
+          <button style={{ marginLeft: 8, padding: "8px 14px", background: "#f0c14b", border: "1px solid #d2a33a", cursor: "pointer" }}>
+            Search
+          </button>
+        </form>
+
+        <h3 style={{ marginTop: 8, marginBottom: 12, fontSize: 16, fontWeight: 500, color: '#333' }}>
+          About {total.toLocaleString()} results for "{q}"
+        </h3>
+
+        {/* filters row - visual only */}
+        <div ref={containerRef} style={{ display: "flex", gap: 12, marginBottom: 18, alignItems: "center", flexWrap: 'wrap' }}>
+          {/* Fields of Study dropdown (visual mimic) */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); setOpenAuthor(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
+            {openFields && (
+              <div ref={fieldsRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
+                <strong style={{display:'block', marginBottom:8}}>Fields of Study</strong>
+                {availableFields.map((f) => (
+                  <label key={f} style={{ display: 'block', marginBottom: 6 }}>
+                    <input type="checkbox" checked={selectedFields.includes(f)} onChange={() => {
+                      setSelectedFields((prev) => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
+                    }} /> <span style={{marginLeft:8}}>{f}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Date Range dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); setOpenAuthor(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
+            {openDate && (
+              <div ref={dateRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
+                <div style={{ position: 'relative', padding: '6px 0' }}>
+                  {/* Place two range inputs on the same visual track but keep their thumbs inside the popover by reducing the effective width and adding horizontal padding */}
+                  <input
+                    type="range"
+                    min={1931}
+                    max={2026}
+                    value={dateRange[0]}
+                    onChange={(e)=>{
+                      const val = Number(e.target.value);
+                      setDateRange([Math.min(val, dateRange[1]), dateRange[1]]);
+                    }}
+                    style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, display: 'block' }}
+                  />
+                  <input
+                    type="range"
+                    min={1931}
+                    max={2026}
+                    value={dateRange[1]}
+                    onChange={(e)=>{
+                      const val = Number(e.target.value);
+                      setDateRange([dateRange[0], Math.max(val, dateRange[0])]);
+                    }}
+                    style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, marginTop: -36, display: 'block' }}
+                  />
+                </div>
+                <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
+                  <small>{dateRange[0]}</small>
+                  <small>{dateRange[1]}</small>
+                </div>
+                <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                  <button onClick={()=>setDateRange([2026,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>This year</button>
+                  <button onClick={()=>setDateRange([2021,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 5 years</button>
+                  <button onClick={()=>setDateRange([2016,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 10 years</button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Has PDF toggle */}
+          <button
+            onClick={() => setShowHasPdfOnly((s) => !s)}
+            style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: showHasPdfOnly ? '#eef6f1' : '#fff' }}
+          >
+            Has PDF {showHasPdfOnly ? '✓' : ''}
+          </button>
+
+          {/* Author dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => { setOpenAuthor(o=>!o); setOpenFields(false); setOpenDate(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Author ▾</button>
+            {openAuthor && (
+              <div ref={authorRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 320, zIndex:50 }}>
+                <strong style={{display:'block', marginBottom:8}}>Authors</strong>
+                {availableAuthors.map((a) => (
+                  <label key={a} style={{ display: 'block', marginBottom: 8 }}>
+                    <input type="checkbox" checked={selectedAuthors.includes(a)} onChange={() => {
+                      setSelectedAuthors((prev) => prev.includes(a) ? prev.filter(x=>x!==a) : [...prev, a]);
+                    }} /> <span style={{marginLeft:8}}>{a}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Journals & Conferences dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => { setOpenJournals(o=>!o); setOpenFields(false); setOpenDate(false); setOpenAuthor(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Journals & Conferences ▾</button>
+            {openJournals && (
+              <div ref={journalsRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex:50 }}>
+                <strong style={{display:'block', marginBottom:8}}>Top Journals & Conferences</strong>
+                {availableJournals.map((j) => (
+                  <label key={j} style={{ display: 'block', marginBottom: 6 }}>
+                    <input type="checkbox" checked={selectedJournals.includes(j)} onChange={() => {
+                      setSelectedJournals((prev) => prev.includes(j) ? prev.filter(x=>x!==j) : [...prev, j]);
+                    }} /> <span style={{marginLeft:8}}>{j}</span>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Sort dropdown */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap:8 }}>
+            <label style={{ color:'#444', fontSize:13 }}>Sort by</label>
+            <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} style={{ padding:'6px 8px' }}>
+              <option value="relevance">Relevance</option>
+              <option value="citations">Citation count</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          {visible.map((r, i) => (
+            <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
+              <a style={{ color: "#1a73e8", fontSize: 20, fontWeight: 600, textDecoration: "none" }} href="#">
+                {r.title}
+              </a>
+
+              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                {r.authors.map((a) => (
+                  <span key={a} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>{a}</span>
+                ))}
+                <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
+              </div>
+
+              <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
+
+              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
+                <span style={{ color: "#888" }}>Save</span>
+                <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>Cite</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* pagination */}
+        <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
+          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
+          <button style={{ padding: "4px 8px", background: "#1a73e8", color: "#fff", fontSize: 12 }}>1</button>
+          <button style={{ padding: "4px 8px", fontSize: 12 }}>2</button>
+          <button style={{ padding: "4px 8px", fontSize: 12 }}>3</button>
+          <button style={{ padding: "4px 8px", fontSize: 12 }}>4</button>
+          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"→"}</button>
+        </div>
+
+        {/* Cite Modal */}
+        {citeOpen && citeItem && (
+          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+            <div style={{ width: '580px', maxWidth: '90vw', background: '#fff', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+              {/* Header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e0e0e0' }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Cite Paper</h2>
+                <button onClick={closeCite} style={{ width: 40, height: 40, borderRadius: 20, background: '#1a73e8', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: '24px' }}>
+                {/* Format tabs */}
+                <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
+                  {['BibTeX', 'MLA', 'APA', 'Chicago'].map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setCiteFormat(fmt)}
+                      style={{
+                        padding: '12px 16px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: citeFormat === fmt ? '3px solid #1a73e8' : '3px solid transparent',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: citeFormat === fmt ? 600 : 500,
+                        color: citeFormat === fmt ? '#1a73e8' : '#666'
+                      }}
+                    >
+                      {fmt}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Citation text box */}
+                <div style={{ marginBottom: 20 }}>
+                  <textarea
+                    id="cite-textarea"
+                    readOnly
+                    value={getCitationText(citeItem, citeFormat)}
+                    style={{
+                      width: '100%',
+                      height: 200,
+                      padding: 12,
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                      border: '1px solid #d0d0d0',
+                      borderRadius: 4,
+                      resize: 'none',
+                      background: '#fafafa'
+                    }}
+                  />
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
+
+                {/* Copy and Export */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <button
+                      onClick={copyCitation}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'transparent',
+                        border: 'none',
+                        color: '#1a73e8',
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 500,
+                        marginBottom: 16
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Copy
+                    </button>
+
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={() => downloadBibTeX(citeItem)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#1a73e8',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 500
+                          }}
+                        >
+                          BibTeX
+                        </button>
+                        <button
+                          onClick={() => downloadEndNote(citeItem)}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#fff',
+                            color: '#1a73e8',
+                            border: '1px solid #1a73e8',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 500
+                          }}
+                        >
+                          EndNote
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13 }}>Copied!</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+};
+
+export default ResultsPage;
