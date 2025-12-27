@@ -6,6 +6,7 @@ const { supabase } = require('./config/supabase');
 const connectDB = require('./config/mongodb');
 const userRoutes = require('./routes/userRoutes');
 const paperRoutes = require('./routes/paperRoutes');
+const libraryRoutes = require('./routes/libraryRoutes');
 
 const app = express();
 
@@ -29,6 +30,7 @@ app.get("/", (req, res) => {
 // Routes 
 app.use('/api/users', userRoutes);
 app.use('/api/papers', paperRoutes);
+app.use('/api/libraries', libraryRoutes);
 
 // 404 handler - Must come AFTER all routes
 app.use((req, res) => {

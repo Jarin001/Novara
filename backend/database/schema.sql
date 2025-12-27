@@ -13,20 +13,6 @@ CREATE TABLE users (
 CREATE INDEX idx_users_auth_id ON users(auth_id);
 CREATE INDEX idx_users_email ON users(email);
 
-ALTER TABLE users ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own profile"
-    ON users FOR SELECT
-    USING (auth.uid() = auth_id);
-
-CREATE POLICY "Users can update own profile"
-    ON users FOR UPDATE
-    USING (auth.uid() = auth_id);
-
-CREATE POLICY "Users can delete own profile"
-    ON users FOR DELETE
-    USING (auth.uid() = auth_id);
-
 -- Trigger to create user profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
     RETURNS TRIGGER AS $$
@@ -58,20 +44,6 @@ CREATE TABLE papers (
 CREATE INDEX idx_papers_s2_paper_id ON papers(s2_paper_id);
 CREATE INDEX idx_papers_title ON papers USING gin(to_tsvector('english', title));
 
-ALTER TABLE papers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow authenticated users to insert papers"
-    ON papers FOR INSERT TO authenticated
-    WITH CHECK (true);
-
-CREATE POLICY "Allow authenticated users to view papers"
-    ON papers FOR SELECT TO authenticated
-    USING (true);
-
-CREATE POLICY "Allow authenticated users to update papers"
-    ON papers FOR UPDATE TO authenticated
-    USING (true);
-
 -- 3. AUTHORS TABLE
 CREATE TABLE authors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -80,12 +52,6 @@ CREATE TABLE authors (
 );
 
 CREATE INDEX idx_authors_name ON authors(name);
-
-ALTER TABLE authors ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Authors are viewable by everyone"
-    ON authors FOR SELECT
-    USING (true);
 
 -- 4. LIBRARIES TABLE
 CREATE TABLE libraries (
@@ -101,31 +67,6 @@ CREATE TABLE libraries (
 
 CREATE INDEX idx_libraries_created_by ON libraries(created_by_user_id);
 
-ALTER TABLE libraries ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view accessible libraries"
-    ON libraries FOR SELECT
-    USING (
-        created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid())
-        OR is_public = true
-        OR id IN (
-            SELECT library_id FROM user_libraries 
-            WHERE user_id = (SELECT id FROM users WHERE auth_id = auth.uid())
-        )
-    );
-
-CREATE POLICY "Users can create libraries"
-    ON libraries FOR INSERT
-    WITH CHECK (created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
-CREATE POLICY "Users can update own libraries"
-    ON libraries FOR UPDATE
-    USING (created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
-CREATE POLICY "Users can delete own libraries"
-    ON libraries FOR DELETE
-    USING (created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
 -- 5. USER_PAPERS TABLE
 CREATE TABLE user_papers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -139,16 +80,6 @@ CREATE TABLE user_papers (
 CREATE INDEX idx_user_papers_user_id ON user_papers(user_id);
 CREATE INDEX idx_user_papers_paper_id ON user_papers(paper_id);
 
-ALTER TABLE user_papers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own papers"
-    ON user_papers FOR SELECT
-    USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
-CREATE POLICY "Users can insert own papers"
-    ON user_papers FOR INSERT
-    WITH CHECK (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
 -- 6. AUTHOR_PAPERS TABLE
 CREATE TABLE author_papers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -159,12 +90,6 @@ CREATE TABLE author_papers (
 
 CREATE INDEX idx_author_papers_author_id ON author_papers(author_id);
 CREATE INDEX idx_author_papers_paper_id ON author_papers(paper_id);
-
-ALTER TABLE author_papers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Author papers are viewable by everyone"
-    ON author_papers FOR SELECT
-    USING (true);
 
 -- 7. LIBRARY_PAPERS TABLE
 CREATE TABLE library_papers (
@@ -181,19 +106,6 @@ CREATE TABLE library_papers (
 CREATE INDEX idx_library_papers_library_id ON library_papers(library_id);
 CREATE INDEX idx_library_papers_paper_id ON library_papers(paper_id);
 
-ALTER TABLE library_papers ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view papers in accessible libraries"
-    ON library_papers FOR SELECT
-    USING (
-        library_id IN (
-            SELECT id FROM libraries WHERE created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid())
-        )
-        OR library_id IN (
-            SELECT library_id FROM user_libraries WHERE user_id = (SELECT id FROM users WHERE auth_id = auth.uid())
-        )
-    );
-
 -- 8. USER_LIBRARIES TABLE
 CREATE TABLE user_libraries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -207,31 +119,6 @@ CREATE TABLE user_libraries (
 
 CREATE INDEX idx_user_libraries_user_id ON user_libraries(user_id);
 CREATE INDEX idx_user_libraries_library_id ON user_libraries(library_id);
-
-ALTER TABLE user_libraries ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Users can view own library memberships"
-    ON user_libraries FOR SELECT
-    USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
-
--- Updated_at triggers
-CREATE OR REPLACE FUNCTION update_updated_at_column()
-RETURNS TRIGGER AS $$
-BEGIN
-    NEW.updated_at = NOW();
-    RETURN NEW;
-END;
-$$ language 'plpgsql';
-
-CREATE TRIGGER update_users_updated_at
-    BEFORE UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_libraries_updated_at
-    BEFORE UPDATE ON libraries
-    FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
 
 -- 9. STORAGE POLICIES FOR PROFILE PICTURES
 CREATE POLICY "Users can upload own avatar"
@@ -258,3 +145,47 @@ CREATE POLICY "Anyone can view avatars"
     ON storage.objects FOR SELECT
     TO public
     USING (bucket_id = 'avatars');
+
+-- Updated_at triggers
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+CREATE TRIGGER update_libraries_updated_at
+    BEFORE UPDATE ON libraries
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Library paper count trigger
+CREATE OR REPLACE FUNCTION update_library_paper_count()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'INSERT' THEN
+        UPDATE libraries
+        SET paper_count = paper_count + 1,
+            updated_at = NOW()
+        WHERE id = NEW.library_id;
+        RETURN NEW;
+    ELSIF TG_OP = 'DELETE' THEN
+        UPDATE libraries
+        SET paper_count = GREATEST(paper_count - 1, 0),
+            updated_at = NOW()
+        WHERE id = OLD.library_id;
+        RETURN OLD;
+    END IF;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE TRIGGER library_paper_count_trigger
+    AFTER INSERT OR DELETE ON library_papers
+    FOR EACH ROW
+    EXECUTE FUNCTION update_library_paper_count();
