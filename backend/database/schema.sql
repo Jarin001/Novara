@@ -1,3 +1,4 @@
+-- 1. USERS TABLE
 CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     auth_id UUID UNIQUE NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -9,18 +10,14 @@ CREATE TABLE users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes
 CREATE INDEX idx_users_auth_id ON users(auth_id);
 CREATE INDEX idx_users_email ON users(email);
 
--- Enable RLS
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
 CREATE POLICY "Users can view own profile"
     ON users FOR SELECT
     USING (auth.uid() = auth_id);
-
 
 CREATE POLICY "Users can update own profile"
     ON users FOR UPDATE
@@ -30,73 +27,67 @@ CREATE POLICY "Users can delete own profile"
     ON users FOR DELETE
     USING (auth.uid() = auth_id);
 
--- 2. PAPERS TABLE
-
-CREATE TABLE papers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    s2_paper_id VARCHAR(255) UNIQUE NOT NULL,
-    title TEXT NOT NULL,
-    doi VARCHAR(255) UNIQUE,
-    published_date DATE,
-    citation_count INTEGER DEFAULT 0,
-    is_open_access BOOLEAN DEFAULT FALSE,
-    pdf_url TEXT,
-    venue VARCHAR(255),
-    fields_of_study TEXT[]
-);
-
--- Indexes
-CREATE INDEX idx_papers_s2_paper_id ON papers(s2_paper_id);
-CREATE INDEX idx_papers_doi ON papers(doi);
-CREATE INDEX idx_papers_title ON papers USING gin(to_tsvector('english', title));
-
--- Enable RLS
-ALTER TABLE papers ENABLE ROW LEVEL SECURITY;
-
--- RLS Policy: Everyone can read papers
-CREATE POLICY "Papers are viewable by everyone"
-    ON papers FOR SELECT
-    USING (true);
-
+-- Trigger to create user profile on signup
 CREATE OR REPLACE FUNCTION public.handle_new_user()
     RETURNS TRIGGER AS $$
 BEGIN
     INSERT INTO public.users (auth_id, email, name)
-   VALUES (
-    NEW.id,
-    NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'name', 'User')
-  );
-  RETURN NEW;
+    VALUES (
+        NEW.id,
+        NEW.email,
+        COALESCE(NEW.raw_user_meta_data->>'name', 'User')
+    );
+    RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Create trigger
 CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+    AFTER INSERT ON auth.users
+    FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 2. PAPERS TABLE
+CREATE TABLE papers (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    s2_paper_id VARCHAR(255) UNIQUE NOT NULL,
+    title TEXT NOT NULL,
+    published_date DATE,
+    citation_count INTEGER DEFAULT 0,
+    fields_of_study TEXT[]
+);
+
+CREATE INDEX idx_papers_s2_paper_id ON papers(s2_paper_id);
+CREATE INDEX idx_papers_title ON papers USING gin(to_tsvector('english', title));
+
+ALTER TABLE papers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow authenticated users to insert papers"
+    ON papers FOR INSERT TO authenticated
+    WITH CHECK (true);
+
+CREATE POLICY "Allow authenticated users to view papers"
+    ON papers FOR SELECT TO authenticated
+    USING (true);
+
+CREATE POLICY "Allow authenticated users to update papers"
+    ON papers FOR UPDATE TO authenticated
+    USING (true);
 
 -- 3. AUTHORS TABLE
-
 CREATE TABLE authors (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
     affiliation TEXT
 );
 
--- Index
 CREATE INDEX idx_authors_name ON authors(name);
 
--- Enable RLS
 ALTER TABLE authors ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Everyone can read authors
 CREATE POLICY "Authors are viewable by everyone"
     ON authors FOR SELECT
     USING (true);
 
 -- 4. LIBRARIES TABLE
-
 CREATE TABLE libraries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     created_by_user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -108,13 +99,10 @@ CREATE TABLE libraries (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Indexes
 CREATE INDEX idx_libraries_created_by ON libraries(created_by_user_id);
 
--- Enable RLS
 ALTER TABLE libraries ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
 CREATE POLICY "Users can view accessible libraries"
     ON libraries FOR SELECT
     USING (
@@ -138,9 +126,7 @@ CREATE POLICY "Users can delete own libraries"
     ON libraries FOR DELETE
     USING (created_by_user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
 
-
 -- 5. USER_PAPERS TABLE
-
 CREATE TABLE user_papers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -150,14 +136,11 @@ CREATE TABLE user_papers (
     UNIQUE(user_id, paper_id)
 );
 
--- Indexes
 CREATE INDEX idx_user_papers_user_id ON user_papers(user_id);
 CREATE INDEX idx_user_papers_paper_id ON user_papers(paper_id);
 
--- Enable RLS
 ALTER TABLE user_papers ENABLE ROW LEVEL SECURITY;
 
--- RLS Policies
 CREATE POLICY "Users can view own papers"
     ON user_papers FOR SELECT
     USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
@@ -167,7 +150,6 @@ CREATE POLICY "Users can insert own papers"
     WITH CHECK (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
 
 -- 6. AUTHOR_PAPERS TABLE
-
 CREATE TABLE author_papers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     author_id UUID NOT NULL REFERENCES authors(id) ON DELETE CASCADE,
@@ -175,20 +157,16 @@ CREATE TABLE author_papers (
     UNIQUE(author_id, paper_id)
 );
 
--- Indexes
 CREATE INDEX idx_author_papers_author_id ON author_papers(author_id);
 CREATE INDEX idx_author_papers_paper_id ON author_papers(paper_id);
 
--- Enable RLS
 ALTER TABLE author_papers ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Everyone can read
 CREATE POLICY "Author papers are viewable by everyone"
     ON author_papers FOR SELECT
     USING (true);
 
 -- 7. LIBRARY_PAPERS TABLE
-
 CREATE TABLE library_papers (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
@@ -200,14 +178,11 @@ CREATE TABLE library_papers (
     UNIQUE(library_id, paper_id)
 );
 
--- Indexes
 CREATE INDEX idx_library_papers_library_id ON library_papers(library_id);
 CREATE INDEX idx_library_papers_paper_id ON library_papers(paper_id);
 
--- Enable RLS
 ALTER TABLE library_papers ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Users can view papers in their libraries
 CREATE POLICY "Users can view papers in accessible libraries"
     ON library_papers FOR SELECT
     USING (
@@ -220,7 +195,6 @@ CREATE POLICY "Users can view papers in accessible libraries"
     );
 
 -- 8. USER_LIBRARIES TABLE
-
 CREATE TABLE user_libraries (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -231,19 +205,16 @@ CREATE TABLE user_libraries (
     UNIQUE(user_id, library_id)
 );
 
--- Indexes
 CREATE INDEX idx_user_libraries_user_id ON user_libraries(user_id);
 CREATE INDEX idx_user_libraries_library_id ON user_libraries(library_id);
 
--- Enable RLS
 ALTER TABLE user_libraries ENABLE ROW LEVEL SECURITY;
 
--- RLS Policy: Users can view their library memberships
 CREATE POLICY "Users can view own library memberships"
     ON user_libraries FOR SELECT
     USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
 
--- Supabase Updated_at triggers
+-- Updated_at triggers
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -252,45 +223,38 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
--- Create trigger for users table
 CREATE TRIGGER update_users_updated_at
     BEFORE UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Create trigger for libraries table 
 CREATE TRIGGER update_libraries_updated_at
     BEFORE UPDATE ON libraries
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- 10. STORAGE BUCKET FOR PROFILE PICTURES 
-
--- Policy 1: Users can upload their own avatar
+-- 9. STORAGE POLICIES FOR PROFILE PICTURES
 CREATE POLICY "Users can upload own avatar"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (
-  bucket_id = 'avatars' 
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (
+        bucket_id = 'avatars' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
 
--- Policy 2: Users can update their own avatar
 CREATE POLICY "Users can update own avatar"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (
-  bucket_id = 'avatars' 
-  AND auth.uid()::text = (storage.foldername(name))[1]
-)
-WITH CHECK (
-  bucket_id = 'avatars' 
-  AND auth.uid()::text = (storage.foldername(name))[1]
-);
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (
+        bucket_id = 'avatars' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    )
+    WITH CHECK (
+        bucket_id = 'avatars' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
 
--- Policy 3: Anyone can view avatars (public access)
 CREATE POLICY "Anyone can view avatars"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id = 'avatars');
-
+    ON storage.objects FOR SELECT
+    TO public
+    USING (bucket_id = 'avatars');

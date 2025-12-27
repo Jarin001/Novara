@@ -5,6 +5,7 @@ require('dotenv').config();
 const { supabase } = require('./config/supabase');
 const connectDB = require('./config/mongodb');
 const userRoutes = require('./routes/userRoutes');
+const paperRoutes = require('./routes/paperRoutes');
 
 const app = express();
 
@@ -19,15 +20,17 @@ app.get("/", (req, res) => {
     message: "Novara Backend API is running!",
     version: "1.0.0",
     endpoints: {
-      users: "/api/users"
+      users: "/api/users",
+      papers: "/api/papers"
     }
   });
 });
 
-// Routes
+// Routes 
 app.use('/api/users', userRoutes);
+app.use('/api/papers', paperRoutes);
 
-// 404 handler
+// 404 handler - Must come AFTER all routes
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });

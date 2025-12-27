@@ -6,7 +6,7 @@ const { errorHandler } = require('../utils/errorHandler');
 const getUserProfile = async (req, res) => {
   try {
     const authId = req.user.id;
-    const supabase = req.supabase; // ADD THIS LINE
+    const supabase = req.supabase; 
 
     const { data, error } = await supabase
       .from('users')
