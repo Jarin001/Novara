@@ -11,6 +11,7 @@ const paperCitationsRoute = require("./routes/paper-citations.route");
 const paperReferencesRoute= require("./routes/paper-references.route");
 const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
+const paperaiRoute= require("./routes/paperAi.route");
 
 
 app.use(express.json());
@@ -42,6 +43,9 @@ app.use("/api/papers", relatedPapersRoute)
 
 //citation generation route
 app.use('/api/citations', citationRoutes);
+
+//paper-ai route
+app.use("/api/paper-ai", paperaiRoute);
 
 
 
