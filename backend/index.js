@@ -4,12 +4,49 @@ const connectDB = require('./config/mongodb');
 const app = express();
 
 
+const autocompleteRoute = require("./routes/autocompleteRoute");
+const paperSearchRoute = require("./routes/papersearch.route");
+const paperDetailsRoute = require("./routes/paperdetails.route");
+const paperCitationsRoute = require("./routes/paper-citations.route");
+const paperReferencesRoute= require("./routes/paper-references.route");
+const relatedPapersRoute= require("./routes/related-papers.route");
+const citationRoutes = require("./routes/citation.route");
+const paperaiRoute= require("./routes/paperAi.route");
+
+
 app.use(express.json());
 
 // Root route
 app.get("/", (req, res) => {
   res.send("Backend is running!");
 });
+
+
+
+//autocomplete route
+app.use("/api/autocomplete", autocompleteRoute);
+
+//paper-search route
+app.use("/api/papers", paperSearchRoute);
+
+//paper-details route
+app.use("/api/papers", paperDetailsRoute);
+
+//route to get citations of a paper
+app.use("/api/papers", paperCitationsRoute);
+
+// route to get papers cited by a paper
+app.use("/api/papers", paperReferencesRoute);
+
+//route to get related papers of a papaer
+app.use("/api/papers", relatedPapersRoute)
+
+//citation generation route
+app.use('/api/citations', citationRoutes);
+
+//paper-ai route
+app.use("/api/paper-ai", paperaiRoute);
+
 
 
 const PORT = process.env.PORT || 5000;
