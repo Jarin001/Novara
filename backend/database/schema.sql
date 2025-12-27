@@ -21,9 +21,6 @@ CREATE POLICY "Users can view own profile"
     ON users FOR SELECT
     USING (auth.uid() = auth_id);
 
-CREATE POLICY "Users can insert own profile"
-    ON users FOR INSERT
-    WITH CHECK (auth.uid() = auth_id);
 
 CREATE POLICY "Users can update own profile"
     ON users FOR UPDATE
@@ -60,6 +57,24 @@ ALTER TABLE papers ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Papers are viewable by everyone"
     ON papers FOR SELECT
     USING (true);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+    RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO public.users (auth_id, email, name)
+   VALUES (
+    NEW.id,
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'name', 'User')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- 3. AUTHORS TABLE
 
@@ -227,6 +242,27 @@ ALTER TABLE user_libraries ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can view own library memberships"
     ON user_libraries FOR SELECT
     USING (user_id = (SELECT id FROM users WHERE auth_id = auth.uid()));
+
+-- Supabase Updated_at triggers
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Create trigger for users table
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
+
+-- Create trigger for libraries table 
+CREATE TRIGGER update_libraries_updated_at
+    BEFORE UPDATE ON libraries
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column();
 
 -- 10. STORAGE BUCKET FOR PROFILE PICTURES 
 
