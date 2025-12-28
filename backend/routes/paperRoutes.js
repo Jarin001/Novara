@@ -11,7 +11,6 @@ const authMiddleware = require('../middlewares/authMiddleware');
 const { authenticate } = require('../middlewares/authMiddleware');
 
 router.post('/preview', authenticate, fetchPaperPreview);
-router.post('/save', authenticate, savePaper);
 
 
 module.exports = router;

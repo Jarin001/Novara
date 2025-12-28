@@ -7,6 +7,7 @@ const connectDB = require('./config/mongodb');
 const userRoutes = require('./routes/userRoutes');
 const paperRoutes = require('./routes/paperRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
+const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
@@ -40,6 +41,7 @@ app.get("/", (req, res) => {
 });
 
 // Routes 
+app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/papers', paperRoutes);
 app.use('/api/libraries', libraryRoutes);
