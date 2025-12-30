@@ -28,8 +28,8 @@ const getCitationText = (item, format) => {
     return `${(item.authors || []).join(', ')} (${year}). ${item.title}. ${item.venue}.`;
   }
 
-  if (format === 'Chicago') {
-    return `${(item.authors || []).join(', ')}. "${item.title}." ${item.venue} (${year}).`;
+  if (format === 'IEEE') {
+    return `[1] ${(item.authors || []).join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
   }
 
   return '';
@@ -55,21 +55,6 @@ const downloadBibTeX = (item) => {
   const content = getCitationText(item, 'BibTeX');
   const name = sanitizeFilename((item && item.title) || 'citation') + '.bib';
   downloadFile(name, content, 'application/x-bibtex');
-};
-
-const downloadEndNote = (item) => {
-  if (!item) return;
-  const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || '');
-  const lines = [];
-  lines.push('%0 Journal Article');
-  lines.push('%T ' + item.title);
-  (item.authors || []).forEach(a => lines.push('%A ' + a));
-  if (item.venue) lines.push('%J ' + item.venue);
-  if (year) lines.push('%D ' + year);
-  if (item.url) lines.push('%U ' + item.url);
-  const content = lines.join('\n');
-  const name = sanitizeFilename((item && item.title) || 'citation') + '.enw';
-  downloadFile(name, content, 'application/x-endnote-refer');
 };
 
 const CitePage = () => {
@@ -107,7 +92,7 @@ const CitePage = () => {
         <div style={{ padding: '24px' }}>
           {/* Format tabs */}
           <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
-            {['BibTeX', 'MLA', 'APA', 'Chicago'].map(fmt => (
+            {['BibTeX', 'MLA', 'APA', 'IEEE'].map(fmt => (
               <button
                 key={fmt}
                 onClick={() => setFormat(fmt)}
@@ -192,21 +177,6 @@ const CitePage = () => {
                     }}
                   >
                     BibTeX
-                  </button>
-                  <button
-                    onClick={() => downloadEndNote(item)}
-                    style={{
-                      padding: '8px 16px',
-                      background: '#fff',
-                      color: '#1a73e8',
-                      border: '1px solid #1a73e8',
-                      borderRadius: 4,
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 500
-                    }}
-                  >
-                    EndNote
                   </button>
                 </div>
               </div>

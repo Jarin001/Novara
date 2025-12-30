@@ -64,24 +64,18 @@ const ResultsPage = () => {
   const query = useQuery();
   const navigate = useNavigate();
   const q = query.get("q") || "";
-  const [showHasPdfOnly, setShowHasPdfOnly] = useState(false);
+  const type = query.get("type") || "publications";
   const [selectedFields, setSelectedFields] = useState([]);
-  const [selectedAuthors, setSelectedAuthors] = useState([]);
-  const [selectedJournals, setSelectedJournals] = useState([]);
   const [sortBy, setSortBy] = useState("relevance"); // 'relevance' | 'citations'
   const [dateRange, setDateRange] = useState([1931, 2026]);
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
-  const [openAuthor, setOpenAuthor] = useState(false);
-  const [openJournals, setOpenJournals] = useState(false);
   const [citeOpen, setCiteOpen] = useState(false);
   const [citeItem, setCiteItem] = useState(null);
   const [citeFormat, setCiteFormat] = useState('BibTeX');
 
   const fieldsRef = useRef(null);
   const dateRef = useRef(null);
-  const authorRef = useRef(null);
-  const journalsRef = useRef(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -91,8 +85,6 @@ const ResultsPage = () => {
       if (!containerRef.current.contains(e.target)) {
         setOpenFields(false);
         setOpenDate(false);
-        setOpenAuthor(false);
-        setOpenJournals(false);
       }
     };
     document.addEventListener('mousedown', onDocClick);
@@ -104,24 +96,9 @@ const ResultsPage = () => {
   const visible = useMemo(() => {
     let list = results.slice();
 
-    // Has PDF filter
-    if (showHasPdfOnly) {
-      list = list.filter((r) => r.pdf === true);
-    }
-
     // Fields filter (if selected)
     if (selectedFields.length) {
       list = list.filter((r) => r.fields && r.fields.some(f => selectedFields.includes(f)));
-    }
-
-    // Authors filter
-    if (selectedAuthors.length) {
-      list = list.filter((r) => r.authors && r.authors.some(a => selectedAuthors.some(sa => a.includes(sa) || sa.includes(a))));
-    }
-
-    // Journals filter
-    if (selectedJournals.length) {
-      list = list.filter((r) => selectedJournals.includes(r.venue) || selectedJournals.some(j => r.venue && r.venue.includes(j)));
     }
 
     // Date range filter
@@ -139,7 +116,7 @@ const ResultsPage = () => {
     }
 
     return list;
-  }, [results, showHasPdfOnly, selectedFields, selectedAuthors, selectedJournals, dateRange, sortBy]);
+  }, [results, selectedFields, dateRange, sortBy]);
 
   const availableFields = [
     "Environmental Science",
@@ -175,7 +152,7 @@ const ResultsPage = () => {
   const onHeaderSearch = (e) => {
     e && e.preventDefault && e.preventDefault();
     const val = e.target.elements["headerSearch"].value || "";
-    navigate(`/search?q=${encodeURIComponent(val)}`);
+    navigate(`/search?q=${encodeURIComponent(val)}&type=${encodeURIComponent(type)}`);
   };
 
   const openCite = (item) => {
@@ -208,8 +185,8 @@ const ResultsPage = () => {
       return `${item.authors.join(', ')} (${year}). ${item.title}. ${item.venue}.`;
     }
 
-    if (format === 'Chicago') {
-      return `${item.authors.join(', ')}. "${item.title}." ${item.venue} (${year}).`;
+    if (format === 'IEEE') {
+      return `[1] ${item.authors.join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
     }
 
     return '';
@@ -254,22 +231,12 @@ const ResultsPage = () => {
     downloadFile(name, content, 'application/x-bibtex');
   };
 
-  const downloadEndNote = (item) => {
-    if (!item) return;
-    const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || '');
-    const lines = [];
-    lines.push('%0 Journal Article');
-    lines.push('%T ' + item.title);
-    (item.authors || []).forEach(a => lines.push('%A ' + a));
-    if (item.venue) lines.push('%J ' + item.venue);
-    if (year) lines.push('%D ' + year);
-    if (item.url) lines.push('%U ' + item.url);
-    const content = lines.join('\n');
-    const name = sanitizeFilename((item && item.title) || 'citation') + '.enw';
-    downloadFile(name, content, 'application/x-endnote-refer');
-  };;
-
   const total = 15300000; // mocked number
+
+  const authorMatches = availableAuthors.filter(a => {
+    if (!q) return true;
+    return a.toLowerCase().includes(q.toLowerCase());
+  });
 
   return (
     <>
@@ -289,14 +256,16 @@ const ResultsPage = () => {
         </form>
 
         <h3 style={{ marginTop: 8, marginBottom: 12, fontSize: 16, fontWeight: 500, color: '#333' }}>
-          About {total.toLocaleString()} results for "{q}"
+          {type === 'authors'
+            ? `About ${authorMatches.length} authors for "${q}"`
+            : `About ${total.toLocaleString()} results for "${q}"`}
         </h3>
 
         {/* filters row - visual only */}
         <div ref={containerRef} style={{ display: "flex", gap: 12, marginBottom: 18, alignItems: "center", flexWrap: 'wrap' }}>
           {/* Fields of Study dropdown (visual mimic) */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); setOpenAuthor(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
+            <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
             {openFields && (
               <div ref={fieldsRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
                 <strong style={{display:'block', marginBottom:8}}>Fields of Study</strong>
@@ -313,7 +282,7 @@ const ResultsPage = () => {
 
           {/* Date Range dropdown */}
           <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); setOpenAuthor(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
+            <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
             {openDate && (
               <div ref={dateRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
                 <div style={{ position: 'relative', padding: '6px 0' }}>
@@ -354,48 +323,6 @@ const ResultsPage = () => {
             )}
           </div>
 
-          {/* Has PDF toggle */}
-          <button
-            onClick={() => setShowHasPdfOnly((s) => !s)}
-            style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: showHasPdfOnly ? '#eef6f1' : '#fff' }}
-          >
-            Has PDF {showHasPdfOnly ? '✓' : ''}
-          </button>
-
-          {/* Author dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenAuthor(o=>!o); setOpenFields(false); setOpenDate(false); setOpenJournals(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Author ▾</button>
-            {openAuthor && (
-              <div ref={authorRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 320, zIndex:50 }}>
-                <strong style={{display:'block', marginBottom:8}}>Authors</strong>
-                {availableAuthors.map((a) => (
-                  <label key={a} style={{ display: 'block', marginBottom: 8 }}>
-                    <input type="checkbox" checked={selectedAuthors.includes(a)} onChange={() => {
-                      setSelectedAuthors((prev) => prev.includes(a) ? prev.filter(x=>x!==a) : [...prev, a]);
-                    }} /> <span style={{marginLeft:8}}>{a}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Journals & Conferences dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenJournals(o=>!o); setOpenFields(false); setOpenDate(false); setOpenAuthor(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Journals & Conferences ▾</button>
-            {openJournals && (
-              <div ref={journalsRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex:50 }}>
-                <strong style={{display:'block', marginBottom:8}}>Top Journals & Conferences</strong>
-                {availableJournals.map((j) => (
-                  <label key={j} style={{ display: 'block', marginBottom: 6 }}>
-                    <input type="checkbox" checked={selectedJournals.includes(j)} onChange={() => {
-                      setSelectedJournals((prev) => prev.includes(j) ? prev.filter(x=>x!==j) : [...prev, j]);
-                    }} /> <span style={{marginLeft:8}}>{j}</span>
-                  </label>
-                ))}
-              </div>
-            )}
-          </div>
-
           {/* Sort dropdown */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap:8 }}>
             <label style={{ color:'#444', fontSize:13 }}>Sort by</label>
@@ -407,27 +334,70 @@ const ResultsPage = () => {
         </div>
 
         <div>
-          {visible.map((r, i) => (
-            <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
-              <a style={{ color: "#1a73e8", fontSize: 20, fontWeight: 600, textDecoration: "none" }} href="#">
-                {r.title}
-              </a>
+          {type === 'authors' ? (
+            <>
+              {authorMatches.map((a, i) => (
+                <div key={i} style={{ padding: "12px 0", borderBottom: "1px solid #eee", display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+                    <button
+                      onClick={() => navigate(`/search?q=${encodeURIComponent(a)}&type=publications`)}
+                      style={{
+                        color: "#1a73e8",
+                        fontSize: 16,
+                        fontWeight: 600,
+                        textDecoration: "none",
+                        background: "transparent",
+                        border: "none",
+                        cursor: "pointer",
+                        padding: 0,
+                        textAlign: "left",
+                      }}
+                    >
+                      {a}
+                    </button>
+                  </div>
+                  <div style={{ color: '#666', fontSize: 13 }}>{/* optional meta */}</div>
+                </div>
+              ))}
+            </>
+          ) : (
+            <>
+              {visible.map((r, i) => (
+                <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
+                  <button 
+                    onClick={() => navigate('/paper', { state: { paper: r } })}
+                    style={{ 
+                      color: "#1a73e8", 
+                      fontSize: 20, 
+                      fontWeight: 600, 
+                      textDecoration: "none",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      textAlign: "left"
+                    }}
+                  >
+                    {r.title}
+                  </button>
 
-              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                {r.authors.map((a) => (
-                  <span key={a} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>{a}</span>
-                ))}
-                <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
-              </div>
+                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {r.authors.map((a) => (
+                      <span key={a} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>{a}</span>
+                    ))}
+                    <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
+                  </div>
 
-              <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
+                  <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
 
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                <span style={{ color: "#888" }}>Save</span>
-                <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>Cite</button>
-              </div>
-            </div>
-          ))}
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
+                    <span style={{ color: "#888" }}>Save</span>
+                    <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>Cite</button>
+                  </div>
+                </div>
+              ))}
+            </>
+          )}
         </div>
 
         {/* pagination */}
@@ -454,7 +424,7 @@ const ResultsPage = () => {
               <div style={{ padding: '24px' }}>
                 {/* Format tabs */}
                 <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
-                  {['BibTeX', 'MLA', 'APA', 'Chicago'].map(fmt => (
+                  {['BibTeX', 'MLA', 'APA', 'IEEE'].map(fmt => (
                     <button
                       key={fmt}
                       onClick={() => setCiteFormat(fmt)}
@@ -539,21 +509,6 @@ const ResultsPage = () => {
                           }}
                         >
                           BibTeX
-                        </button>
-                        <button
-                          onClick={() => downloadEndNote(citeItem)}
-                          style={{
-                            padding: '8px 16px',
-                            background: '#fff',
-                            color: '#1a73e8',
-                            border: '1px solid #1a73e8',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            fontWeight: 500
-                          }}
-                        >
-                          EndNote
                         </button>
                       </div>
                     </div>

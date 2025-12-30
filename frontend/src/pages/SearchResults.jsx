@@ -10,15 +10,18 @@ const SearchResults = () => {
   const query = useQuery();
   const navigate = useNavigate();
   const initial = query.get("q") || "";
+  const initialType = query.get("type") || "publications";
   const [q, setQ] = useState(initial);
+  const [searchType, setSearchType] = useState(initialType);
 
   useEffect(() => {
     setQ(initial);
-  }, [initial]);
+    setSearchType(initialType);
+  }, [initial, initialType]);
 
   const onSubmit = (e) => {
     if (e && e.preventDefault) e.preventDefault();
-    navigate(`/search?q=${encodeURIComponent(q)}`);
+    navigate(`/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(searchType)}`);
   };
 
   const suggestions = ["COVID-19", "Bioenergy", "Obesity", "Intrinsic Motivation"];
@@ -55,26 +58,44 @@ const SearchResults = () => {
             </button>
           </form>
 
-          <div style={{ marginTop: 20, color: "#333", textAlign: "center" }}>
-            <strong>Try:</strong>
-            <span style={{ marginLeft: 12 }}>
-              {suggestions.map((s, idx) => (
-                <React.Fragment key={s}>
-                  <a
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      setQ(s);
-                      navigate(`/search?q=${encodeURIComponent(s)}`);
-                    }}
-                    style={{ marginRight: 12, color: "#007b8a" }}
-                  >
-                    {s}
-                  </a>
-                  {idx < suggestions.length - 1 && <span style={{ marginRight: 12, color: "#333" }}>|</span>}
-                </React.Fragment>
-              ))}
-            </span>
+          <div style={{ marginTop: 20, color: "#333", textAlign: "center", display: "flex", justifyContent: "center", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <button
+                onClick={() => {
+                  setSearchType("publications");
+                  navigate(`/search?q=${encodeURIComponent(q)}&type=publications`);
+                }}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  border: searchType === "publications" ? "2px solid #007b8a" : "1px solid #ccc",
+                  background: searchType === "publications" ? "#e6f7f8" : "#fff",
+                  color: "#007b8a",
+                  cursor: "pointer",
+                }}
+              >
+                Publications
+              </button>
+
+              <span style={{ color: "#333" }}>|</span>
+
+              <button
+                onClick={() => {
+                  setSearchType("authors");
+                  navigate(`/search?q=${encodeURIComponent(q)}&type=authors`);
+                }}
+                style={{
+                  padding: "8px 14px",
+                  borderRadius: 6,
+                  border: searchType === "authors" ? "2px solid #007b8a" : "1px solid #ccc",
+                  background: searchType === "authors" ? "#e6f7f8" : "#fff",
+                  color: "#007b8a",
+                  cursor: "pointer",
+                }}
+              >
+                Authors
+              </button>
+            </div>
           </div>
         </div>
       </div>
