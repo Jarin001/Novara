@@ -22,7 +22,6 @@ const ALL_FIELDS = [
   "publicationDate",
   "journal",
   "authors",
-  "tldr",
   "textAvailability"
 ].join(",");
 
