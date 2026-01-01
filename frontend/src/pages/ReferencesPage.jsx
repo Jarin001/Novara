@@ -300,7 +300,10 @@ const ReferencesPage = () => {
                 <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
               </div>
 
-              <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
+              <p style={{ marginTop: 10, color: "#444" }}>
+                {r.snippet} 
+                <a href="#" style={{ color: "#3E513E", marginLeft: 4 }}>Expand</a>
+              </p>
 
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
                 <span style={{ color: "#888" }}>Save</span>
