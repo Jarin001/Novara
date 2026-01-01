@@ -7,7 +7,6 @@ function useQuery() {
 }
 
 const mockResults = (q) => {
-  // enhanced mocked results - include pdf, citationCount, fields
   const sample = [
     {
       id: 1,
@@ -60,28 +59,70 @@ const mockResults = (q) => {
   return sample;
 };
 
+// Helper functions for citation formatting
+const getCitationText = (item, format) => {
+  if (!item) return '';
+  const authors = (item.authors || []).join(' and ');
+  const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
+
+  if (format === 'BibTeX') {
+    const key = `${(item.authors && item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
+    return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
+  }
+
+  if (format === 'MLA') {
+    return `${(item.authors || []).join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
+  }
+
+  if (format === 'APA') {
+    return `${(item.authors || []).join(', ')} (${year}). ${item.title}. ${item.venue}.`;
+  }
+
+  if (format === 'IEEE') {
+    return `[1] ${(item.authors || []).join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
+  }
+
+  return '';
+};
+
+const sanitizeFilename = (s = '') => {
+  return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
+};
+
+const downloadFile = (filename, content, mime = 'text/plain') => {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
 const ResultsPage = () => {
   const query = useQuery();
   const navigate = useNavigate();
   const q = query.get("q") || "";
   const type = query.get("type") || "publications";
   const [selectedFields, setSelectedFields] = useState([]);
-  const [sortBy, setSortBy] = useState("relevance"); // 'relevance' | 'citations'
+  const [sortBy, setSortBy] = useState("relevance");
   const [dateRange, setDateRange] = useState([1931, 2026]);
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
+  
+  // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
   const [citeItem, setCiteItem] = useState(null);
   const [citeFormat, setCiteFormat] = useState('BibTeX');
+  const [copied, setCopied] = useState(false);
 
-  const fieldsRef = useRef(null);
-  const dateRef = useRef(null);
   const containerRef = useRef(null);
 
   useEffect(() => {
     const onDocClick = (e) => {
       if (!containerRef.current) return;
-      // if click is outside the whole filters container, close all
       if (!containerRef.current.contains(e.target)) {
         setOpenFields(false);
         setOpenDate(false);
@@ -96,12 +137,10 @@ const ResultsPage = () => {
   const visible = useMemo(() => {
     let list = results.slice();
 
-    // Fields filter (if selected)
     if (selectedFields.length) {
       list = list.filter((r) => r.fields && r.fields.some(f => selectedFields.includes(f)));
     }
 
-    // Date range filter
     if (dateRange && dateRange.length === 2) {
       const [minY, maxY] = dateRange;
       list = list.filter((r) => {
@@ -110,7 +149,6 @@ const ResultsPage = () => {
       });
     }
 
-    // Sorting
     if (sortBy === 'citations') {
       list.sort((a,b)=> (b.citationCount || 0) - (a.citationCount || 0));
     }
@@ -140,15 +178,6 @@ const ResultsPage = () => {
     "Wei Zhang",
   ];
 
-  const availableJournals = [
-    "Forests",
-    "PLoS ONE",
-    "Plant Disease",
-    "Plant and Soil",
-    "Cureus",
-    "Scientific Reports",
-  ];
-
   const onHeaderSearch = (e) => {
     e && e.preventDefault && e.preventDefault();
     const val = e.target.elements["headerSearch"].value || "";
@@ -156,43 +185,17 @@ const ResultsPage = () => {
   };
 
   const openCite = (item) => {
-    // open modal instead of navigating
     setCiteItem(item);
     setCiteFormat('BibTeX');
     setCiteOpen(true);
+    setCopied(false);
   };
 
   const closeCite = () => {
     setCiteOpen(false);
     setCiteItem(null);
+    setCopied(false);
   };
-
-  const getCitationText = (item, format) => {
-    if (!item) return '';
-    const authors = item.authors.join(' and ');
-    const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
-
-    if (format === 'BibTeX') {
-      const key = `${(item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
-      return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
-    }
-
-    if (format === 'MLA') {
-      return `${item.authors.join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
-    }
-
-    if (format === 'APA') {
-      return `${item.authors.join(', ')} (${year}). ${item.title}. ${item.venue}.`;
-    }
-
-    if (format === 'IEEE') {
-      return `[1] ${item.authors.join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
-    }
-
-    return '';
-  };
-
-  const [copied, setCopied] = useState(false);
 
   const copyCitation = async () => {
     const txt = getCitationText(citeItem, citeFormat);
@@ -209,34 +212,18 @@ const ResultsPage = () => {
     }
   };
 
-  const sanitizeFilename = (s = '') => {
-    return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
-  };
-
-  const downloadFile = (filename, content, mime = 'text/plain') => {
-    const blob = new Blob([content], { type: mime });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(url);
-  };
-
   const downloadBibTeX = (item) => {
     const content = getCitationText(item, 'BibTeX');
     const name = sanitizeFilename((item && item.title) || 'citation') + '.bib';
     downloadFile(name, content, 'application/x-bibtex');
   };
 
-  const total = 15300000; // mocked number
-
   const authorMatches = availableAuthors.filter(a => {
     if (!q) return true;
     return a.toLowerCase().includes(q.toLowerCase());
   });
+
+  const total = 15300000;
 
   return (
     <>
@@ -261,13 +248,11 @@ const ResultsPage = () => {
             : `About ${total.toLocaleString()} results for "${q}"`}
         </h3>
 
-        {/* filters row - visual only */}
         <div ref={containerRef} style={{ display: "flex", gap: 12, marginBottom: 18, alignItems: "center", flexWrap: 'wrap' }}>
-          {/* Fields of Study dropdown (visual mimic) */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
             {openFields && (
-              <div ref={fieldsRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
+              <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
                 <strong style={{display:'block', marginBottom:8}}>Fields of Study</strong>
                 {availableFields.map((f) => (
                   <label key={f} style={{ display: 'block', marginBottom: 6 }}>
@@ -280,13 +265,11 @@ const ResultsPage = () => {
             )}
           </div>
 
-          {/* Date Range dropdown */}
           <div style={{ position: 'relative' }}>
             <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
             {openDate && (
-              <div ref={dateRef} style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
+              <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
                 <div style={{ position: 'relative', padding: '6px 0' }}>
-                  {/* Place two range inputs on the same visual track but keep their thumbs inside the popover by reducing the effective width and adding horizontal padding */}
                   <input
                     type="range"
                     min={1931}
@@ -323,7 +306,6 @@ const ResultsPage = () => {
             )}
           </div>
 
-          {/* Sort dropdown */}
           <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap:8 }}>
             <label style={{ color:'#444', fontSize:13 }}>Sort by</label>
             <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} style={{ padding:'6px 8px' }}>
@@ -356,7 +338,6 @@ const ResultsPage = () => {
                       {a}
                     </button>
                   </div>
-                  <div style={{ color: '#666', fontSize: 13 }}>{/* optional meta */}</div>
                 </div>
               ))}
             </>
@@ -400,7 +381,6 @@ const ResultsPage = () => {
           )}
         </div>
 
-        {/* pagination */}
         <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
           <button style={{ padding: "4px 8px", background: "#3E513E", color: "#fff", fontSize: 12 }}>1</button>
@@ -410,10 +390,28 @@ const ResultsPage = () => {
           <button style={{ padding: "4px 8px", fontSize: 12 }}>{"→"}</button>
         </div>
 
-        {/* Cite Modal */}
+        {/* Citation Modal - appears as overlay on top of the ResultsPage */}
         {citeOpen && citeItem && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-            <div style={{ width: '580px', maxWidth: '90vw', background: '#fff', borderRadius: 8, boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden' }}>
+          <div style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0, 
+            background: 'rgba(0,0,0,0.5)', 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: 'center', 
+            zIndex: 1000 
+          }}>
+            <div style={{ 
+              width: '580px', 
+              maxWidth: '90vw', 
+              background: '#fff', 
+              borderRadius: 8, 
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
+              overflow: 'hidden' 
+            }}>
               {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e0e0e0' }}>
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Cite Paper</h2>

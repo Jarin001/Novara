@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import Home from "./pages/Home";
 import SearchResults from "./pages/SearchResults";
 import ResultsPage from "./pages/ResultsPage";
-import CitePage from "./pages/CitePage";
 import PaperDetails from "./pages/PaperDetails";
 import CitationsPage from "./pages/CitationsPage";
 import ReferencesPage from "./pages/ReferencesPage";
@@ -23,7 +22,6 @@ function App() {
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/search" element={<SearchRouteSwitch />} />
-        <Route path="/cite" element={<CitePage />} />
         <Route path="/paper" element={<PaperDetails />} />
         <Route path="/citations" element={<CitationsPage />} />
         <Route path="/references" element={<ReferencesPage />} />
