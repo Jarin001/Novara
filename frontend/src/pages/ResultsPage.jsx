@@ -250,7 +250,7 @@ const ResultsPage = () => {
             placeholder="Search for articles..."
             style={{ flex: 1, padding: "10px 12px", border: "1px solid #ddd", borderRadius: 4 }}
           />
-          <button style={{ marginLeft: 8, padding: "8px 14px", background: "#f0c14b", border: "1px solid #d2a33a", cursor: "pointer" }}>
+          <button style={{ marginLeft: 8, padding: "8px 14px", background: "#3E513E", color: "#fff", border: "1px solid #3E513E", cursor: "pointer" }}>
             Search
           </button>
         </form>
@@ -342,7 +342,7 @@ const ResultsPage = () => {
                     <button
                       onClick={() => navigate(`/search?q=${encodeURIComponent(a)}&type=publications`)}
                       style={{
-                        color: "#1a73e8",
+                        color: "#3E513E",
                         fontSize: 16,
                         fontWeight: 600,
                         textDecoration: "none",
@@ -367,7 +367,7 @@ const ResultsPage = () => {
                   <button 
                     onClick={() => navigate('/paper', { state: { paper: r } })}
                     style={{ 
-                      color: "#1a73e8", 
+                      color: "#3E513E", 
                       fontSize: 20, 
                       fontWeight: 600, 
                       textDecoration: "none",
@@ -388,7 +388,7 @@ const ResultsPage = () => {
                     <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
                   </div>
 
-                  <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
+                  <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#" style={{ color: "#3E513E" }}>Expand</a></p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
                     <span style={{ color: "#888" }}>Save</span>
@@ -403,7 +403,7 @@ const ResultsPage = () => {
         {/* pagination */}
         <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
-          <button style={{ padding: "4px 8px", background: "#1a73e8", color: "#fff", fontSize: 12 }}>1</button>
+          <button style={{ padding: "4px 8px", background: "#3E513E", color: "#fff", fontSize: 12 }}>1</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>2</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>3</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>4</button>
@@ -417,7 +417,7 @@ const ResultsPage = () => {
               {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e0e0e0' }}>
                 <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Cite Paper</h2>
-                <button onClick={closeCite} style={{ width: 40, height: 40, borderRadius: 20, background: '#1a73e8', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+                <button onClick={closeCite} style={{ width: 40, height: 40, borderRadius: 20, background: '#3E513E', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 20, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
 
               {/* Content */}
@@ -432,11 +432,11 @@ const ResultsPage = () => {
                         padding: '12px 16px',
                         background: 'transparent',
                         border: 'none',
-                        borderBottom: citeFormat === fmt ? '3px solid #1a73e8' : '3px solid transparent',
+                        borderBottom: citeFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
                         cursor: 'pointer',
                         fontSize: 14,
                         fontWeight: citeFormat === fmt ? 600 : 500,
-                        color: citeFormat === fmt ? '#1a73e8' : '#666'
+                        color: citeFormat === fmt ? '#3E513E' : '#666'
                       }}
                     >
                       {fmt}
@@ -478,7 +478,7 @@ const ResultsPage = () => {
                         gap: 6,
                         background: 'transparent',
                         border: 'none',
-                        color: '#1a73e8',
+                        color: '#3E513E',
                         cursor: 'pointer',
                         fontSize: 13,
                         fontWeight: 500,
@@ -499,7 +499,7 @@ const ResultsPage = () => {
                           onClick={() => downloadBibTeX(citeItem)}
                           style={{
                             padding: '8px 16px',
-                            background: '#1a73e8',
+                            background: '#3E513E',
                             color: '#fff',
                             border: 'none',
                             borderRadius: 4,

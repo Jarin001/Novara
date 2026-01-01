@@ -24,7 +24,6 @@ const SearchResults = () => {
     navigate(`/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(searchType)}`);
   };
 
-  const suggestions = ["COVID-19", "Bioenergy", "Obesity", "Intrinsic Motivation"];
 
   return (
     <>
@@ -53,7 +52,7 @@ const SearchResults = () => {
               onChange={(e) => setQ(e.target.value)}
               style={{ flex: 1, padding: "18px 20px", fontSize: 18, border: "none", outline: "none", background: "#fff" }}
             />
-            <button type="submit" style={{ padding: "0 28px", backgroundColor: "#007b8a", color: "#fff", border: "none", cursor: "pointer", fontSize: 18 }}>
+            <button type="submit" style={{ padding: "0 28px", backgroundColor: "#3E513E", color: "#fff", border: "none", cursor: "pointer", fontSize: 18 }}>
               Search
             </button>
           </form>
@@ -68,16 +67,14 @@ const SearchResults = () => {
                 style={{
                   padding: "8px 14px",
                   borderRadius: 6,
-                  border: searchType === "publications" ? "2px solid #007b8a" : "1px solid #ccc",
+                  border: searchType === "publications" ? "2px solid #3E513E" : "1px solid #ccc",
                   background: searchType === "publications" ? "#e6f7f8" : "#fff",
-                  color: "#007b8a",
+                  color: "#3E513E",
                   cursor: "pointer",
                 }}
               >
                 Publications
               </button>
-
-              <span style={{ color: "#333" }}>|</span>
 
               <button
                 onClick={() => {
@@ -87,9 +84,9 @@ const SearchResults = () => {
                 style={{
                   padding: "8px 14px",
                   borderRadius: 6,
-                  border: searchType === "authors" ? "2px solid #007b8a" : "1px solid #ccc",
+                  border: searchType === "authors" ? "2px solid #3E513E" : "1px solid #ccc",
                   background: searchType === "authors" ? "#e6f7f8" : "#fff",
-                  color: "#007b8a",
+                  color: "#3E513E",
                   cursor: "pointer",
                 }}
               >

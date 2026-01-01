@@ -11,7 +11,7 @@ const Navbar = () => {
         top: 0,
         width: "100%",
         zIndex: 1000,
-        backgroundColor: "#000",
+        backgroundColor: "#3E513E",
         color: "#fff",
         padding: "16px 40px",
         display: "flex",
@@ -29,7 +29,7 @@ const Navbar = () => {
         <span style={{ cursor: "pointer" }} onClick={() => navigate('/search')}>Search</span>
         <span style={{ cursor: "pointer" }}>Sign In</span>
         <span style={{ cursor: "pointer" }}>Create Account</span>
-        <span style={{ cursor: "pointer" }}>About Us</span>
+        {/* <span style={{ cursor: "pointer" }}>About Us</span> */}
       </div>
     </div>
   );

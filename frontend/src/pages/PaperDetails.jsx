@@ -135,7 +135,7 @@ const PaperDetails = () => {
                   <React.Fragment key={idx}>
                     <span 
                       style={{ 
-                        color: '#1a73e8', 
+                        color: '#3E513E', 
                         cursor: 'pointer',
                         textDecoration: 'none',
                         fontSize: 14
@@ -150,11 +150,11 @@ const PaperDetails = () => {
               </div>
               
               <div style={{ color: '#999', fontSize: 13 }}>
-                <span>Published in <a href="#" style={{ color: '#1a73e8', textDecoration: 'none' }}>{paper.venue}</a></span>
+                <span>Published in <a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>{paper.venue}</a></span>
                 <span style={{ margin: '0 8px' }}>·</span>
                 <span>{paper.date}</span>
                 <span style={{ margin: '0 8px' }}>·</span>
-                <span><a href="#" style={{ color: '#1a73e8', textDecoration: 'none' }}>Computer Science, Engineering</a></span>
+                <span><a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>Computer Science, Engineering</a></span>
               </div>
             </div>
 
@@ -174,7 +174,7 @@ const PaperDetails = () => {
               <button 
                 onClick={() => setAbstractExpanded(!abstractExpanded)}
                 style={{ 
-                  color: '#1a73e8', 
+                  color: '#3E513E', 
                   textDecoration: 'none', 
                   background: 'transparent',
                   border: 'none',
@@ -191,7 +191,7 @@ const PaperDetails = () => {
               <button style={{
                 padding: '10px 16px',
                 background: 'transparent',
-                color: '#1a73e8',
+                color: '#3E513E',
                 border: '1px solid #d0d0d0',
                 borderRadius: 4,
                 cursor: 'pointer',
@@ -203,7 +203,7 @@ const PaperDetails = () => {
               <button style={{
                 padding: '10px 16px',
                 background: 'transparent',
-                color: '#1a73e8',
+                color: '#3E513E',
                 border: '1px solid #d0d0d0',
                 borderRadius: 4,
                 cursor: 'pointer',
@@ -248,8 +248,8 @@ const PaperDetails = () => {
                   padding: '16px 24px',
                   background: 'transparent',
                   border: 'none',
-                  borderBottom: activeTab === tab.id ? '3px solid #1a73e8' : '3px solid transparent',
-                  color: activeTab === tab.id ? '#1a73e8' : '#666',
+                  borderBottom: activeTab === tab.id ? '3px solid #3E513E' : '3px solid transparent',
+                  color: activeTab === tab.id ? '#3E513E' : '#666',
                   cursor: 'pointer',
                   fontSize: 14,
                   fontWeight: activeTab === tab.id ? 600 : 500,
@@ -275,7 +275,7 @@ const PaperDetails = () => {
                   <div>
                     <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>DOI</p>
                     <p style={{ fontSize: 14, color: '#333', margin: 0 }}>
-                      <a href={`https://doi.org/${paper.doi}`} style={{ color: '#1a73e8', textDecoration: 'none' }}>
+                      <a href={`https://doi.org/${paper.doi}`} style={{ color: '#3E513E', textDecoration: 'none' }}>
                         {paper.doi}
                       </a>
                     </p>
@@ -324,7 +324,7 @@ const PaperDetails = () => {
             width: 120,
             height: 48,
             borderRadius: 8,
-            background: '#007b8a',
+            background: '#3431f1ff',
             color: '#fff',
             border: 'none',
             cursor: 'pointer',
@@ -333,7 +333,7 @@ const PaperDetails = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            boxShadow: '0 4px 12px rgba(0, 123, 138, 0.4)',
+            boxShadow: '0 4px 12px rgba(62, 81, 62, 0.4)',
             zIndex: 999,
             transition: 'all 0.3s ease',
             letterSpacing: '0.5px'
@@ -363,7 +363,7 @@ const PaperDetails = () => {
         {/* Chat Header */}
         <div style={{
           padding: '16px 20px',
-          background: '#007b8a',
+          background: '#3E513E',
           color: '#fff',
           display: 'flex',
           justifyContent: 'space-between',
@@ -419,7 +419,7 @@ const PaperDetails = () => {
                 maxWidth: '80%',
                 padding: '10px 14px',
                 borderRadius: msg.role === 'user' ? '12px 12px 4px 12px' : '12px 12px 12px 4px',
-                background: msg.role === 'user' ? '#007b8a' : '#f0f0f0',
+                background: msg.role === 'user' ? '#3E513E' : '#f0f0f0',
                 color: msg.role === 'user' ? '#fff' : '#333',
                 fontSize: 13,
                 lineHeight: 1.4,
@@ -458,7 +458,7 @@ const PaperDetails = () => {
             onClick={handleSendMessage}
             style={{
               padding: '8px 12px',
-              background: '#007b8a',
+              background: '#3E513E',
               color: '#fff',
               border: 'none',
               borderRadius: 4,
@@ -481,7 +481,7 @@ const PaperDetails = () => {
           <a
             onClick={() => setChatOpen(false)}
             style={{
-              color: '#007b8a',
+              color: '#3E513E',
               cursor: 'pointer',
               fontSize: 13,
               textDecoration: 'underline',

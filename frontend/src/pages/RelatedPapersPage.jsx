@@ -108,6 +108,7 @@ const RelatedPapersPage = () => {
   const [dateRange, setDateRange] = useState([2020, 2026]);
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(4); // Start with 4 items
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -170,6 +171,14 @@ const RelatedPapersPage = () => {
     const val = e.target.elements["headerSearch"].value || "";
     navigate(`/search?q=${encodeURIComponent(val)}&type=publications`);
   };
+
+  const handleShowMore = () => {
+    // Show 4 more items each time
+    setVisibleCount(prevCount => Math.min(prevCount + 4, results.length));
+  };
+
+  const displayedResults = visible.slice(0, visibleCount);
+  const hasMoreResults = visibleCount < visible.length;
 
   return (
     <>
@@ -278,7 +287,7 @@ const RelatedPapersPage = () => {
         </div>
 
         <div>
-          {visible.map((r, i) => (
+          {displayedResults.map((r, i) => (
             <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
               <button 
                 onClick={() => navigate('/paper', { state: { paper: r } })}
@@ -322,15 +331,26 @@ const RelatedPapersPage = () => {
           ))}
         </div>
 
-        {/* pagination */}
-        <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
-          <button style={{ padding: "4px 8px", background: "#1a73e8", color: "#fff", fontSize: 12 }}>1</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>2</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>3</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>4</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"→"}</button>
-        </div>
+        {/* Show more button */}
+        {hasMoreResults && (
+          <div style={{ marginTop: 20, textAlign: "center" }}>
+            <button 
+              onClick={handleShowMore}
+              style={{ 
+                padding: "12px 32px", 
+                fontSize: 14,
+                background: "#1a73e8", 
+                color: "#fff", 
+                border: "none",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontWeight: 500
+              }}
+            >
+              Show more
+            </button>
+          </div>
+        )}
       </div>
     </>
   );

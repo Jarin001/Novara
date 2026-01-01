@@ -177,7 +177,7 @@ const ReferencesPage = () => {
           <button 
             onClick={() => navigate(-1)}
             style={{
-              color: '#1a73e8',
+              color: '#3E513E',
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
@@ -279,7 +279,7 @@ const ReferencesPage = () => {
               <button 
                 onClick={() => navigate('/paper', { state: { paper: r } })}
                 style={{ 
-                  color: "#1a73e8", 
+                  color: "#3E513E", 
                   fontSize: 20, 
                   fontWeight: 600, 
                   textDecoration: "none",
@@ -321,7 +321,7 @@ const ReferencesPage = () => {
         {/* pagination */}
         <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
-          <button style={{ padding: "4px 8px", background: "#1a73e8", color: "#fff", fontSize: 12 }}>1</button>
+          <button style={{ padding: "4px 8px", background: "#3E513E", color: "#fff", fontSize: 12 }}>1</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>2</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>3</button>
           <button style={{ padding: "4px 8px", fontSize: 12 }}>4</button>

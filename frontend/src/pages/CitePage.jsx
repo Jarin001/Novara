@@ -100,11 +100,11 @@ const CitePage = () => {
                   padding: '12px 16px',
                   background: 'transparent',
                   border: 'none',
-                  borderBottom: format === fmt ? '3px solid #1a73e8' : '3px solid transparent',
+                  borderBottom: format === fmt ? '3px solid #3E513E' : '3px solid transparent',
                   cursor: 'pointer',
                   fontSize: 14,
                   fontWeight: format === fmt ? 600 : 500,
-                  color: format === fmt ? '#1a73e8' : '#666'
+                  color: format === fmt ? '#3E513E' : '#666'
                 }}
               >
                 {fmt}
@@ -146,7 +146,7 @@ const CitePage = () => {
                   gap: 6,
                   background: 'transparent',
                   border: 'none',
-                  color: '#1a73e8',
+                  color: '#3E513E',
                   cursor: 'pointer',
                   fontSize: 13,
                   fontWeight: 500,
@@ -167,7 +167,7 @@ const CitePage = () => {
                     onClick={() => downloadBibTeX(item)}
                     style={{
                       padding: '8px 16px',
-                      background: '#1a73e8',
+                      background: '#3E513E',
                       color: '#fff',
                       border: 'none',
                       borderRadius: 4,
