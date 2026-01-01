@@ -24,7 +24,6 @@ const SearchResults = () => {
     navigate(`/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(searchType)}`);
   };
 
-
   return (
     <>
       <Navbar />
@@ -44,15 +43,34 @@ const SearchResults = () => {
           <h1 style={{ fontSize: 48, fontWeight: 700, marginBottom: 16, color: "#222" }}>Welcome to Novara</h1>
           <p style={{ fontSize: 20, color: "#444", marginBottom: 32 }}>Search for and add articles to your library</p>
 
-          <form onSubmit={onSubmit} style={{ width: "100%", display: "flex", boxShadow: "0 6px 20px rgba(0,0,0,0.08)", borderRadius: 8, overflow: "hidden" }}>
+          <form onSubmit={onSubmit} style={{ width: "100%", display: "flex", boxShadow: "0 6px 20px rgba(0,0,0,0.08)", borderRadius: "12px", overflow: "hidden" }}>
             <input
               type="text"
               placeholder="Search for articles..."
               value={q}
               onChange={(e) => setQ(e.target.value)}
-              style={{ flex: 1, padding: "18px 20px", fontSize: 18, border: "none", outline: "none", background: "#fff" }}
+              style={{ 
+                flex: 1, 
+                padding: "18px 20px", 
+                fontSize: 18, 
+                border: "none", 
+                outline: "none", 
+                background: "#fff",
+                borderRadius: "12px 0 0 12px" // Rounded left side
+              }}
             />
-            <button type="submit" style={{ padding: "0 28px", backgroundColor: "#3E513E", color: "#fff", border: "none", cursor: "pointer", fontSize: 18 }}>
+            <button 
+              type="submit" 
+              style={{ 
+                padding: "0 28px", 
+                backgroundColor: "#3E513E", 
+                color: "#fff", 
+                border: "none", 
+                cursor: "pointer", 
+                fontSize: 18,
+                borderRadius: "0 12px 12px 0" // Rounded right side
+              }}
+            >
               Search
             </button>
           </form>
@@ -66,7 +84,7 @@ const SearchResults = () => {
                 }}
                 style={{
                   padding: "8px 14px",
-                  borderRadius: 6,
+                  borderRadius: "8px",
                   border: searchType === "publications" ? "2px solid #3E513E" : "1px solid #ccc",
                   background: searchType === "publications" ? "#e6f7f8" : "#fff",
                   color: "#3E513E",
@@ -83,7 +101,7 @@ const SearchResults = () => {
                 }}
                 style={{
                   padding: "8px 14px",
-                  borderRadius: 6,
+                  borderRadius: "8px",
                   border: searchType === "authors" ? "2px solid #3E513E" : "1px solid #ccc",
                   background: searchType === "authors" ? "#e6f7f8" : "#fff",
                   color: "#3E513E",

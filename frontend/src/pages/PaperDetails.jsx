@@ -71,6 +71,11 @@ const PaperDetails = () => {
     }
   };
 
+  const handleBackToResults = () => {
+    // Go back to search results or previous page
+    navigate(-1);
+  };
+
   return (
     <>
       <Navbar />
@@ -86,6 +91,28 @@ const PaperDetails = () => {
         transition: 'margin-right 0.3s ease'
       }}>
         
+        {/* Back to Results Button */}
+        <div style={{ marginBottom: 24 }}>
+          <button 
+            onClick={handleBackToResults}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'transparent',
+              border: 'none',
+              color: '#3E513E',
+              cursor: 'pointer',
+              fontSize: 14,
+              fontWeight: 500,
+              padding: '8px 0'
+            }}
+          >
+            <span style={{ fontSize: 18 }}>←</span>
+            <span>Back to results</span>
+          </button>
+        </div>
+
         {/* Main Content Container */}
         <div style={{ 
           display: 'flex', 
