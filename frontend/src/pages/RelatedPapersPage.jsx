@@ -190,7 +190,7 @@ const RelatedPapersPage = () => {
           <button 
             onClick={() => navigate(-1)}
             style={{
-              color: '#1a73e8',
+              color: '#3E513E',
               background: 'transparent',
               border: 'none',
               cursor: 'pointer',
@@ -292,7 +292,7 @@ const RelatedPapersPage = () => {
               <button 
                 onClick={() => navigate('/paper', { state: { paper: r } })}
                 style={{ 
-                  color: "#1a73e8", 
+                  color: "#3E513E", 
                   fontSize: 20, 
                   fontWeight: 600, 
                   textDecoration: "none",
@@ -313,7 +313,7 @@ const RelatedPapersPage = () => {
                 <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
               </div>
 
-              <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#">Expand</a></p>
+              <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#" style={{ color: '#3E513E' }}>Expand</a></p>
 
               <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
                 <span style={{ color: "#888" }}>Save</span>
@@ -339,7 +339,7 @@ const RelatedPapersPage = () => {
               style={{ 
                 padding: "12px 32px", 
                 fontSize: 14,
-                background: "#1a73e8", 
+                background: "#3E513E", 
                 color: "#fff", 
                 border: "none",
                 borderRadius: 4,

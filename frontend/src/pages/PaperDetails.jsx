@@ -262,51 +262,138 @@ const PaperDetails = () => {
             ))}
           </div>
 
-          {/* Tab Content */}
+          {/* Tab Content - ALWAYS SHOW DETAILS + CONDITIONAL TOPICS */}
           <div style={{ 
             padding: 24,
             maxWidth: 1400,
             margin: '0 auto'
           }}>
-            {activeTab === 'details' && (
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Paper Details</h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>DOI</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>
-                      <a href={`https://doi.org/${paper.doi}`} style={{ color: '#3E513E', textDecoration: 'none' }}>
-                        {paper.doi}
-                      </a>
-                    </p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Corpus ID</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.corpusId}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Publication Venue</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.venue}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Year</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.date}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Authors</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.authors.length}</p>
-                  </div>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Citations</p>
-                    <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.citationCount}</p>
-                  </div>
+            {/* ALWAYS SHOW DETAILS CONTENT */}
+            <div id="details-section" style={{ marginBottom: activeTab === 'topics' ? 40 : 0 }}>
+              <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Paper Details</h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>DOI</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>
+                    <a href={`https://doi.org/${paper.doi}`} style={{ color: '#3E513E', textDecoration: 'none' }}>
+                      {paper.doi}
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Corpus ID</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.corpusId}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Publication Venue</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.venue}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Year</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.date}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Authors</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.authors.length}</p>
+                </div>
+                <div>
+                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Citations</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.citationCount}</p>
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* SHOW TOPICS CONTENT BELOW DETAILS WHEN TOPICS TAB IS ACTIVE */}
             {activeTab === 'topics' && (
-              <div>
+              <div id="topics-section" style={{ borderTop: '1px solid #e0e0e0', paddingTop: 40 }}>
                 <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Topics</h3>
-                <p style={{ fontSize: 14, color: '#666' }}>Topics information will be displayed here.</p>
+                
+                {/* Main Topics */}
+                <div style={{ marginBottom: 30 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Main Topics</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Signal Processing
+                    </span>
+                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      MIMO Systems
+                    </span>
+                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Expectation Propagation
+                    </span>
+                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Wireless Communication
+                    </span>
+                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Hardware Efficiency
+                    </span>
+                  </div>
+                </div>
+
+                {/* Related Topics */}
+                <div style={{ marginBottom: 30 }}>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Related Topics</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Machine Learning
+                    </span>
+                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Numerical Methods
+                    </span>
+                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Matrix Computations
+                    </span>
+                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      Communication Theory
+                    </span>
+                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
+                      VLSI Design
+                    </span>
+                  </div>
+                </div>
+
+                {/* Topic Distribution */}
+                <div>
+                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Topic Distribution</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: '#555' }}>Signal Processing</span>
+                        <span style={{ fontSize: 13, color: '#777' }}>85%</span>
+                      </div>
+                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: '85%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: '#555' }}>MIMO Systems</span>
+                        <span style={{ fontSize: 13, color: '#777' }}>72%</span>
+                      </div>
+                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: '72%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: '#555' }}>Wireless Communication</span>
+                        <span style={{ fontSize: 13, color: '#777' }}>68%</span>
+                      </div>
+                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: '68%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 13, color: '#555' }}>Hardware Efficiency</span>
+                        <span style={{ fontSize: 13, color: '#777' }}>45%</span>
+                      </div>
+                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
+                        <div style={{ width: '45%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
