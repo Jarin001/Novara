@@ -1,0 +1,160 @@
+/* Background blob */
+.bg-blob {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 60px;
+  width: 800px;
+  height: 500px;
+  background: linear-gradient(135deg, #c7f0d0, #a7e8c0, #c7f0d0);
+  opacity: 0.4;
+  z-index: 0;
+}
+
+/* Laptop frame */
+.laptop-frame {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 900px;
+  z-index: 10;
+  border-radius: 24px 24px 0 0;
+  background: #1f2937; /* dark gray */
+  padding: 1rem;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+}
+
+/* Laptop screen */
+.laptop-screen {
+  position: relative;
+  height: 480px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(to bottom right, #ecfdf5, #d1fae5);
+  overflow: hidden;
+}
+
+/* Top bar */
+.top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.8);
+  backdrop-filter: blur(6px);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  z-index: 20;
+}
+
+/* Sidebar stats */
+.sidebar {
+  position: absolute;
+  top: 64px;
+  left: 24px;
+  width: 192px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.9);
+  border-radius: 20px;
+  z-index: 15;
+}
+
+/* Collections panel */
+.collections {
+  position: absolute;
+  top: 80px;
+  left: 256px;
+  right: 32px;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 16px;
+  z-index: 15;
+}
+
+/* Collection row */
+.collection-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.6);
+  margin-bottom: 0.5rem;
+}
+
+/* Floating cards (paper/book) */
+.floating-card,
+.quote-card {
+  position: absolute;
+  background: #fff;
+  border-radius: 16px;
+  padding: 1rem;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+  z-index: 15;
+}
+
+/* Quote card gradient */
+.quote-card {
+  background: linear-gradient(to bottom right, #ffffff, #d1fae5);
+}
+
+/* AI badge / sparkles */
+.icon-float {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 20;
+}
+
+.icon-float.sparkles {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: linear-gradient(to bottom right, #22c55e, #10b981);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.icon-float.users,
+.icon-float.book {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Laptop base */
+.laptop-base {
+  height: 16px;
+  border-radius: 0 0 24px 24px;
+  background: linear-gradient(to bottom, #9ca3af, #d1d5db);
+  position: relative;
+}
+
+/* Floating tags */
+.floating-tag {
+  background: #bbf7d0;
+  color: #15803d;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  font-size: 12px;
+}
+
+.floating-tag.ai {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* Data dots */
+.data-dot {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #16a34a;
+  z-index: 10;
+}
