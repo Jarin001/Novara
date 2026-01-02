@@ -27,8 +27,10 @@ const Navbar = () => {
       {/* RIGHT */}
       <div style={{ display: "flex", gap: "24px", fontSize: "16px" }}>
         <span style={{ cursor: "pointer" }} onClick={() => navigate('/search')}>Search</span>
+        <span style={{ cursor: "pointer" }}>About</span>
         <span style={{ cursor: "pointer" }}>Sign In</span>
         <span style={{ cursor: "pointer" }}>Create Account</span>
+        
         {/* <span style={{ cursor: "pointer" }}>About Us</span> */}
       </div>
     </div>

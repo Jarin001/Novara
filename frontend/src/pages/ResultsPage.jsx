@@ -111,7 +111,7 @@ const ResultsPage = () => {
   const [dateRange, setDateRange] = useState([1931, 2026]);
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
-  
+
   // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
   const [citeItem, setCiteItem] = useState(null);
@@ -390,27 +390,19 @@ const ResultsPage = () => {
           <button style={{ padding: "4px 8px", fontSize: 12 }}>{"→"}</button>
         </div>
 
-        {/* Citation Modal - appears as overlay on top of the ResultsPage */}
+        {/* Citation Modal */}
         {citeOpen && citeItem && (
           <div style={{ 
             position: 'fixed', 
-            top: 0, 
-            left: 0, 
-            right: 0, 
-            bottom: 0, 
+            top: 0, left: 0, right: 0, bottom: 0, 
             background: 'rgba(0,0,0,0.5)', 
-            display: 'flex', 
-            alignItems: 'center', 
-            justifyContent: 'center', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
             zIndex: 1000 
           }}>
             <div style={{ 
-              width: '580px', 
-              maxWidth: '90vw', 
-              background: '#fff', 
-              borderRadius: 8, 
-              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
-              overflow: 'hidden' 
+              width: '580px', maxWidth: '90vw', 
+              background: '#fff', borderRadius: 8, 
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', overflow: 'hidden' 
             }}>
               {/* Header */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 24px', borderBottom: '1px solid #e0e0e0' }}>
@@ -467,53 +459,52 @@ const ResultsPage = () => {
 
                 {/* Copy and Export */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {/* Export / BibTeX on the left */}
                   <div>
-                    <button
-                      onClick={copyCitation}
-                      style={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        background: 'transparent',
-                        border: 'none',
-                        color: '#3E513E',
-                        cursor: 'pointer',
-                        fontSize: 13,
-                        fontWeight: 500,
-                        marginBottom: 16
-                      }}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      </svg>
-                      Copy
-                    </button>
-
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button
-                          onClick={() => downloadBibTeX(citeItem)}
-                          style={{
-                            padding: '8px 16px',
-                            background: '#3E513E',
-                            color: '#fff',
-                            border: 'none',
-                            borderRadius: 4,
-                            cursor: 'pointer',
-                            fontSize: 13,
-                            fontWeight: 500
-                          }}
-                        >
-                          BibTeX
-                        </button>
-                      </div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button
+                        onClick={() => downloadBibTeX(citeItem)}
+                        style={{
+                          padding: '8px 16px',
+                          background: '#3E513E',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: 13,
+                          fontWeight: 500
+                        }}
+                      >
+                        BibTeX
+                      </button>
                     </div>
                   </div>
 
-                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13 }}>Copied!</span>}
+                  {/* Copy button on the right */}
+                  <button
+                    onClick={copyCitation}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#3E513E',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Copy
+                  </button>
                 </div>
+
+                {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
               </div>
             </div>
           </div>

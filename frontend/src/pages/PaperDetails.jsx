@@ -438,7 +438,7 @@ const PaperDetails = () => {
             width: 120,
             height: 48,
             borderRadius: 8,
-            background: '#3431f1ff',
+            background: '#3187f1ff',
             color: '#fff',
             border: 'none',
             cursor: 'pointer',
