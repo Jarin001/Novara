@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 
@@ -20,10 +20,66 @@ const mockFallback = {
   methodsCitations: 2,
 };
 
+// Helper functions for citation formatting
+const getCitationText = (item, format) => {
+  if (!item) return '';
+  const authors = (item.authors || []).join(' and ');
+  const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
+
+  if (format === 'BibTeX') {
+    const key = `${(item.authors && item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
+    return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
+  }
+
+  if (format === 'MLA') {
+    return `${(item.authors || []).join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
+  }
+
+  if (format === 'APA') {
+    return `${(item.authors || []).join(', ')} (${year}). ${item.title}. ${item.venue}.`;
+  }
+
+  if (format === 'IEEE') {
+    return `[1] ${(item.authors || []).join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
+  }
+
+  return '';
+};
+
+const sanitizeFilename = (s = '') => {
+  return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
+};
+
+const downloadFile = (filename, content, mime = 'text/plain') => {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+// Mock libraries data
+const availableLibraries = [
+  "My Research Papers",
+  "Biology Collection",
+  "Environmental Studies",
+  "COVID-19 Research",
+  "Team Dynamics",
+  "Vaccination Studies",
+  "Medical Papers",
+  "Sociology Collection",
+];
+
 const PaperDetails = () => {
   const loc = useLocation();
   const navigate = useNavigate();
   const paper = (loc.state && loc.state.paper) || mockFallback;
+  
+  // State for existing features
   const [chatOpen, setChatOpen] = useState(false);
   const [abstractExpanded, setAbstractExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
@@ -31,6 +87,13 @@ const PaperDetails = () => {
     { role: 'bot', text: 'Hello! I can help you understand this paper better. What would you like to know?' }
   ]);
   const [inputValue, setInputValue] = useState('');
+
+  // State for Save and Cite modals
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [selectedLibraries, setSelectedLibraries] = useState([]);
+  const [citeOpen, setCiteOpen] = useState(false);
+  const [citeFormat, setCiteFormat] = useState('BibTeX');
+  const [copied, setCopied] = useState(false);
 
   const handleSendMessage = () => {
     if (!inputValue.trim()) return;
@@ -53,6 +116,63 @@ const PaperDetails = () => {
     setInputValue('');
   };
 
+  // Save modal functions
+  const openSave = () => {
+    setSelectedLibraries([]);
+    setSaveOpen(true);
+  };
+
+  const closeSave = () => {
+    setSaveOpen(false);
+    setSelectedLibraries([]);
+  };
+
+  const handleSaveToLibraries = () => {
+    console.log(`Saving paper "${paper.title}" to libraries:`, selectedLibraries);
+    closeSave();
+  };
+
+  const toggleLibrarySelection = (library) => {
+    setSelectedLibraries(prev => 
+      prev.includes(library) 
+        ? prev.filter(l => l !== library)
+        : [...prev, library]
+    );
+  };
+
+  // Citation modal functions
+  const openCite = () => {
+    setCiteFormat('BibTeX');
+    setCiteOpen(true);
+    setCopied(false);
+  };
+
+  const closeCite = () => {
+    setCiteOpen(false);
+    setCopied(false);
+  };
+
+  const copyCitation = async () => {
+    const txt = getCitationText(paper, citeFormat);
+    try {
+      await navigator.clipboard.writeText(txt);
+      setCopied(true);
+      setTimeout(()=>setCopied(false), 1600);
+    } catch (e) {
+      const el = document.getElementById('cite-textarea');
+      if (el) {
+        el.select();
+        try { document.execCommand('copy'); setCopied(true); setTimeout(()=>setCopied(false),1600); } catch(_){}
+      }
+    }
+  };
+
+  const downloadBibTeX = () => {
+    const content = getCitationText(paper, 'BibTeX');
+    const name = sanitizeFilename(paper.title) + '.bib';
+    downloadFile(name, content, 'application/x-bibtex');
+  };
+
   const tabs = [
     { id: 'details', label: 'Details' },
     { id: 'topics', label: 'Topics' },
@@ -63,18 +183,34 @@ const PaperDetails = () => {
 
   const handleTabClick = (tab) => {
     if (tab.isNavigation && tab.path) {
-      // Navigate to the separate page
       navigate(tab.path, { state: { paper: paper } });
     } else {
-      // Set the active tab for in-page content
       setActiveTab(tab.id);
     }
   };
 
-  const handleBackToResults = () => {
-    // Go back to search results or previous page
-    navigate(-1);
-  };
+  // Close modals when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      const saveModal = document.querySelector('.save-modal');
+      const citeModal = document.querySelector('.cite-modal');
+      
+      if (saveModal && !saveModal.contains(e.target) && saveOpen) {
+        closeSave();
+      }
+      if (citeModal && !citeModal.contains(e.target) && citeOpen) {
+        closeCite();
+      }
+    };
+
+    if (saveOpen || citeOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [saveOpen, citeOpen]);
 
   return (
     <>
@@ -91,28 +227,6 @@ const PaperDetails = () => {
         transition: 'margin-right 0.3s ease'
       }}>
         
-        {/* Back to Results Button */}
-        <div style={{ marginBottom: 24 }}>
-          <button 
-            onClick={handleBackToResults}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              background: 'transparent',
-              border: 'none',
-              color: '#3E513E',
-              cursor: 'pointer',
-              fontSize: 14,
-              fontWeight: 500,
-              padding: '8px 0'
-            }}
-          >
-            <span style={{ fontSize: 18 }}>←</span>
-            <span>Back to results</span>
-          </button>
-        </div>
-
         {/* Main Content Container */}
         <div style={{ 
           display: 'flex', 
@@ -215,28 +329,32 @@ const PaperDetails = () => {
 
             {/* Action Buttons */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap' }}>
-              <button style={{
-                padding: '10px 16px',
-                background: 'transparent',
-                color: '#3E513E',
-                border: '1px solid #d0d0d0',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 500
-              }}>
+              <button 
+                onClick={openSave}
+                style={{
+                  padding: '10px 16px',
+                  background: 'transparent',
+                  color: '#3E513E',
+                  border: '1px solid #d0d0d0',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 500
+                }}>
                 Save to Library
               </button>
-              <button style={{
-                padding: '10px 16px',
-                background: 'transparent',
-                color: '#3E513E',
-                border: '1px solid #d0d0d0',
-                borderRadius: 4,
-                cursor: 'pointer',
-                fontSize: 14,
-                fontWeight: 500
-              }}>
+              <button 
+                onClick={openCite}
+                style={{
+                  padding: '10px 16px',
+                  background: 'transparent',
+                  color: '#3E513E',
+                  border: '1px solid #d0d0d0',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 14,
+                  fontWeight: 500
+                }}>
                 Cite
               </button>
             </div>
@@ -253,9 +371,9 @@ const PaperDetails = () => {
           borderRadius: 0, 
           overflow: 'hidden', 
           marginTop: 40,
-          marginLeft: -40, // Extend to left edge
-          marginRight: -40, // Extend to right edge
-          width: 'calc(100% + 80px)' // Full width accounting for margins
+          marginLeft: -40,
+          marginRight: -40,
+          width: 'calc(100% + 80px)'
         }}>
           {/* Tabs Header - Full Width, Equally Spaced */}
           <div style={{ 
@@ -271,7 +389,7 @@ const PaperDetails = () => {
                 key={tab.id}
                 onClick={() => handleTabClick(tab)}
                 style={{
-                  flex: 1, // Equally distribute space
+                  flex: 1,
                   padding: '16px 24px',
                   background: 'transparent',
                   border: 'none',
@@ -282,14 +400,14 @@ const PaperDetails = () => {
                   fontWeight: activeTab === tab.id ? 600 : 500,
                   whiteSpace: 'nowrap',
                   textAlign: 'center',
-                  minWidth: 0 // Allow flex to shrink if needed
+                  minWidth: 0
                 }}>
                 {tab.label}
               </button>
             ))}
           </div>
 
-          {/* Tab Content - ALWAYS SHOW DETAILS + CONDITIONAL TOPICS */}
+          {/* Tab Content */}
           <div style={{ 
             padding: 24,
             maxWidth: 1400,
@@ -426,6 +544,302 @@ const PaperDetails = () => {
           </div>
         </div>
       </div>
+
+      {/* Save Modal */}
+      {saveOpen && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 2000 
+        }}>
+          <div 
+            className="save-modal"
+            style={{ 
+              width: '500px',
+              maxWidth: '90vw', 
+              background: '#fff', 
+              borderRadius: 8,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
+              overflow: 'hidden' 
+            }}>
+            {/* Header */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '20px 24px', 
+              borderBottom: '1px solid #e0e0e0' 
+            }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Save to Library</h2>
+              <button 
+                onClick={closeSave} 
+                style={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: 20, 
+                  background: '#3E513E', 
+                  color: '#fff', 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  fontSize: 20, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '24px' }}>
+              {/* Paper info - smaller */}
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{ 
+                  margin: 0, 
+                  fontSize: 15,
+                  fontWeight: 600, 
+                  color: '#333', 
+                  marginBottom: 6,
+                  lineHeight: 1.4 
+                }}>
+                  {paper.title}
+                </h3>
+                <p style={{ 
+                  margin: 0, 
+                  fontSize: 12,
+                  color: '#666',
+                  lineHeight: 1.4 
+                }}>
+                  {paper.authors.join(', ')} • {paper.venue} • {paper.date}
+                </p>
+              </div>
+
+              {/* Libraries list */}
+              <div style={{ marginBottom: 20 }}>
+                <div style={{ 
+                  fontSize: 13,
+                  fontWeight: 600, 
+                  color: '#444', 
+                  marginBottom: 10 
+                }}>
+                  Select libraries to save to:
+                </div>
+                
+                <div style={{ 
+                  maxHeight: 200,
+                  overflowY: 'auto', 
+                  border: '1px solid #e0e0e0', 
+                  borderRadius: 4 
+                }}>
+                  {availableLibraries.map((library, index) => (
+                    <label
+                      key={index}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '10px 14px',
+                        borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
+                        cursor: 'pointer',
+                        backgroundColor: selectedLibraries.includes(library) ? '#f0f7f0' : 'transparent',
+                        transition: 'background-color 0.2s',
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedLibraries.includes(library)}
+                        onChange={() => toggleLibrarySelection(library)}
+                        style={{ marginRight: 10 }}
+                      />
+                      <span style={{ fontSize: 13, color: '#333' }}>{library}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 16 }} />
+
+              {/* Action buttons */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Selected count */}
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  {selectedLibraries.length} {selectedLibraries.length === 1 ? 'library' : 'libraries'} selected
+                </div>
+
+                {/* Save button */}
+                <button
+                  onClick={handleSaveToLibraries}
+                  disabled={selectedLibraries.length === 0}
+                  style={{
+                    padding: '8px 20px',
+                    background: selectedLibraries.length === 0 ? '#cccccc' : '#3E513E',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: selectedLibraries.length === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    transition: 'background-color 0.2s',
+                  }}
+                >
+                  Save to {selectedLibraries.length > 0 ? `${selectedLibraries.length} ` : ''}Library{selectedLibraries.length !== 1 ? 'ies' : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Citation Modal */}
+      {citeOpen && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 2000 
+        }}>
+          <div 
+            className="cite-modal"
+            style={{ 
+              width: '580px', 
+              maxWidth: '90vw', 
+              background: '#fff', 
+              borderRadius: 8, 
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
+              overflow: 'hidden' 
+            }}>
+            {/* Header */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              padding: '20px 24px', 
+              borderBottom: '1px solid #e0e0e0' 
+            }}>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Cite Paper</h2>
+              <button 
+                onClick={closeCite} 
+                style={{ 
+                  width: 40, 
+                  height: 40, 
+                  borderRadius: 20, 
+                  background: '#3E513E', 
+                  color: '#fff', 
+                  border: 'none', 
+                  cursor: 'pointer', 
+                  fontSize: 20, 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center' 
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '24px' }}>
+              {/* Format tabs */}
+              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
+                {['BibTeX', 'MLA', 'APA', 'IEEE'].map(fmt => (
+                  <button
+                    key={fmt}
+                    onClick={() => setCiteFormat(fmt)}
+                    style={{
+                      padding: '12px 16px',
+                      background: 'transparent',
+                      border: 'none',
+                      borderBottom: citeFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
+                      cursor: 'pointer',
+                      fontSize: 14,
+                      fontWeight: citeFormat === fmt ? 600 : 500,
+                      color: citeFormat === fmt ? '#3E513E' : '#666'
+                    }}
+                  >
+                    {fmt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Citation text box */}
+              <div style={{ marginBottom: 20 }}>
+                <textarea
+                  id="cite-textarea"
+                  readOnly
+                  value={getCitationText(paper, citeFormat)}
+                  style={{
+                    width: '100%',
+                    height: 200,
+                    padding: 12,
+                    fontFamily: 'monospace',
+                    fontSize: 12,
+                    border: '1px solid #d0d0d0',
+                    borderRadius: 4,
+                    resize: 'none',
+                    background: '#fafafa'
+                  }}
+                />
+              </div>
+
+              {/* Divider */}
+              <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
+
+              {/* Copy and Export */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                {/* Export / BibTeX on the left */}
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      onClick={downloadBibTeX}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#3E513E',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 13,
+                        fontWeight: 500
+                      }}
+                    >
+                      BibTeX
+                    </button>
+                  </div>
+                </div>
+
+                {/* Copy button on the right */}
+                <button
+                  onClick={copyCitation}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: 'transparent',
+                    border: 'none',
+                    color: '#3E513E',
+                    cursor: 'pointer',
+                    fontSize: 13,
+                    fontWeight: 500,
+                  }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  Copy
+                </button>
+              </div>
+
+              {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Floating Chat Button - RIGHT SIDE TOP */}
       {!chatOpen && (

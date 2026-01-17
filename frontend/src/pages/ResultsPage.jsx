@@ -118,6 +118,11 @@ const ResultsPage = () => {
   const [citeFormat, setCiteFormat] = useState('BibTeX');
   const [copied, setCopied] = useState(false);
 
+  // Save modal state
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveItem, setSaveItem] = useState(null);
+  const [selectedLibraries, setSelectedLibraries] = useState([]);
+
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -178,12 +183,25 @@ const ResultsPage = () => {
     "Wei Zhang",
   ];
 
+  // Mock libraries data
+  const availableLibraries = [
+    "My Research Papers",
+    "Biology Collection",
+    "Environmental Studies",
+    "COVID-19 Research",
+    "Team Dynamics",
+    "Vaccination Studies",
+    "Medical Papers",
+    "Sociology Collection",
+  ];
+
   const onHeaderSearch = (e) => {
     e && e.preventDefault && e.preventDefault();
     const val = e.target.elements["headerSearch"].value || "";
     navigate(`/search?q=${encodeURIComponent(val)}&type=${encodeURIComponent(type)}`);
   };
 
+  // Citation modal functions
   const openCite = (item) => {
     setCiteItem(item);
     setCiteFormat('BibTeX');
@@ -195,6 +213,33 @@ const ResultsPage = () => {
     setCiteOpen(false);
     setCiteItem(null);
     setCopied(false);
+  };
+
+  // Save modal functions
+  const openSave = (item) => {
+    setSaveItem(item);
+    setSelectedLibraries([]); // Reset selection
+    setSaveOpen(true);
+  };
+
+  const closeSave = () => {
+    setSaveOpen(false);
+    setSaveItem(null);
+    setSelectedLibraries([]);
+  };
+
+  const handleSaveToLibraries = () => {
+    // Here you would typically make an API call to save the paper to selected libraries
+    console.log(`Saving paper "${saveItem?.title}" to libraries:`, selectedLibraries);
+    closeSave();
+  };
+
+  const toggleLibrarySelection = (library) => {
+    setSelectedLibraries(prev => 
+      prev.includes(library) 
+        ? prev.filter(l => l !== library)
+        : [...prev, library]
+    );
   };
 
   const copyCitation = async () => {
@@ -372,7 +417,7 @@ const ResultsPage = () => {
                   <p style={{ marginTop: 10, color: "#444" }}>{r.snippet} <a href="#" style={{ color: "#3E513E" }}>Expand</a></p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                    <span style={{ color: "#888" }}>Save</span>
+                    <button onClick={() => openSave(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>Save</button>
                     <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer' }}>Cite</button>
                   </div>
                 </div>
@@ -505,6 +550,152 @@ const ResultsPage = () => {
                 </div>
 
                 {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Save Modal - Made smaller with rounded edges */}
+        {saveOpen && saveItem && (
+          <div style={{ 
+            position: 'fixed', 
+            top: 0, left: 0, right: 0, bottom: 0, 
+            background: 'rgba(0,0,0,0.5)', 
+            display: 'flex', alignItems: 'center', justifyContent: 'center', 
+            zIndex: 1000 
+          }}>
+            <div style={{ 
+              width: '500px', // Smaller width
+              maxWidth: '90vw', 
+              background: '#fff', 
+              borderRadius: 8, // Rounded edges
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
+              overflow: 'hidden' 
+            }}>
+              {/* Header */}
+              <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center', 
+                padding: '20px 24px', 
+                borderBottom: '1px solid #e0e0e0' 
+              }}>
+                <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Save to Library</h2>
+                <button 
+                  onClick={closeSave} 
+                  style={{ 
+                    width: 40, 
+                    height: 40, 
+                    borderRadius: 20, 
+                    background: '#3E513E', 
+                    color: '#fff', 
+                    border: 'none', 
+                    cursor: 'pointer', 
+                    fontSize: 20, 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justifyContent: 'center' 
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: '24px' }}>
+                {/* Paper info - smaller */}
+                <div style={{ marginBottom: 20 }}>
+                  <h3 style={{ 
+                    margin: 0, 
+                    fontSize: 15, // Smaller font
+                    fontWeight: 600, 
+                    color: '#333', 
+                    marginBottom: 6,
+                    lineHeight: 1.4 
+                  }}>
+                    {saveItem.title}
+                  </h3>
+                  <p style={{ 
+                    margin: 0, 
+                    fontSize: 12, // Smaller font
+                    color: '#666',
+                    lineHeight: 1.4 
+                  }}>
+                    {saveItem.authors.join(', ')} • {saveItem.venue} • {saveItem.date}
+                  </p>
+                </div>
+
+                {/* Libraries list */}
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ 
+                    fontSize: 13, // Smaller font
+                    fontWeight: 600, 
+                    color: '#444', 
+                    marginBottom: 10 
+                  }}>
+                    Select libraries to save to:
+                  </div>
+                  
+                  <div style={{ 
+                    maxHeight: 200, // Smaller height
+                    overflowY: 'auto', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: 4 
+                  }}>
+                    {availableLibraries.map((library, index) => (
+                      <label
+                        key={index}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '10px 14px', // Smaller padding
+                          borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          cursor: 'pointer',
+                          backgroundColor: selectedLibraries.includes(library) ? '#f0f7f0' : 'transparent',
+                          transition: 'background-color 0.2s',
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedLibraries.includes(library)}
+                          onChange={() => toggleLibrarySelection(library)}
+                          style={{ marginRight: 10 }}
+                        />
+                        <span style={{ fontSize: 13, color: '#333' }}>{library}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Divider */}
+                <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 16 }} />
+
+                {/* Action buttons */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  {/* Selected count */}
+                  <div style={{ fontSize: 12, color: '#666' }}>
+                    {selectedLibraries.length} {selectedLibraries.length === 1 ? 'library' : 'libraries'} selected
+                  </div>
+
+                  {/* Save button */}
+                  <button
+                    onClick={handleSaveToLibraries}
+                    disabled={selectedLibraries.length === 0}
+                    style={{
+                      padding: '8px 20px', // Smaller padding
+                      background: selectedLibraries.length === 0 ? '#cccccc' : '#3E513E',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: 4,
+                      cursor: selectedLibraries.length === 0 ? 'not-allowed' : 'pointer',
+                      fontSize: 13, // Smaller font
+                      fontWeight: 500,
+                      transition: 'background-color 0.2s',
+                    }}
+                  >
+                    Save to {selectedLibraries.length > 0 ? `${selectedLibraries.length} ` : ''}Library{selectedLibraries.length !== 1 ? 'ies' : ''}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

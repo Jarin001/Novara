@@ -187,22 +187,6 @@ const RelatedPapersPage = () => {
       <div style={{ paddingTop: 100, paddingLeft: 40, paddingRight: 40 }}>
         {/* Header showing which paper's related papers we're viewing */}
         <div style={{ marginBottom: 24 }}>
-          <button 
-            onClick={() => navigate(-1)}
-            style={{
-              color: '#3E513E',
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: 14,
-              marginBottom: 12,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4
-            }}
-          >
-            ← Back to paper
-          </button>
           <h2 style={{ fontSize: 20, fontWeight: 600, color: '#333', marginBottom: 8 }}>
             Papers related to: {paper.title}
           </h2>
