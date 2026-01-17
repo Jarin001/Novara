@@ -10,7 +10,8 @@ const FIELDS = [
   "publicationDate",
   "fieldsOfStudy",
   "citationCount",
-  "abstract"
+  "abstract",
+  "citationStyles"
 ].join(",");
 
 exports.searchPapers = async ({
@@ -61,7 +62,8 @@ exports.searchPapers = async ({
     publicationDate: paper.publicationDate,
     fieldsOfStudy: paper.fieldsOfStudy || [],
     citationCount: paper.citationCount || 0,
-    abstract: paper.abstract || []
+    abstract: paper.abstract || [],
+    bibtex: paper.citationStyles?.bibtex || []
   }));
 
   return {
