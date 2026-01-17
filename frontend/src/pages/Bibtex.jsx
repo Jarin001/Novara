@@ -1,5 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { Copy, Download, ArrowLeft } from 'lucide-react';
+import Navbar from "../components/Navbar";
 
 const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   const navigate = useNavigate();
@@ -29,12 +31,20 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   }
 
   const copyAllBibtex = () => {
+    if (sortedPapers.length === 0) {
+      alert('No papers to copy in this library.');
+      return;
+    }
     const allBibtex = sortedPapers.map(p => p.bibtex).join('\n\n');
     navigator.clipboard.writeText(allBibtex);
     alert('All BibTeX entries copied to clipboard!');
   };
 
   const downloadBibtex = () => {
+    if (sortedPapers.length === 0) {
+      alert('No papers to download in this library.');
+      return;
+    }
     const allBibtex = sortedPapers.map(p => p.bibtex).join('\n\n');
     const blob = new Blob([allBibtex], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
@@ -48,12 +58,13 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   };
 
   return (
-    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#F5F5F0' }}>
+    <div style={{ height: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'white' }}>
+      <Navbar />
       <div style={{ flex: 1, overflow: 'auto', marginTop: '64px', padding: '32px' }}>
         <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
           <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ fontSize: '2rem', fontWeight: 600, color: '#111827', margin: '16px 0 8px 0' }}>
+              <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: '#111827', margin: '16px 0 8px 0' }}>
                 BibTeX - {libraryName}
               </h1>
               <p style={{ color: '#6b7280', margin: 0 }}>{sortedPapers.length} papers</p>
@@ -61,46 +72,78 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
             <div style={{ display: 'flex', gap: '12px' }}>
               <button
                 onClick={copyAllBibtex}
+                disabled={sortedPapers.length === 0}
                 style={{
-                  padding: '10px 20px',
-                  color: 'white',
-                  backgroundColor: '#3E513E',
+                  padding: '10px 16px',
+                  color: sortedPapers.length === 0 ? '#9ca3af' : 'white',
+                  backgroundColor: sortedPapers.length === 0 ? '#f3f4f6' : '#3E513E',
                   border: 'none',
                   borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 500
+                  cursor: sortedPapers.length === 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: sortedPapers.length === 0 ? '0.7' : '1'
                 }}
+                title="Copy all BibTeX"
               >
-                Copy All
+                <Copy size={18} />
+                {/* Copy All */}
               </button>
               <button
                 onClick={downloadBibtex}
+                disabled={sortedPapers.length === 0}
                 style={{
-                  padding: '10px 20px',
-                  color: '#3E513E',
-                  backgroundColor: '#E8EDE8',
+                  padding: '10px 16px',
+                  color: sortedPapers.length === 0 ? '#9ca3af' : '#3E513E',
+                  backgroundColor: sortedPapers.length === 0 ? '#f3f4f6' : '#E8EDE8',
                   border: 'none',
                   borderRadius: '8px',
-                  cursor: 'pointer',
-                  fontWeight: 500
+                  cursor: sortedPapers.length === 0 ? 'not-allowed' : 'pointer',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  opacity: sortedPapers.length === 0 ? '0.7' : '1'
                 }}
+                title="Download .bib file"
               >
-                Download .bib
+                <Download size={18} />
+                {/* Download .bib */}
               </button>
             </div>
           </div>
 
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
+          <div style={{ 
+            backgroundColor: '#F5F5F0', 
+            borderRadius: '12px', 
+            padding: '24px', 
+            border: '1px solid #E8EDE8',
+            minHeight: '300px'
+          }}>
             <pre style={{ 
-              fontFamily: 'monospace', 
+              fontFamily: '"Courier New", Courier, monospace', 
               fontSize: '14px', 
               lineHeight: '1.6',
               whiteSpace: 'pre-wrap',
               wordWrap: 'break-word',
               margin: 0,
-              color: '#374151'
+              color: '#374151',
+              backgroundColor: 'transparent'
             }}>
-              {sortedPapers.length > 0 ? sortedPapers.map(p => p.bibtex).join('\n\n') : 'No papers in this library.'}
+              {sortedPapers.length > 0 ? sortedPapers.map(p => p.bibtex).join('\n\n') : (
+                <div style={{ 
+                  display: 'flex', 
+                  flexDirection: 'column', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  height: '200px',
+                  color: '#9ca3af'
+                }}>
+                  <p style={{ fontSize: '1rem',margin: 0 }}>No BibTeX entries in this library</p>
+                </div>
+              )}
             </pre>
           </div>
         </div>
