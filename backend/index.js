@@ -3,6 +3,7 @@ const { supabase } = require('./config/supabase');
 const connectDB = require('./config/mongodb');
 const app = express();
 
+connectDB();
 
 const autocompleteRoute = require("./routes/autocompleteRoute");
 const paperSearchRoute = require("./routes/papersearch.route");
@@ -12,6 +13,7 @@ const paperReferencesRoute= require("./routes/paper-references.route");
 const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
 const paperaiRoute= require("./routes/paperAi.route");
+const libraryBibtexRoute = require('./routes/libraryBibtex.route');
 
 
 app.use(express.json());
@@ -46,6 +48,9 @@ app.use('/api/citations', citationRoutes);
 
 //paper-ai route
 app.use("/api/paper-ai", paperaiRoute);
+
+//library-bibtex route
+app.use('/api/libraries', libraryBibtexRoute);
 
 
 
