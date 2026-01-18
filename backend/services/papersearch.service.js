@@ -7,10 +7,12 @@ const FIELDS = [
   "title",
   "authors",
   "year",
+  "venue",
   "publicationDate",
   "fieldsOfStudy",
   "citationCount",
-  "abstract"
+  "abstract",
+  "citationStyles"
 ].join(",");
 
 exports.searchPapers = async ({
@@ -58,10 +60,12 @@ exports.searchPapers = async ({
     title: paper.title,
     authors: paper.authors?.map(a => ({ authorId: a.authorId, name: a.name })) || [],
     year: paper.year,
+    venue:paper.venue || [],
     publicationDate: paper.publicationDate,
     fieldsOfStudy: paper.fieldsOfStudy || [],
     citationCount: paper.citationCount || 0,
-    abstract: paper.abstract || []
+    abstract: paper.abstract || [],
+    bibtex: paper.citationStyles?.bibtex || []
   }));
 
   return {
