@@ -1,26 +1,21 @@
-// controllers/paperAi.controller.js
-const { askQuestionAboutPaper } = require("../services/paperAi.service");
+const { askQuestionFromPaper } = require("../services/askAI.service");
 
-async function askPaperQuestion(req, res) {
+
+exports.askPaperQuestion = async (req, res) => {
   try {
     const { pdfUrl, question } = req.body;
 
     if (!pdfUrl || !question) {
       return res.status(400).json({
-        message: "pdfUrl and question are required",
+        error: "Both pdfUrl and question are required in the request body",
       });
     }
 
-    const answer = await askQuestionAboutPaper(pdfUrl, question);
+    const answer = await askQuestionFromPaper(pdfUrl, question);
 
-    res.json({
-      answer,
-    });
+    res.json({ answer });
   } catch (err) {
-    res.status(500).json({
-      message: err.message,
-    });
+    console.error("Error in askPaperQuestion:", err.message || err);
+    res.status(500).json({ error: err.message || "Internal server error" });
   }
-}
-
-module.exports = { askPaperQuestion };
+};
