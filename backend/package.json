@@ -19,6 +19,7 @@
     "@supabase/supabase-js": "^2.86.2",
     "axios": "^1.13.2",
     "bibtex-tidy": "^1.14.0",
+    "canvas": "^3.2.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
