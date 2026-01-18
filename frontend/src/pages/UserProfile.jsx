@@ -1,6 +1,8 @@
-import React from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import './UserProfile.css';
+import EditProfileModal from './EditProfileModal';
+import UploadPaperModal from './UploadPaperModal';
 
 const Navbar = () => {
   const navigate = useNavigate();
@@ -21,13 +23,16 @@ const Navbar = () => {
 
 const UserProfile = () => {
   const navigate = useNavigate();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   
-  const userData = {
+  const [userData, setUserData] = useState({
     name: "SANJANA AFREEN",
     id: "220042106",
     institution: "Islamic University of Technology",
     department: "Department of Computer Science and Engineering",
     email: "iut-dhaka.edu",
+    affiliation: "Islamic University of Technology",
     researchInterests: ["Machine Learning", "Deep Learning", "Natural Language Processing"],
     joinedDate: "September 2022",
     totalPapers: 47,
@@ -63,6 +68,59 @@ const UserProfile = () => {
       { title: "McGraw-Hill", authors: "M Learning", journal: "New York", citations: 57, year: 1997 },
       { title: "Markov logic networks", authors: "R Matthew, D Pedro, M Learning", journal: "Machine learning 62 (1-2), 107-136", citations: 27, year: 2006 }
     ]
+  });
+
+  const handleSaveProfile = async (updatedData) => {
+    try {
+      // TODO: Replace with actual API call
+      // const response = await fetch('/api/users/profile', {
+      //   method: 'PUT',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //     'Authorization': `Bearer ${token}`
+      //   },
+      //   body: JSON.stringify(updatedData)
+      // });
+      
+      // For now, just update local state
+      setUserData(prev => ({
+        ...prev,
+        name: updatedData.name,
+        affiliation: updatedData.affiliation,
+        researchInterests: updatedData.researchInterests,
+        institution: updatedData.affiliation
+      }));
+      
+      console.log('Profile updated:', updatedData);
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      throw error;
+    }
+  };
+
+  const handleConfirmPaper = async (paperDetails) => {
+    try {
+      // Paper is already added via API in the modal
+      // Just update local state to show it immediately
+      const newPublication = {
+        title: paperDetails.title,
+        authors: paperDetails.authors.join(', '),
+        journal: paperDetails.venue || 'N/A',
+        citations: paperDetails.citation_count,
+        year: paperDetails.published_year
+      };
+
+      setUserData(prev => ({
+        ...prev,
+        publications: [newPublication, ...prev.publications],
+        totalPapers: prev.totalPapers + 1
+      }));
+
+      alert('Paper added to your publications successfully!');
+    } catch (error) {
+      console.error('Error updating UI after adding paper:', error);
+    }
   };
 
   return (
@@ -81,7 +139,7 @@ const UserProfile = () => {
                   {/* Avatar */}
                   <div className="col-auto">
                     <div className="profile-avatar position-relative">
-                      <div className="avatar-circle">S</div>
+                      <div className="avatar-circle">{userData.name.charAt(0)}</div>
                       <div className="avatar-edit-btn">
                         <span>📷</span>
                       </div>
@@ -118,7 +176,10 @@ const UserProfile = () => {
                     </div>
 
                     <div className="d-flex gap-3 align-items-center">
-                      <button className="btn btn-outline-primary fw-semibold">
+                      <button 
+                        className="btn btn-outline-primary fw-semibold"
+                        onClick={() => setIsEditModalOpen(true)}
+                      >
                         Edit Profile
                       </button>
                       <span className="text-muted small">
@@ -140,7 +201,7 @@ const UserProfile = () => {
                       {userData.publications.length} papers
                     </span>
                   </div>
-                  <button className="btn btn-primary fw-semibold d-flex align-items-center gap-2">
+                  <button className="btn btn-primary fw-semibold d-flex align-items-center gap-2" onClick={() => setIsUploadModalOpen(true)}>
                     <span className="fs-5">+</span>
                     <span>Upload Paper</span>
                   </button>
@@ -231,6 +292,21 @@ const UserProfile = () => {
           </div>
         </div>
       </div>
+
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        userData={userData}
+        onSave={handleSaveProfile}
+      />
+
+      {/* Upload Paper Modal */}
+      <UploadPaperModal
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onConfirm={handleConfirmPaper}
+      />
     </div>
   );
 };

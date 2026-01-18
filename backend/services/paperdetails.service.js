@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { extractKeywords } = require("./keywordExtraction.service");
 
 const BASE_URL = "https://api.semanticscholar.org/graph/v1/paper";
 
@@ -21,7 +22,6 @@ const ALL_FIELDS = [
   "publicationDate",
   "journal",
   "authors",
-  "tldr",
   "textAvailability"
 ].join(",");
 
@@ -45,6 +45,25 @@ exports.getPaperDetails = async (paperId) => {
     if (!paper.openAccessPdf || !paper.openAccessPdf.url) {
       paper.openAccessPdf = await fetchPdfFallback(paper);
     }
+
+
+    // add keywords of the paper
+        let keywords = [];
+
+    try {
+      // Abstract may be null → handle gracefully
+      const title = paper.title || "";
+      const abstract = paper.abstract || "";
+
+      if (title || abstract) {
+        keywords = await extractKeywords(title, abstract);
+      }
+    } catch (err) {
+      console.warn("Keyword extraction failed:", err.message);
+      keywords = [];
+    }
+
+    paper.keywords = keywords;
 
     return paper;
   } catch (error) {

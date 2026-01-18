@@ -15,6 +15,7 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+connectDB();
 
 const autocompleteRoute = require("./routes/autocompleteRoute");
 const paperSearchRoute = require("./routes/papersearch.route");
@@ -23,7 +24,9 @@ const paperCitationsRoute = require("./routes/paper-citations.route");
 const paperReferencesRoute= require("./routes/paper-references.route");
 const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
-const paperaiRoute= require("./routes/paperAi.route");
+const libraryBibtexRoute = require('./routes/libraryBibtex.route');
+const allPaperBibtexRoute = require('./routes/all-paper-bibtex-route');
+const paperAiRoutes = require("./routes/paperAi.route");
 
 
 app.use(express.json());
@@ -80,7 +83,13 @@ app.use("/api/papers", relatedPapersRoute)
 app.use('/api/citations', citationRoutes);
 
 //paper-ai route
-app.use("/api/paper-ai", paperaiRoute);
+app.use("/api/paper-ai", paperAiRoutes);
+
+//library-bibtex route
+app.use('/api/libraries', libraryBibtexRoute);
+
+//all-paper-bibtex route
+app.use('/api/libraries', allPaperBibtexRoute);
 
 
 
