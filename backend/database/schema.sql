@@ -38,7 +38,8 @@ CREATE TABLE papers (
     title TEXT NOT NULL,
     published_date DATE,
     citation_count INTEGER DEFAULT 0,
-    fields_of_study TEXT[]
+    fields_of_study TEXT[],
+    venue TEXT
 );
 
 CREATE INDEX idx_papers_s2_paper_id ON papers(s2_paper_id);

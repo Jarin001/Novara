@@ -11,7 +11,7 @@ const validatePassword = (password) => {
   const hasSpecialChar = /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password);
 
   const errors = [];
-  
+
   if (password.length < minLength) {
     errors.push(`Password must be at least ${minLength} characters long`);
   }
@@ -54,7 +54,7 @@ const validateEmail = async (email) => {
   try {
     // Check if domain has MX records (mail servers)
     const mxRecords = await dns.resolveMx(domain);
-    
+
     if (!mxRecords || mxRecords.length === 0) {
       return { isValid: false, error: 'Email domain does not have valid mail servers' };
     }
@@ -73,15 +73,15 @@ const register = async (req, res) => {
 
     // Validate required fields
     if (!email || !password || !name) {
-      return res.status(400).json({ 
-        error: 'Email, password, and name are required' 
+      return res.status(400).json({
+        error: 'Email, password, and name are required'
       });
     }
 
     // Validate email format and domain
     const emailValidation = await validateEmail(email);
     if (!emailValidation.isValid) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: emailValidation.error
       });
     }
@@ -89,7 +89,7 @@ const register = async (req, res) => {
     // Validate password strength
     const passwordValidation = validatePassword(password);
     if (!passwordValidation.isValid) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Password does not meet requirements',
         details: passwordValidation.errors
       });
@@ -110,8 +110,8 @@ const register = async (req, res) => {
 
     if (authError) {
       if (authError.message.includes('already registered')) {
-        return res.status(400).json({ 
-          error: 'An account with this email already exists' 
+        return res.status(400).json({
+          error: 'An account with this email already exists'
         });
       }
       throw authError;
@@ -121,7 +121,7 @@ const register = async (req, res) => {
     const emailConfirmationRequired = authData.user && !authData.user.email_confirmed_at;
 
     res.status(201).json({
-      message: emailConfirmationRequired 
+      message: emailConfirmationRequired
         ? 'Registration successful! Please check your email to verify your account.'
         : 'Registration successful!',
       user: {
@@ -142,8 +142,8 @@ const login = async (req, res) => {
     const { email, password } = req.body;
 
     if (!email || !password) {
-      return res.status(400).json({ 
-        error: 'Email and password are required' 
+      return res.status(400).json({
+        error: 'Email and password are required'
       });
     }
 
@@ -154,13 +154,13 @@ const login = async (req, res) => {
 
     if (error) {
       if (error.message.includes('Email not confirmed')) {
-        return res.status(403).json({ 
-          error: 'Please verify your email before logging in. Check your inbox for the verification link.' 
+        return res.status(403).json({
+          error: 'Please verify your email before logging in. Check your inbox for the verification link.'
         });
       }
       if (error.message.includes('Invalid login credentials')) {
-        return res.status(401).json({ 
-          error: 'Invalid email or password' 
+        return res.status(401).json({
+          error: 'Invalid email or password'
         });
       }
       throw error;
@@ -189,11 +189,12 @@ const resendVerificationEmail = async (req, res) => {
     const { email } = req.body;
 
     if (!email) {
-      return res.status(400).json({ 
-        error: 'Email is required' 
+      return res.status(400).json({
+        error: 'Email is required'
       });
     }
 
+    // In resendVerificationEmail function:
     const { error } = await supabase.auth.resend({
       type: 'signup',
       email: email,
@@ -204,13 +205,13 @@ const resendVerificationEmail = async (req, res) => {
 
     if (error) {
       console.error('Resend error:', error);
-      
+
       if (error.message.includes('already confirmed')) {
         return res.status(400).json({
           error: 'This email is already verified. You can log in now.'
         });
       }
-      
+
       if (error.message.includes('rate limit')) {
         return res.status(429).json({
           error: 'Too many requests. Please wait a few minutes before trying again.'
@@ -250,7 +251,7 @@ const verifyEmail = async (req, res) => {
     }
 
     if (!token_hash || type !== 'email') {
-      return res.status(400).json({ 
+      return res.status(400).json({
         error: 'Invalid verification link',
         code: 'invalid_link'
       });

@@ -1,11 +1,32 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Tracks if user is logged in
-  const [dropdownOpen, setDropdownOpen] = useState(false); // Controls dropdown visibility
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("User");
+
+  // Check authentication status on mount and when location changes
+  useEffect(() => {
+    const checkAuth = () => {
+      const token = localStorage.getItem('access_token');
+      setIsLoggedIn(!!token);
+      
+      // Optionally fetch user name from API or localStorage
+      // For now, we'll use a default or check if user data exists
+    };
+
+    checkAuth();
+    
+    // Listen for storage changes (useful for multi-tab scenarios)
+    window.addEventListener('storage', checkAuth);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+    };
+  }, [location]); // Re-check when route changes
 
   const handleAboutClick = () => {
     if (location.pathname === '/') {
@@ -19,13 +40,11 @@ const Navbar = () => {
   };
 
   const handleLogin = () => {
-    setIsLoggedIn(true);
-    console.log("Login clicked");
+    navigate('/login');
   };
 
   const handleSignUp = () => {
-    setIsLoggedIn(true);
-    console.log("Create Account clicked");
+    navigate('/login'); // Since your login page handles both
   };
 
   const toggleDropdown = () => {
@@ -37,19 +56,26 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
+    // Remove the token
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    
+    // Update state
     setIsLoggedIn(false);
     setDropdownOpen(false);
-    console.log("User logged out");
+    
+    // Navigate to home and reload
+    navigate('/');
+    window.location.reload();
   };
 
   const handleLibraryClick = () => {
-    console.log("My Library clicked");
-    // Navigate to library page or open library modal
-    setDropdownOpen(false); // Close dropdown after clicking
+    navigate('/library');
+    setDropdownOpen(false);
   };
 
   const handleProfileClick = () => {
-    console.log("Profile clicked");
+    navigate('/profile');
     setDropdownOpen(false);
   };
 
@@ -59,7 +85,7 @@ const Navbar = () => {
   };
 
   // Close dropdown when clicking outside
-  React.useEffect(() => {
+  useEffect(() => {
     const handleClickOutside = (event) => {
       const dropdown = document.querySelector('.user-dropdown-container');
       const userIcon = document.querySelector('.user-icon');
@@ -93,7 +119,10 @@ const Navbar = () => {
       }}
     >
       {/* LEFT - Logo */}
-      <div style={{ fontSize: "24px", fontWeight: "bold" }}>
+      <div 
+        style={{ fontSize: "24px", fontWeight: "bold", cursor: "pointer" }}
+        onClick={() => navigate('/')}
+      >
         NOVARA
       </div>
 
@@ -176,7 +205,7 @@ const Navbar = () => {
                   borderBottom: "1px solid #f0f0f0",
                   fontWeight: "600",
                 }}>
-                  John Doe
+                  {userName}
                 </div>
                 
                 <div 

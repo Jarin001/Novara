@@ -1,8 +1,9 @@
 const { errorHandler } = require('../utils/errorHandler');
+const PaperContent = require('../models/PaperContent');
+const LibraryPaperNote = require('../models/LibraryPaperNote');
 
 /**
- * Save paper to a library
- * This creates the paper if it doesn't exist, then links it to the specified library
+ * Save paper to a library (HYBRID: SQL + Mongo)
  */
 exports.savePaperToLibrary = async (req, res) => {
   try {
@@ -13,49 +14,46 @@ exports.savePaperToLibrary = async (req, res) => {
       library_id,
       s2_paper_id,
       title,
+      venue,
       published_year,
       citation_count,
       fields_of_study,
+      abstract,
+      bibtex,
       reading_status = 'unread'
     } = req.body;
 
-    // Validate required fields
     if (!library_id || !s2_paper_id || !title) {
-      return res.status(400).json({ 
-        message: 'library_id, s2_paper_id, and title are required' 
+      return res.status(400).json({
+        message: 'library_id, s2_paper_id, and title are required'
       });
     }
 
-    // STEP 1: Get the actual user ID from the users table
-    const { data: userData, error: userError } = await supabase
+    // STEP 1: Get user
+    const { data: userData } = await supabase
       .from('users')
       .select('id')
       .eq('auth_id', authId)
       .single();
 
-    if (userError || !userData) {
-      console.error('User not found:', userError);
-      return res.status(404).json({ message: 'User not found in database' });
+    if (!userData) {
+      return res.status(404).json({ message: 'User not found' });
     }
 
     const userId = userData.id;
 
-    // STEP 2: Verify user has access to the library
-    const { data: libraryAccess, error: accessError } = await supabase
+    // STEP 2: Verify library access
+    const { data: library } = await supabase
       .from('libraries')
-      .select('id, created_by_user_id')
+      .select('created_by_user_id')
       .eq('id', library_id)
       .single();
 
-    if (accessError || !libraryAccess) {
+    if (!library) {
       return res.status(404).json({ message: 'Library not found' });
     }
 
-    // Check if user is the creator or a collaborator
-    // Both have same permissions except creator can delete library
-    const isCreator = libraryAccess.created_by_user_id === userId;
-    
-    if (!isCreator) {
+    if (library.created_by_user_id !== userId) {
       const { data: collaborator } = await supabase
         .from('user_libraries')
         .select('id')
@@ -64,19 +62,18 @@ exports.savePaperToLibrary = async (req, res) => {
         .single();
 
       if (!collaborator) {
-        return res.status(403).json({ 
-          message: 'You do not have access to this library' 
-        });
+        return res.status(403).json({ message: 'Access denied' });
       }
     }
 
-    // STEP 3: Upsert paper (create if doesn't exist, get existing if it does)
+    // STEP 3: Upsert paper (Postgres)
     const { data: paper, error: paperError } = await supabase
       .from('papers')
       .upsert(
         {
           s2_paper_id,
           title,
+          venue,
           published_date: published_year ? `${published_year}-01-01` : null,
           citation_count,
           fields_of_study
@@ -86,12 +83,21 @@ exports.savePaperToLibrary = async (req, res) => {
       .select()
       .single();
 
-    if (paperError) {
-      console.error('Error upserting paper:', paperError);
-      throw paperError;
-    }
+    if (paperError) throw paperError;
 
-    // STEP 4: Link paper to library
+    // STEP 4: Upsert paper content (Mongo)
+    await PaperContent.findOneAndUpdate(
+      { paperId: paper.id },
+      {
+        paperId: paper.id,
+        s2PaperId: s2_paper_id,
+        abstract: abstract || '',
+        bibtex: bibtex || ''
+      },
+      { upsert: true, new: true }
+    );
+
+    // STEP 5: Link paper to library
     const { data: libraryPaper, error: linkError } = await supabase
       .from('library_papers')
       .insert({
@@ -103,34 +109,24 @@ exports.savePaperToLibrary = async (req, res) => {
       .select()
       .single();
 
-    if (linkError) {
-      // Check if paper already exists in library
-      if (linkError.code === '23505') { // Unique constraint violation
-        return res.status(409).json({ 
-          message: 'Paper already exists in this library' 
-        });
-      }
-      throw linkError;
+    if (linkError?.code === '23505') {
+      return res.status(409).json({ message: 'Paper already exists in library' });
     }
 
-    res.status(201).json({ 
-      message: 'Paper saved to library successfully',
-      paper: {
-        id: paper.id,
-        s2_paper_id: paper.s2_paper_id,
-        title: paper.title
-      },
+    res.status(201).json({
+      message: 'Paper saved successfully',
+      paper,
       library_paper: libraryPaper
     });
 
   } catch (err) {
-    console.error('Error saving paper to library:', err);
-    errorHandler(res, err, 'Failed to save paper to library');
+    console.error(err);
+    errorHandler(res, err, 'Failed to save paper');
   }
 };
 
 /**
- * Get all papers in a library
+ * Get all papers in a library 
  */
 exports.getLibraryPapers = async (req, res) => {
   try {
@@ -138,53 +134,18 @@ exports.getLibraryPapers = async (req, res) => {
     const supabase = req.supabase;
     const { library_id } = req.params;
 
-    if (!library_id) {
-      return res.status(400).json({ message: 'library_id is required' });
-    }
-
-    // Get user ID
-    const { data: userData, error: userError } = await supabase
+    const { data: userData } = await supabase
       .from('users')
       .select('id')
       .eq('auth_id', authId)
       .single();
 
-    if (userError || !userData) {
+    if (!userData) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Verify access to library
-    const { data: libraryAccess, error: accessError } = await supabase
-      .from('libraries')
-      .select('id, created_by_user_id, is_public')
-      .eq('id', library_id)
-      .single();
-
-    if (accessError || !libraryAccess) {
-      return res.status(404).json({ message: 'Library not found' });
-    }
-
-    const hasAccess = 
-      libraryAccess.is_public || 
-      libraryAccess.created_by_user_id === userData.id;
-
-    if (!hasAccess) {
-      const { data: collaborator } = await supabase
-        .from('user_libraries')
-        .select('id')
-        .eq('library_id', library_id)
-        .eq('user_id', userData.id)
-        .single();
-
-      if (!collaborator) {
-        return res.status(403).json({ 
-          message: 'You do not have access to this library' 
-        });
-      }
-    }
-
-    // Get papers with library metadata
-    const { data: papers, error: papersError } = await supabase
+    // Get SQL papers
+    const { data: papers } = await supabase
       .from('library_papers')
       .select(`
         id,
@@ -195,6 +156,7 @@ exports.getLibraryPapers = async (req, res) => {
           id,
           s2_paper_id,
           title,
+          venue,
           published_date,
           citation_count,
           fields_of_study
@@ -203,7 +165,16 @@ exports.getLibraryPapers = async (req, res) => {
       .eq('library_id', library_id)
       .order('added_at', { ascending: false });
 
-    if (papersError) throw papersError;
+    const paperIds = papers.map(p => p.papers.id);
+
+    // Get Mongo content
+    const contents = await PaperContent.find({
+      paperId: { $in: paperIds }
+    }).lean();
+
+    const contentMap = Object.fromEntries(
+      contents.map(c => [c.paperId, c])
+    );
 
     res.json({
       library_id,
@@ -212,81 +183,43 @@ exports.getLibraryPapers = async (req, res) => {
         reading_status: lp.reading_status,
         added_at: lp.added_at,
         last_read_at: lp.last_read_at,
-        ...lp.papers
+        ...lp.papers,
+        abstract: contentMap[lp.papers.id]?.abstract || '',
+        bibtex: contentMap[lp.papers.id]?.bibtex || ''
       }))
     });
 
   } catch (err) {
-    console.error('Error fetching library papers:', err);
+    console.error(err);
     errorHandler(res, err, 'Failed to fetch library papers');
   }
 };
 
 /**
- * Remove paper from library
+ * Remove paper from library (HYBRID DELETE)
  */
 exports.removePaperFromLibrary = async (req, res) => {
   try {
-    const authId = req.user.id;
     const supabase = req.supabase;
     const { library_id, paper_id } = req.params;
 
-    // Get user ID
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
-      .single();
-
-    if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Verify user has access to the library (creator or collaborator)
-    // Both can remove papers, only creator can delete the entire library
-    const { data: libraryAccess, error: accessError } = await supabase
-      .from('libraries')
-      .select('id, created_by_user_id')
-      .eq('id', library_id)
-      .single();
-
-    if (accessError || !libraryAccess) {
-      return res.status(404).json({ message: 'Library not found' });
-    }
-
-    const isCreator = libraryAccess.created_by_user_id === userData.id;
-    let hasAccess = isCreator;
-
-    if (!isCreator) {
-      const { data: collaborator } = await supabase
-        .from('user_libraries')
-        .select('id')
-        .eq('library_id', library_id)
-        .eq('user_id', userData.id)
-        .single();
-
-      hasAccess = !!collaborator;
-    }
-
-    if (!hasAccess) {
-      return res.status(403).json({ 
-        message: 'You do not have access to this library' 
-      });
-    }
-
-    // Delete the library_paper relationship
-    const { error: deleteError } = await supabase
+    // Remove SQL relation
+    await supabase
       .from('library_papers')
       .delete()
       .eq('library_id', library_id)
       .eq('paper_id', paper_id);
 
-    if (deleteError) throw deleteError;
+    // Remove Mongo data
+    await Promise.all([
+      PaperContent.deleteOne({ paperId: paper_id }),
+      LibraryPaperNote.deleteMany({ paperId: paper_id, libraryId: library_id })
+    ]);
 
-    res.json({ message: 'Paper removed from library successfully' });
+    res.json({ message: 'Paper removed successfully' });
 
   } catch (err) {
-    console.error('Error removing paper from library:', err);
-    errorHandler(res, err, 'Failed to remove paper from library');
+    console.error(err);
+    errorHandler(res, err, 'Failed to remove paper');
   }
 };

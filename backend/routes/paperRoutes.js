@@ -11,7 +11,7 @@ const {
 const { authenticate } = require('../middlewares/authMiddleware');
 
 // All routes require authentication
-//router.use(authenticate);
+router.use(authenticate);
 
 // Preview paper details (before adding)
 router.post('/preview', fetchPaperPreview);

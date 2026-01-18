@@ -1,31 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
-
-const Navbar = () => {
-  const navigate = useNavigate();
-  return (
-    <nav className="navbar navbar-dark bg-dark fixed-top shadow-sm">
-      <div className="container-fluid px-5">
-        <span className="navbar-brand fs-4 fw-bold ls-1">NOVARA</span>
-        <div className="d-flex gap-4">
-          <span className="nav-link-item" onClick={() => navigate('/search')}>Search</span>
-          <span className="nav-link-item">Sign In</span>
-          <span className="nav-link-item">Log In</span>
-          <span className="nav-link-item">About Us</span>
-        </div>
-      </div>
-    </nav>
-  );
-};
+import Navbar from "../components/Navbar";
+import { supabase } from '../config/supabase';
 
 const UserProfile = () => {
   const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+
   const [userData, setUserData] = useState({
     name: "SANJANA AFREEN",
     id: "220042106",
@@ -70,31 +57,99 @@ const UserProfile = () => {
     ]
   });
 
+  // Check authentication
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = localStorage.getItem('access_token');
+
+      // If no token, redirect to login
+      if (!token) {
+        console.log("No authentication token found");
+        navigate('/login');
+        return;
+      }
+
+      try {
+        // Verify token with YOUR backend
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          // Token invalid or expired
+          localStorage.removeItem('access_token');
+          navigate('/login');
+          return;
+        }
+
+        const data = await response.json();
+
+        // Set user from YOUR backend response
+        setUser({
+          id: data.user?.id,
+          email: data.user?.email,
+          name: data.user?.name
+        });
+
+        setLoading(false);
+
+        // Update userData with real backend data
+        if (data.user) {
+          setUserData(prev => ({
+            ...prev,
+            name: data.user.name || prev.name,
+            email: data.user.email || prev.email,
+            affiliation: data.user.affiliation || prev.affiliation
+          }));
+        }
+
+      } catch (error) {
+        console.error("Auth check failed:", error);
+        localStorage.removeItem('access_token');
+        navigate('/login');
+      }
+    };
+
+    checkAuth();
+  }, [navigate]);
+
+
+
   const handleSaveProfile = async (updatedData) => {
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch('/api/users/profile', {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${token}`
-      //   },
-      //   body: JSON.stringify(updatedData)
-      // });
-      
-      // For now, just update local state
-      setUserData(prev => ({
-        ...prev,
-        name: updatedData.name,
-        affiliation: updatedData.affiliation,
-        researchInterests: updatedData.researchInterests,
-        institution: updatedData.affiliation
-      }));
-      
-      console.log('Profile updated:', updatedData);
-      alert('Profile updated successfully!');
+      const token = localStorage.getItem('access_token');
+
+      // Call your backend API to update profile
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(updatedData)
+      });
+
+      if (response.ok) {
+        // Update local state with new data
+        setUserData(prev => ({
+          ...prev,
+          name: updatedData.name,
+          affiliation: updatedData.affiliation,
+          researchInterests: updatedData.researchInterests,
+          institution: updatedData.affiliation
+        }));
+
+        console.log('Profile updated:', updatedData);
+        alert('Profile updated successfully!');
+      } else {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update profile');
+      }
     } catch (error) {
       console.error('Error updating profile:', error);
+      alert(`Error: ${error.message}`);
       throw error;
     }
   };
@@ -123,13 +178,39 @@ const UserProfile = () => {
     }
   };
 
+  // Loading state
+  if (loading) {
+    return (
+      <div className="bg-light min-vh-100">
+        <Navbar />
+        <div className="container-fluid px-5" style={{ paddingTop: '80px' }}>
+          <div className="d-flex justify-content-center align-items-center" style={{ height: '60vh' }}>
+            <div className="text-center">
+              <div className="spinner-border text-primary mb-3" style={{ width: '3rem', height: '3rem' }}>
+                <span className="visually-hidden">Loading...</span>
+              </div>
+              <p className="text-muted">Loading your profile...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If no user but loading is done (shouldn't happen due to redirect)
+  if (!user) {
+    return null; // Will redirect in useEffect
+  }
+
   return (
     <div className="bg-light min-vh-100">
       <Navbar />
-      
+
       <div className="container-fluid px-5" style={{ paddingTop: '80px' }}>
+        {/* Removed the logout button section here - Navbar handles it */}
+
         <div className="row g-4 py-4">
-          
+
           {/* LEFT SECTION - 8 COLUMNS */}
           <div className="col-lg-8">
             {/* Profile Section */}
@@ -152,14 +233,14 @@ const UserProfile = () => {
                       <h2 className="profile-name mb-0">{userData.name}</h2>
                       <span className="profile-id">{userData.id}</span>
                     </div>
-                    
+
                     <p className="fw-semibold text-dark mb-2">{userData.institution}</p>
                     <p className="text-muted mb-2">{userData.department}</p>
 
                     <div className="d-flex align-items-center gap-2 mb-3 text-muted">
                       <svg width="16" height="16" viewBox="0 0 16 16" fill="#34a853">
-                        <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14.4c-3.5 0-6.4-2.9-6.4-6.4S4.5 1.6 8 1.6s6.4 2.9 6.4 6.4-2.9 6.4-6.4 6.4z"/>
-                        <path d="M10.7 6.3L7.5 9.5 5.3 7.3c-.3-.3-.8-.3-1.1 0s-.3.8 0 1.1l2.8 2.8c.3.3.8.3 1.1 0l3.8-3.8c.3-.3.3-.8 0-1.1-.3-.3-.9-.3-1.2 0z"/>
+                        <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14.4c-3.5 0-6.4-2.9-6.4-6.4S4.5 1.6 8 1.6s6.4 2.9 6.4 6.4-2.9 6.4-6.4 6.4z" />
+                        <path d="M10.7 6.3L7.5 9.5 5.3 7.3c-.3-.3-.8-.3-1.1 0s-.3.8 0 1.1l2.8 2.8c.3.3.8.3 1.1 0l3.8-3.8c.3-.3.3-.8 0-1.1-.3-.3-.9-.3-1.2 0z" />
                       </svg>
                       <span className="small">Verified email at {userData.email}</span>
                     </div>
@@ -176,7 +257,7 @@ const UserProfile = () => {
                     </div>
 
                     <div className="d-flex gap-3 align-items-center">
-                      <button 
+                      <button
                         className="btn btn-outline-primary fw-semibold"
                         onClick={() => setIsEditModalOpen(true)}
                       >
@@ -235,19 +316,19 @@ const UserProfile = () => {
                 <div className="row g-3 text-center">
                   <div className="col-3">
                     <div className="stat-number">{userData.totalPapers}</div>
-                    <div className="stat-label">TOTAL<br/>PAPERS</div>
+                    <div className="stat-label">TOTAL<br />PAPERS</div>
                   </div>
                   <div className="col-3">
                     <div className="stat-number">{userData.papersRead}</div>
-                    <div className="stat-label">PAPERS<br/>READ</div>
+                    <div className="stat-label">PAPERS<br />READ</div>
                   </div>
                   <div className="col-3">
                     <div className="stat-number">{userData.thisMonth}</div>
-                    <div className="stat-label">THIS<br/>MONTH</div>
+                    <div className="stat-label">THIS<br />MONTH</div>
                   </div>
                   <div className="col-3">
                     <div className="stat-number">{userData.readingNow}</div>
-                    <div className="stat-label">READING<br/>NOW</div>
+                    <div className="stat-label">READING<br />NOW</div>
                   </div>
                 </div>
               </div>
@@ -264,7 +345,7 @@ const UserProfile = () => {
                   </div>
                   <div className="col-4">
                     <div className="stat-number">{userData.inProgress}</div>
-                    <div className="stat-label">IN<br/>PROGRESS</div>
+                    <div className="stat-label">IN<br />PROGRESS</div>
                   </div>
                   <div className="col-4">
                     <div className="stat-number">{userData.completed}</div>

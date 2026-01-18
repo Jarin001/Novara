@@ -36,7 +36,8 @@ exports.getPaperDetails = async (paperId) => {
       headers: {
         "x-api-key": process.env.SEMANTIC_SCHOLAR_API_KEY
       },
-      params: { fields: ALL_FIELDS }
+      params: { fields: ALL_FIELDS },
+      timeout: 60000 
     });
 
     const paper = response.data;
