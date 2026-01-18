@@ -7,6 +7,8 @@ import PaperDetails from "./pages/PaperDetails";
 import CitationsPage from "./pages/CitationsPage";
 import ReferencesPage from "./pages/ReferencesPage";
 import RelatedPapersPage from "./pages/RelatedPapersPage";
+import UserLibrary from './pages/UserLibrary';
+import Bibtex from './pages/Bibtex';
 import "bootstrap/dist/css/bootstrap.min.css";
 
 function SearchRouteSwitch() {
@@ -26,6 +28,8 @@ function App() {
         <Route path="/citations" element={<CitationsPage />} />
         <Route path="/references" element={<ReferencesPage />} />
         <Route path="/related" element={<RelatedPapersPage />} />
+        <Route path="/library" element={<UserLibrary />} />
+        <Route path="/bibtex" element={<Bibtex />} />
       </Routes>
     </BrowserRouter>
   );

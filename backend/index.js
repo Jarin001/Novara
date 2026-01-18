@@ -13,7 +13,7 @@ const paperReferencesRoute= require("./routes/paper-references.route");
 const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
 const libraryBibtexRoute = require('./routes/libraryBibtex.route');
-const allPaperBibtexRoute = require('./routes/all-paper-bibtex.route');
+const allPaperBibtexRoute = require('./routes/all-paper-bibtex-route');
 const paperAiRoutes = require("./routes/paperAi.route");
 
 
