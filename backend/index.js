@@ -12,9 +12,9 @@ const paperCitationsRoute = require("./routes/paper-citations.route");
 const paperReferencesRoute= require("./routes/paper-references.route");
 const relatedPapersRoute= require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
-const paperaiRoute= require("./routes/paperAi.route");
 const libraryBibtexRoute = require('./routes/libraryBibtex.route');
 const allPaperBibtexRoute = require('./routes/all-paper-bibtex.route');
+const paperAiRoutes = require("./routes/paperAi.route");
 
 
 app.use(express.json());
@@ -48,7 +48,7 @@ app.use("/api/papers", relatedPapersRoute)
 app.use('/api/citations', citationRoutes);
 
 //paper-ai route
-app.use("/api/paper-ai", paperaiRoute);
+app.use("/api/paper-ai", paperAiRoutes);
 
 //library-bibtex route
 app.use('/api/libraries', libraryBibtexRoute);
