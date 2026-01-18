@@ -1,0 +1,20 @@
+.hero-section {
+  background: linear-gradient(180deg, #ecfdf3, #ffffff);
+  padding: 5rem 0;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+}
+
+.hero-text h1 {
+  line-height: 1.2;
+}
+
+.hero-text p {
+  max-width: 520px;
+  margin: auto;
+}
+
+.hero-animation {
+  margin-top: 3rem; /* animation below text */
+}
