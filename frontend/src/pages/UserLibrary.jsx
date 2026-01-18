@@ -23,20 +23,20 @@ const ResearchLibrary = () => {
   ]);
 
   const [sharedLibraries, setSharedLibraries] = useState([
-    {
-      id: "s1",
-      name: "Shared Research 2024",
-      sharedBy: "John Doe",
-      isShared: true,
-    },
-    { id: "s2", name: "Team Project Papers", sharedBy: "You", isShared: true },
-    {
-      id: "s3",
-      name: "AI Ethics Papers",
-      sharedBy: "Jane Smith",
-      isShared: true,
-    },
-    { id: "s4", name: "NLP Research", sharedBy: "You", isShared: true },
+    // {
+    //   id: "s1",
+    //   name: "Shared Research 2024",
+    //   sharedBy: "John Doe",
+    //   isShared: true,
+    // },
+    // { id: "s2", name: "Team Project Papers", sharedBy: "You", isShared: true },
+    // // {
+    // //   id: "s3",
+    // //   name: "AI Ethics Papers",
+    // //   sharedBy: "Jane Smith",
+    // //   isShared: true,
+    // // },
+    // { id: "s4", name: "NLP Research", sharedBy: "You", isShared: true },
   ]);
 
   const [isSharedExpanded, setIsSharedExpanded] = useState(true);
@@ -163,6 +163,7 @@ const ResearchLibrary = () => {
   ]);
 
   const [selectedLibrary, setSelectedLibrary] = useState("all");
+  const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("dateAdded");
   const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
@@ -173,16 +174,32 @@ const ResearchLibrary = () => {
     paperId: null,
     notes: "",
   });
-  const [showBibtexPage, setShowBibtexPage] = useState(false);
   const navigate = useNavigate();
 
-  const filteredPapers = papers.filter((p) =>
-    selectedLibrary === "all"
-      ? true
-      : selectedLibrary.startsWith("s")
-      ? p.libraryId === selectedLibrary
-      : !p.libraryId.startsWith("s") && p.libraryId === selectedLibrary
-  );
+  const filteredPapers = papers.filter((p) => {
+    // First filter by library selection
+    const libraryMatch =
+      selectedLibrary === "all"
+        ? true
+        : selectedLibrary.startsWith("s")
+          ? p.libraryId === selectedLibrary
+          : !p.libraryId.startsWith("s") && p.libraryId === selectedLibrary;
+
+    // Then filter by search term if it exists
+    if (!searchTerm.trim()) return libraryMatch;
+
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      libraryMatch &&
+      (p.title.toLowerCase().includes(searchLower) ||
+        p.authors.some((author) =>
+          author.toLowerCase().includes(searchLower),
+        ) ||
+        p.abstract.toLowerCase().includes(searchLower) ||
+        p.field.toLowerCase().includes(searchLower) ||
+        p.venue.toLowerCase().includes(searchLower))
+    );
+  });
 
   const sortedPapers = [...filteredPapers].sort((a, b) => {
     switch (sortBy) {
@@ -216,8 +233,8 @@ const ResearchLibrary = () => {
     if (newLibraryName.trim() && editingLibrary) {
       setLibraries(
         libraries.map((lib) =>
-          lib.id === editingLibrary.id ? { ...lib, name: newLibraryName } : lib
-        )
+          lib.id === editingLibrary.id ? { ...lib, name: newLibraryName } : lib,
+        ),
       );
       setNewLibraryName("");
       setEditingLibrary(null);
@@ -239,8 +256,8 @@ const ResearchLibrary = () => {
   const handleReadingStatusChange = (paperId, status) => {
     setPapers(
       papers.map((p) =>
-        p.id === paperId ? { ...p, readingStatus: status } : p
-      )
+        p.id === paperId ? { ...p, readingStatus: status } : p,
+      ),
     );
   };
 
@@ -250,17 +267,26 @@ const ResearchLibrary = () => {
   };
 
   const saveNotes = () => {
+    // Check if notes are just whitespace
+    if (!notesModal.notes.trim()) {
+      // If empty or just whitespace, delete the notes
+      deleteNotes();
+      return;
+    }
+
     setPapers(
       papers.map((p) =>
-        p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p
-      )
+        p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p,
+      ),
     );
     setNotesModal({ show: false, paperId: null, notes: "" });
   };
 
   const deleteNotes = () => {
     setPapers(
-      papers.map((p) => (p.id === notesModal.paperId ? { ...p, notes: "" } : p))
+      papers.map((p) =>
+        p.id === notesModal.paperId ? { ...p, notes: "" } : p,
+      ),
     );
     setNotesModal({ show: false, paperId: null, notes: "" });
   };
@@ -276,40 +302,6 @@ const ResearchLibrary = () => {
       default:
         return { backgroundColor: "#f3f4f6", color: "#1f2937" };
     }
-  };
-
-  const handleBibtexExport = () => {
-    setShowBibtexPage(true);
-  };
-
-  const copyAllBibtex = () => {
-    const allBibtex = sortedPapers.map((p) => p.bibtex).join("\n\n");
-    navigator.clipboard.writeText(allBibtex);
-    alert("All BibTeX entries copied to clipboard!");
-  };
-
-  const downloadBibtex = () => {
-    const allBibtex = sortedPapers.map((p) => p.bibtex).join("\n\n");
-    const blob = new Blob([allBibtex], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-
-    // Get the appropriate library name
-    let libraryName = "library";
-    if (selectedLibrary === "all") {
-      libraryName = "all_papers";
-    } else {
-      const personalLib = libraries.find((l) => l.id === selectedLibrary);
-      const sharedLib = sharedLibraries.find((l) => l.id === selectedLibrary);
-      libraryName = (personalLib || sharedLib)?.name || "library";
-    }
-
-    a.download = `${libraryName.replace(/\s+/g, "_")}_bibtex.bib`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
   };
 
   return (
@@ -360,7 +352,7 @@ const ResearchLibrary = () => {
                 textAlign: "left",
               }}
             >
-             Libraries
+              Libraries
             </h2>
           </div>
 
@@ -381,6 +373,18 @@ const ResearchLibrary = () => {
                     selectedLibrary === library.id
                       ? "4px solid #3E513E"
                       : "none",
+                }}
+                onMouseEnter={(e) => {
+                  // Show edit/delete buttons on hover
+                  const actions =
+                    e.currentTarget.querySelector(".library-actions");
+                  if (actions) actions.style.opacity = "1";
+                }}
+                onMouseLeave={(e) => {
+                  // Hide edit/delete buttons when mouse leaves
+                  const actions =
+                    e.currentTarget.querySelector(".library-actions");
+                  if (actions) actions.style.opacity = "0";
                 }}
                 onClick={() => setSelectedLibrary(library.id)}
               >
@@ -496,7 +500,6 @@ const ResearchLibrary = () => {
                   ) : (
                     <ChevronRight size={16} />
                   )}
-                  <FolderOpen size={18} style={{ color: "#9ca3af" }} />
                   <span
                     style={{
                       fontSize: "0.875rem",
@@ -678,7 +681,7 @@ const ResearchLibrary = () => {
                     (e.currentTarget.style.backgroundColor = "transparent")
                   }
                 >
-                  Bibtex
+                  BibTeX
                 </button>
               </div>
             </div>
@@ -695,6 +698,8 @@ const ResearchLibrary = () => {
                   type="text"
                   placeholder="Search Papers"
                   className="form-control"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                   style={{
                     padding: "8px 16px",
                     border: "1px solid #d1d5db",
@@ -957,7 +962,7 @@ const ResearchLibrary = () => {
         </div>
       </div>
 
-      {/* Notes Modal - Beautiful Design */}
+      {/* Notes Modal */}
       {notesModal.show && (
         <div
           style={{
@@ -1118,21 +1123,26 @@ const ResearchLibrary = () => {
             >
               <button
                 onClick={deleteNotes}
+                disabled={!notesModal.notes.trim()}
                 style={{
                   padding: "10px 20px",
-                  color: "#dc2626",
+                  color: !notesModal.notes.trim() ? "#9ca3af" : "#dc2626",
                   backgroundColor: "transparent",
-                  border: "1px solid #dc2626",
+                  border: `1px solid ${!notesModal.notes.trim() ? "#9ca3af" : "#dc2626"}`,
                   borderRadius: "8px",
                   fontSize: "0.875rem",
                   fontWeight: 500,
-                  cursor: "pointer",
+                  cursor: !notesModal.notes.trim() ? "not-allowed" : "pointer",
                 }}
                 onMouseOver={(e) =>
-                  (e.currentTarget.style.backgroundColor = "#fef2f2")
+                  !notesModal.notes.trim()
+                    ? null
+                    : (e.currentTarget.style.backgroundColor = "#fef2f2")
                 }
                 onMouseOut={(e) =>
-                  (e.currentTarget.style.backgroundColor = "transparent")
+                  !notesModal.notes.trim()
+                    ? null
+                    : (e.currentTarget.style.backgroundColor = "transparent")
                 }
               >
                 Delete Notes
@@ -1192,7 +1202,7 @@ const ResearchLibrary = () => {
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1202,11 +1212,11 @@ const ResearchLibrary = () => {
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "12px",
-              padding: "24px",
+              borderRadius: "8px",
+              padding: "20px",
               width: "90%",
-              maxWidth: "400px",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
+              maxWidth: "500px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
             }}
           >
             <div
@@ -1214,12 +1224,12 @@ const ResearchLibrary = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: "16px",
+                marginBottom: "20px",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1.125rem",
+                  fontSize: "18px",
                   fontWeight: 600,
                   color: "#111827",
                   margin: 0,
@@ -1230,11 +1240,14 @@ const ResearchLibrary = () => {
               <button
                 onClick={() => setShowNewLibraryModal(false)}
                 style={{
-                  padding: "4px",
+                  padding: "8px",
                   border: "none",
                   background: "transparent",
                   borderRadius: "4px",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <X size={20} style={{ color: "#6b7280" }} />
@@ -1245,26 +1258,58 @@ const ResearchLibrary = () => {
               value={newLibraryName}
               onChange={(e) => setNewLibraryName(e.target.value)}
               placeholder="Enter library name"
-              className="form-control"
-              style={{ marginBottom: "16px" }}
-              onKeyPress={(e) => e.key === "Enter" && handleCreateLibrary()}
-            />
-            <button
-              onClick={handleCreateLibrary}
               style={{
                 width: "100%",
-                padding: "10px 16px",
-                color: "white",
-                backgroundColor: "#3E513E",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                cursor: "pointer",
+                padding: "10px 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                marginBottom: "20px",
+                outline: "none",
+              }}
+              onKeyPress={(e) => e.key === "Enter" && handleCreateLibrary()}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "12px",
               }}
             >
-              Create Library
-            </button>
+              <button
+                onClick={() => setShowNewLibraryModal(false)}
+                style={{
+                  padding: "10px 16px",
+                  color: "#6b7280",
+                  backgroundColor: "#f3f4f6",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateLibrary}
+                disabled={!newLibraryName.trim()}
+                style={{
+                  padding: "10px 16px",
+                  color: "white",
+                  backgroundColor: newLibraryName.trim()
+                    ? "#3E513E"
+                    : "#9ca3af",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: newLibraryName.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Create
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1275,7 +1320,7 @@ const ResearchLibrary = () => {
           style={{
             position: "fixed",
             inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.6)",
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -1285,11 +1330,11 @@ const ResearchLibrary = () => {
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "12px",
-              padding: "24px",
+              borderRadius: "8px",
+              padding: "20px",
               width: "90%",
-              maxWidth: "400px",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.1)",
+              maxWidth: "500px",
+              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
             }}
           >
             <div
@@ -1297,12 +1342,12 @@ const ResearchLibrary = () => {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: "16px",
+                marginBottom: "20px",
               }}
             >
               <h3
                 style={{
-                  fontSize: "1.125rem",
+                  fontSize: "18px",
                   fontWeight: 600,
                   color: "#111827",
                   margin: 0,
@@ -1317,11 +1362,14 @@ const ResearchLibrary = () => {
                   setNewLibraryName("");
                 }}
                 style={{
-                  padding: "4px",
+                  padding: "8px",
                   border: "none",
                   background: "transparent",
                   borderRadius: "4px",
                   cursor: "pointer",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 <X size={20} style={{ color: "#6b7280" }} />
@@ -1332,26 +1380,62 @@ const ResearchLibrary = () => {
               value={newLibraryName}
               onChange={(e) => setNewLibraryName(e.target.value)}
               placeholder="Enter library name"
-              className="form-control"
-              style={{ marginBottom: "16px" }}
-              onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
-            />
-            <button
-              onClick={handleEditLibrary}
               style={{
                 width: "100%",
-                padding: "10px 16px",
-                color: "white",
-                backgroundColor: "#3E513E",
-                border: "none",
-                borderRadius: "8px",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-                cursor: "pointer",
+                padding: "10px 12px",
+                border: "1px solid #d1d5db",
+                borderRadius: "6px",
+                fontSize: "14px",
+                marginBottom: "20px",
+                outline: "none",
+              }}
+              onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
+            />
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                gap: "12px",
               }}
             >
-              Save Changes
-            </button>
+              <button
+                onClick={() => {
+                  setShowEditModal(false);
+                  setEditingLibrary(null);
+                  setNewLibraryName("");
+                }}
+                style={{
+                  padding: "10px 16px",
+                  color: "#6b7280",
+                  backgroundColor: "#f3f4f6",
+                  border: "1px solid #d1d5db",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: "pointer",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleEditLibrary}
+                disabled={!newLibraryName.trim()}
+                style={{
+                  padding: "10px 16px",
+                  color: "white",
+                  backgroundColor: newLibraryName.trim()
+                    ? "#3E513E"
+                    : "#9ca3af",
+                  border: "none",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  cursor: newLibraryName.trim() ? "pointer" : "not-allowed",
+                }}
+              >
+                Save Changes
+              </button>
+            </div>
           </div>
         </div>
       )}
