@@ -6,7 +6,7 @@ const { authenticate } = require('../middlewares/authMiddleware');
 router.use(authenticate);
 
 router.get(
-  '/:libraryId/bibtex',
+  '/:libraryId',
   libraryBibtexController.getLibraryBibtex
 );
 
