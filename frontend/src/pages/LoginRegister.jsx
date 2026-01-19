@@ -86,7 +86,7 @@ export default function LoginRegister() {
       } else {
         // Auto-confirmed (rare)
         if (data.session?.access_token) {
-          localStorage.setItem('supabase_token', data.session.access_token);
+          localStorage.setItem('access_token', data.session.access_token);
         }
         navigate('/profile');
       }

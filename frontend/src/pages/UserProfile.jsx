@@ -4,7 +4,6 @@ import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
 import Navbar from "../components/Navbar";
-import { supabase } from '../config/supabase';
 
 const UserProfile = () => {
   const navigate = useNavigate();
@@ -22,42 +21,57 @@ const UserProfile = () => {
     affiliation: "Islamic University of Technology",
     researchInterests: ["Machine Learning", "Deep Learning", "Natural Language Processing"],
     joinedDate: "September 2022",
-    totalPapers: 47,
+    totalPapers: 0,
     papersRead: 23,
     thisMonth: 15,
     readingNow: 3,
     toRead: 24,
     inProgress: 8,
     completed: 15,
-    mostCitedPapers: [
-      {
-        title: "Machine Learning Approaches for Climate Prediction",
-        authors: "Afreen, S., Rahman, M., et al.",
-        year: 2024,
-        citations: 127
-      },
-      {
-        title: "Deep Learning Applications in Medical Imaging",
-        authors: "Afreen, S., Khan, A.",
-        year: 2023,
-        citations: 89
-      },
-      {
-        title: "Natural Language Processing for Sentiment Analysis",
-        authors: "Afreen, S.",
-        year: 2023,
-        citations: 54
-      }
-    ],
-    publications: [
-      { title: "Mcgraw-hill science", authors: "TM Mitchell, M Learning", journal: "Engineering/Math 1, 27", citations: 121, year: 1997 },
-      { title: "Tom mitchell", authors: "M Learning", journal: "Publisher: McGraw Hill, 31", citations: 64, year: 1997 },
-      { title: "McGraw-Hill", authors: "M Learning", journal: "New York", citations: 57, year: 1997 },
-      { title: "Markov logic networks", authors: "R Matthew, D Pedro, M Learning", journal: "Machine learning 62 (1-2), 107-136", citations: 27, year: 2006 }
-    ]
+    mostCitedPapers: [], // Will be calculated from actual publications
+    publications: []
   });
 
-  // Check authentication
+  // Function to fetch publications from backend
+  const fetchUserPublications = async (token) => {
+    try {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/publications`, {
+        headers: {
+          'Authorization': `Bearer ${token || localStorage.getItem('access_token')}`
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // Transform backend publications to match UI format
+        const transformedPublications = data.publications.map(pub => ({
+          title: pub.title,
+          authors: pub.authors && pub.authors.length > 0 ? pub.authors.join(', ') : 'Unknown Authors',
+          journal: pub.venue || 'N/A',
+          citations: pub.citation_count || 0,
+          year: pub.published_date ? new Date(pub.published_date).getFullYear() : 'N/A'
+        }));
+
+        // Calculate most cited papers (top 3)
+        const sortedByCitations = [...transformedPublications]
+          .sort((a, b) => b.citations - a.citations)
+          .slice(0, 3);
+
+        // Update state with real publications and most cited
+        setUserData(prev => ({
+          ...prev,
+          publications: transformedPublications,
+          totalPapers: transformedPublications.length,
+          mostCitedPapers: sortedByCitations
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching publications:', error);
+    }
+  };
+
+  // Check authentication and fetch user data
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('access_token');
@@ -93,8 +107,6 @@ const UserProfile = () => {
           name: data.user?.name
         });
 
-        setLoading(false);
-
         // Update userData with real backend data
         if (data.user) {
           setUserData(prev => ({
@@ -105,6 +117,11 @@ const UserProfile = () => {
           }));
         }
 
+        // Fetch user's publications from backend
+        await fetchUserPublications(token);
+
+        setLoading(false);
+
       } catch (error) {
         console.error("Auth check failed:", error);
         localStorage.removeItem('access_token');
@@ -114,8 +131,6 @@ const UserProfile = () => {
 
     checkAuth();
   }, [navigate]);
-
-
 
   const handleSaveProfile = async (updatedData) => {
     try {
@@ -173,6 +188,10 @@ const UserProfile = () => {
       }));
 
       alert('Paper added to your publications successfully!');
+      
+      // Refresh publications from backend to ensure sync
+      const token = localStorage.getItem('access_token');
+      await fetchUserPublications(token);
     } catch (error) {
       console.error('Error updating UI after adding paper:', error);
     }
@@ -207,8 +226,6 @@ const UserProfile = () => {
       <Navbar />
 
       <div className="container-fluid px-5" style={{ paddingTop: '80px' }}>
-        {/* Removed the logout button section here - Navbar handles it */}
-
         <div className="row g-4 py-4">
 
           {/* LEFT SECTION - 8 COLUMNS */}
@@ -290,18 +307,24 @@ const UserProfile = () => {
 
                 {/* Publications List */}
                 <div>
-                  {userData.publications.map((pub, idx) => (
-                    <div key={idx} className={`publication-item ${idx < userData.publications.length - 1 ? 'border-bottom' : ''}`}>
-                      <div className="publication-title mb-2">{pub.title}</div>
-                      <div className="publication-authors mb-1">{pub.authors}</div>
-                      <div className="publication-journal mb-2">{pub.journal}</div>
-                      <div className="publication-meta">
-                        <span className="publication-citations">Cited by {pub.citations}</span>
-                        <span className="mx-2">•</span>
-                        <span>{pub.year}</span>
-                      </div>
+                  {userData.publications.length === 0 ? (
+                    <div className="text-center py-5">
+                      <p className="text-muted">No publications yet. Click "Upload Paper" to add your first paper!</p>
                     </div>
-                  ))}
+                  ) : (
+                    userData.publications.map((pub, idx) => (
+                      <div key={idx} className={`publication-item ${idx < userData.publications.length - 1 ? 'border-bottom' : ''}`}>
+                        <div className="publication-title mb-2">{pub.title}</div>
+                        <div className="publication-authors mb-1">{pub.authors}</div>
+                        <div className="publication-journal mb-2">{pub.journal}</div>
+                        <div className="publication-meta">
+                          <span className="publication-citations">Cited by {pub.citations}</span>
+                          <span className="mx-2">•</span>
+                          <span>{pub.year}</span>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
             </div>
@@ -359,15 +382,21 @@ const UserProfile = () => {
             <div className="card shadow-sm border-light">
               <div className="card-body p-4">
                 <h3 className="sidebar-title">Most Cited Papers</h3>
-                {userData.mostCitedPapers.map((paper, idx) => (
-                  <div key={idx} className={`cited-paper ${idx < userData.mostCitedPapers.length - 1 ? 'border-bottom' : ''}`}>
-                    <div className="cited-paper-title mb-2">{paper.title}</div>
-                    <div className="cited-paper-authors mb-1">{paper.authors}</div>
-                    <div className="cited-paper-meta">
-                      {paper.year} • <strong>{paper.citations} citations</strong>
-                    </div>
+                {userData.mostCitedPapers.length === 0 ? (
+                  <div className="text-center py-3">
+                    <p className="text-muted small">No publications yet</p>
                   </div>
-                ))}
+                ) : (
+                  userData.mostCitedPapers.map((paper, idx) => (
+                    <div key={idx} className={`cited-paper ${idx < userData.mostCitedPapers.length - 1 ? 'border-bottom' : ''}`}>
+                      <div className="cited-paper-title mb-2">{paper.title}</div>
+                      <div className="cited-paper-authors mb-1">{paper.authors}</div>
+                      <div className="cited-paper-meta">
+                        {paper.year} • <strong>{paper.citations} citations</strong>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
