@@ -14,7 +14,9 @@ const {
 const {
   savePaperToLibrary,
   getLibraryPapers,
-  removePaperFromLibrary
+  removePaperFromLibrary,
+  updateReadingStatus,
+  updatePaperNote
 } = require('../controllers/libraryPaperController');
 
 // All routes require authentication
@@ -31,5 +33,9 @@ router.delete('/:library_id', deleteLibrary);       // Delete library (ONLY owne
 router.post('/:library_id/papers', savePaperToLibrary);           // Add paper to library
 router.get('/:library_id/papers', getLibraryPapers);              // Get all papers in library
 router.delete('/:library_id/papers/:paper_id', removePaperFromLibrary); // Remove paper
+
+// Additional paper operations
+router.patch('/:library_id/papers/:paper_id/status', updateReadingStatus); // Update reading status
+router.patch('/:library_id/papers/:paper_id/note', updatePaperNote);       // Update user note
 
 module.exports = router;

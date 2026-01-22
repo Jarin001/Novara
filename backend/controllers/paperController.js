@@ -103,15 +103,20 @@ exports.addUserPublication = async (req, res) => {
     const { paperData } = req.body;
 
     // Validate required fields
-    if (!paperData || !paperData.paperId) {
+    if (!paperData || (!paperData.paperId && !paperData.s2_paper_id)) {
       return res.status(400).json({ 
         message: 'Paper data is required. Please preview the paper first.' 
       });
     }
 
+    // Normalize the paper ID (frontend might send either paperId or s2_paper_id)
+    const s2PaperId = paperData.paperId || paperData.s2_paper_id;
+
     console.log('💾 User confirmed, saving paper:', {
-      paperId: paperData.paperId,
-      title: paperData.title
+      s2PaperId: s2PaperId,
+      title: paperData.title,
+      hasAbstract: !!paperData.abstract,
+      abstractLength: paperData.abstract?.length || 0
     });
 
     // Get user ID
@@ -129,7 +134,7 @@ exports.addUserPublication = async (req, res) => {
     let { data: existingPaper } = await supabase
       .from('papers')
       .select('id, s2_paper_id, title')
-      .eq('s2_paper_id', paperData.paperId)
+      .eq('s2_paper_id', s2PaperId)
       .maybeSingle();
 
     let paper;
@@ -144,12 +149,12 @@ exports.addUserPublication = async (req, res) => {
       const { data: newPaper, error: paperError } = await supabase
         .from('papers')
         .insert({
-          s2_paper_id: paperData.paperId,
+          s2_paper_id: s2PaperId,
           title: paperData.title,
-          year: paperData.year || null,
-          published_date: paperData.publicationDate || (paperData.year ? `${paperData.year}-01-01` : null),
-          citation_count: paperData.citationCount || 0,
-          fields_of_study: paperData.fieldsOfStudy || []
+          year: paperData.year || paperData.published_year || null,
+          published_date: paperData.publicationDate || paperData.publication_date || (paperData.year ? `${paperData.year}-01-01` : null),
+          citation_count: paperData.citationCount || paperData.citation_count || 0,
+          fields_of_study: paperData.fieldsOfStudy || paperData.fields_of_study || []
         })
         .select()
         .single();
@@ -161,35 +166,6 @@ exports.addUserPublication = async (req, res) => {
 
       paper = newPaper;
       console.log('✅ Paper saved to PostgreSQL:', paper.id);
-
-      // Save abstract to MongoDB (only if paper is new)
-      try {
-        console.log('💾 Saving abstract to MongoDB...', {
-          paperId: paper.id,
-          hasAbstract: !!paperData.abstract,
-          abstractLength: paperData.abstract?.length || 0
-        });
-
-        const mongoDoc = await PaperContent.findOneAndUpdate(
-          { s2PaperId: paperData.paperId },
-          {
-            paperId: paper.id.toString(),
-            s2PaperId: paperData.paperId,
-            abstract: paperData.abstract || '',
-            bibtex: paperData.bibtex || ''
-          },
-          { upsert: true, new: true }
-        );
-
-        console.log('✅ Abstract saved to MongoDB:', {
-          _id: mongoDoc._id,
-          abstractLength: mongoDoc.abstract.length
-        });
-
-      } catch (mongoError) {
-        console.error('❌ MongoDB error (non-fatal):', mongoError);
-        // Continue even if MongoDB fails - abstract is not critical
-      }
 
       // Save authors (only if paper is new)
       if (paperData.authors && Array.isArray(paperData.authors) && paperData.authors.length > 0) {
@@ -249,6 +225,33 @@ exports.addUserPublication = async (req, res) => {
 
         console.log('✅ Authors saved successfully');
       }
+    }
+
+    // CRITICAL: Always ensure abstract is in MongoDB, even for existing papers
+    // This handles the case where paper exists but abstract was never saved
+    try {
+      console.log('🔍 Checking/updating abstract in MongoDB...');
+      
+      const mongoDoc = await PaperContent.findOneAndUpdate(
+        { s2PaperId: s2PaperId },
+        {
+          paperId: paper.id.toString(),
+          s2PaperId: s2PaperId,
+          abstract: paperData.abstract || '',
+          bibtex: paperData.bibtex || ''
+        },
+        { upsert: true, new: true }
+      );
+
+      console.log('✅ Abstract ensured in MongoDB:', {
+        _id: mongoDoc._id,
+        paperId: mongoDoc.paperId,
+        s2PaperId: mongoDoc.s2PaperId,
+        abstractLength: mongoDoc.abstract?.length || 0
+      });
+
+    } catch (mongoError) {
+      console.error('❌ MongoDB error:', mongoError);
     }
 
     // Check if already added to user's publications

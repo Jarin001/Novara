@@ -38,6 +38,7 @@ CREATE TABLE papers (
     s2_paper_id VARCHAR(255) UNIQUE NOT NULL,
     title TEXT NOT NULL,
     published_date DATE,
+    year INTEGER,
     citation_count INTEGER DEFAULT 0,
     fields_of_study TEXT[],
     venue TEXT
