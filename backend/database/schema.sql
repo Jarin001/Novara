@@ -6,6 +6,7 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     profile_picture_url TEXT,
     affiliation VARCHAR(255),
+    research_interests TEXT[] DEFAULT '{}',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );

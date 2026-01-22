@@ -82,7 +82,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          s2_paper_id: paperDetails.s2_paper_id // Only send paper ID, everything else is already in DB
+          s2_paper_id: paperDetails
         })
       });
 

@@ -10,7 +10,7 @@ const getUserProfile = async (req, res) => {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, profile_picture_url, affiliation, created_at, updated_at')
+      .select('id, name, email, profile_picture_url, affiliation, research_interests, created_at, updated_at')  
       .eq('auth_id', authId)
       .single();
 
@@ -34,12 +34,13 @@ const getUserProfile = async (req, res) => {
 const updateUserProfile = async (req, res) => {
   try {
     const authId = req.user.id;
-    const supabase = req.supabase; // ADD THIS LINE
-    const { name, affiliation } = req.body;
+    const supabase = req.supabase;
+    const { name, affiliation, researchInterests } = req.body;  // ADD researchInterests
 
     const updates = {};
     if (name) updates.name = name;
     if (affiliation !== undefined) updates.affiliation = affiliation;
+    if (researchInterests !== undefined) updates.research_interests = researchInterests;  
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ 
