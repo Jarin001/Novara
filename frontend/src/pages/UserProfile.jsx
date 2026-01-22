@@ -5,13 +5,26 @@ import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
 import Navbar from "../components/Navbar";
 
+// Import services
+import {
+  getUserProfile,
+  updateUserProfile,
+  uploadProfilePicture,
+  clearAuth
+} from '../services/userService';
+import {
+  getUserPublications,
+  removePublication,
+  getMostCitedPapers
+} from '../services/paperService';
+
 // Add this CSS for the abstract display
 const additionalStyles = `
   .publication-journal {
     font-size: 14px;
     color: #5f6368;
     line-height: 1.6;
-    max-height: 4.8em; /* ~3 lines */
+    max-height: 4.8em;
     overflow: hidden;
     text-overflow: ellipsis;
     display: -webkit-box;
@@ -31,77 +44,65 @@ const UserProfile = () => {
   const navigate = useNavigate();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
 
+  // Loading and error states
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  // User data with CLEAN defaults (no hardcoded values)
   const [userData, setUserData] = useState({
-    name: "SANJANA AFREEN",
-    id: "220042106",
-    institution: "Islamic University of Technology",
-    department: "Department of Computer Science and Engineering",
-    email: "iut-dhaka.edu",
-    affiliation: "Islamic University of Technology",
-    researchInterests: ["Machine Learning", "Deep Learning", "Natural Language Processing"],
-    joinedDate: "September 2022",
+    name: "",
+    id: "",
+    institution: "",
+    department: "",
+    email: "",
+    affiliation: "",
+    researchInterests: [],
+    joinedDate: "",
     totalPapers: 0,
-    papersRead: 23,
-    thisMonth: 15,
-    readingNow: 3,
-    toRead: 24,
-    inProgress: 8,
-    completed: 15,
-    mostCitedPapers: [], // Will be calculated from actual publications
-    publications: []
+    papersRead: 0,
+    thisMonth: 0,
+    readingNow: 0,
+    toRead: 0,
+    inProgress: 0,
+    completed: 0,
+    mostCitedPapers: [],
+    publications: [],
+    profile_picture_url: null
   });
 
-  // Function to fetch publications from backend
-  const fetchUserPublications = async (token) => {
+  /**
+   * Fetch user publications and update state
+   */
+  const fetchPublications = async () => {
     try {
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/publications`, {
-        headers: {
-          'Authorization': `Bearer ${token || localStorage.getItem('access_token')}`
-        }
-      });
+      const publications = await getUserPublications();
+      const mostCited = getMostCitedPapers(publications, 3);
 
-      if (response.ok) {
-        const data = await response.json();
+      setUserData(prev => ({
+        ...prev,
+        publications,
+        totalPapers: publications.length,
+        mostCitedPapers: mostCited
+      }));
 
-        console.log('📚 Fetched publications:', data.publications.length);
-
-        // Transform backend publications to match UI format
-        const transformedPublications = data.publications.map(pub => ({
-          id: pub.id, // user_papers id for deletion
-          title: pub.title,
-          authors: pub.authors && pub.authors.length > 0 ? pub.authors.join(', ') : 'Unknown Authors',
-          abstract: pub.abstract || 'No abstract available',
-          citations: pub.citation_count || 0,
-          year: pub.year || (pub.published_date ? new Date(pub.published_date).getFullYear() : 'N/A')
-        }));
-
-        // Calculate most cited papers (top 3)
-        const sortedByCitations = [...transformedPublications]
-          .sort((a, b) => b.citations - a.citations)
-          .slice(0, 3);
-
-        // Update state with real publications and most cited
-        setUserData(prev => ({
-          ...prev,
-          publications: transformedPublications,
-          totalPapers: transformedPublications.length,
-          mostCitedPapers: sortedByCitations
-        }));
-      }
+      console.log('📚 Fetched publications:', publications.length);
     } catch (error) {
-      console.error('Error fetching publications:', error);
+      console.error('Failed to fetch publications:', error);
+      // Don't throw - publications are optional, profile should still load
     }
   };
 
-  // Check authentication and fetch user data
+  /**
+   * Fetch user profile and publications on mount
+   */
   useEffect(() => {
-    const checkAuth = async () => {
+    const initializeProfile = async () => {
       const token = localStorage.getItem('access_token');
 
-      // If no token, redirect to login
+      // Redirect if no token
       if (!token) {
         console.log("No authentication token found");
         navigate('/login');
@@ -109,217 +110,154 @@ const UserProfile = () => {
       }
 
       try {
-        // Verify token with YOUR backend
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile`, {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        setLoading(true);
+        setError(null);
 
-        if (!response.ok) {
-          // Token invalid or expired
-          localStorage.removeItem('access_token');
-          navigate('/login');
-          return;
-        }
+        // Fetch user profile
+        const profile = await getUserProfile();
 
-        const data = await response.json();
+        // Update state with profile data
+        setUserData(prev => ({
+          ...prev,
+          name: profile.name || "",
+          email: profile.email || "",
+          affiliation: profile.affiliation || "",
+          institution: profile.affiliation || "",
+          researchInterests: profile.research_interests || [],
+          joinedDate: profile.created_at
+            ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+            : "",
+          profile_picture_url: profile.profile_picture_url || null
+        }));
 
-        // Set user from YOUR backend response
-        setUser({
-          id: data.user?.id,
-          email: data.user?.email,
-          name: data.user?.name
-        });
-
-        // Update userData with real backend data
-        if (data.user) {
-          setUserData(prev => ({
-            ...prev,
-            name: data.user.name || prev.name,
-            email: data.user.email || prev.email,
-            affiliation: data.user.affiliation || prev.affiliation,
-            institution: data.user.affiliation || prev.institution,
-            researchInterests: data.user.research_interests || prev.researchInterests,
-            joinedDate: data.user.created_at
-              ? new Date(data.user.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-              : prev.joinedDate,
-            profile_picture_url: data.user.profile_picture_url || null
-          }));
-        }
-
-        // Fetch user's publications from backend
-        await fetchUserPublications(token);
-
-        setLoading(false);
+        // Fetch publications
+        await fetchPublications();
 
       } catch (error) {
-        console.error("Auth check failed:", error);
-        localStorage.removeItem('access_token');
-        navigate('/login');
+        console.error("Failed to initialize profile:", error);
+        setError(error.message);
+
+        // If authentication failed, clear token and redirect
+        if (error.message.includes('401') || error.message.includes('403')) {
+          clearAuth();
+          navigate('/login');
+        }
+      } finally {
+        setLoading(false);
       }
     };
 
-    checkAuth();
+    initializeProfile();
   }, [navigate]);
 
+  /**
+   * Handle profile update
+   */
   const handleSaveProfile = async (updatedData) => {
     try {
-      const token = localStorage.getItem('access_token');
+      setUpdateLoading(true);
 
-      // Call your backend API to update profile
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify(updatedData)
-      });
+      // Update profile via API
+      await updateUserProfile(updatedData);
 
-      if (response.ok) {
-        // Update local state with new data
-        setUserData(prev => ({
-          ...prev,
-          name: updatedData.name,
-          affiliation: updatedData.affiliation,
-          researchInterests: updatedData.researchInterests,
-          institution: updatedData.affiliation
-        }));
+      // Update local state
+      setUserData(prev => ({
+        ...prev,
+        name: updatedData.name,
+        affiliation: updatedData.affiliation,
+        researchInterests: updatedData.researchInterests,
+        institution: updatedData.affiliation
+      }));
 
-        console.log('Profile updated:', updatedData);
-        alert('Profile updated successfully!');
-      } else {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update profile');
-      }
+      console.log('✅ Profile updated successfully');
+      alert('Profile updated successfully!');
+
     } catch (error) {
       console.error('Error updating profile:', error);
-      alert(`Error: ${error.message}`);
+      alert(`Failed to update profile: ${error.message}`);
       throw error;
+    } finally {
+      setUpdateLoading(false);
     }
   };
 
+  /**
+   * Handle profile picture upload
+   */
   const handleProfilePictureChange = async (event) => {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file size (2MB limit)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('File size must be less than 2MB');
-      return;
-    }
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file');
-      return;
-    }
-
     try {
-      // Convert to base64
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result;
+      setUploadingPicture(true);
 
-        const token = localStorage.getItem('access_token');
+      // Upload picture via service
+      const profilePictureUrl = await uploadProfilePicture(file);
 
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile-picture`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({
-            imageBase64: base64String,
-            fileName: file.name
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-
-          // Update local state with new profile picture URL
-          setUserData(prev => ({
-            ...prev,
-            profile_picture_url: data.profile_picture_url
-          }));
-
-          alert('Profile picture updated successfully!');
-        } else {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to upload profile picture');
-        }
-      };
-
-      reader.onerror = () => {
-        alert('Error reading file');
-      };
-
-      reader.readAsDataURL(file);
-    } catch (error) {
-      console.error('Error uploading profile picture:', error);
-      alert(`Error: ${error.message}`);
-    }
-  };
-
-  const handleConfirmPaper = async (paperDetails) => {
-    try {
-      console.log('✅ Paper added successfully, refreshing publications list...');
-
-      // Refresh the publications list from backend
-      await fetchUserPublications();
-
-      alert('Paper added to your publications successfully!');
-
-    } catch (error) {
-      console.error('❌ Error refreshing publications:', error);
-      alert('Paper was added but failed to refresh the list. Please reload the page.');
-    }
-  };
-
-  const handleRemovePaper = async (publicationId) => {
-    if (!window.confirm('Are you sure you want to remove this publication from your profile?')) {
-      return;
-    }
-
-    try {
-      const token = localStorage.getItem('access_token');
-
-      const response = await fetch(
-        `${process.env.REACT_APP_BACKEND_URL}/api/papers/publications/${publicationId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to remove publication');
-      }
-
-      // Immediate UI update - this WILL work
+      // Update local state
       setUserData(prev => ({
         ...prev,
-        publications: prev.publications.filter(pub => pub.id !== publicationId),
-        totalPapers: prev.publications.length - 1,
-        mostCitedPapers: prev.publications
-          .filter(pub => pub.id !== publicationId)
-          .sort((a, b) => b.citations - a.citations)
-          .slice(0, 3)
+        profile_picture_url: profilePictureUrl
       }));
 
-      alert('Publication removed successfully!');
+      console.log('✅ Profile picture updated successfully');
+      alert('Profile picture updated successfully!');
 
     } catch (error) {
-      console.error('Error removing publication:', error);
-      alert('Failed to remove publication. Please try again.');
+      console.error('Error uploading profile picture:', error);
+      alert(`Failed to upload profile picture: ${error.message}`);
+    } finally {
+      setUploadingPicture(false);
     }
   };
 
+  /**
+   * Handle paper upload confirmation
+   */
+  const handleConfirmPaper = async (paperDetails) => {
+    try {
+      console.log('✅ Paper added successfully, refreshing publications...');
 
+      // Refresh publications list
+      await fetchPublications();
+
+      alert('Paper added to your publications successfully!');
+    } catch (error) {
+      console.error('Error refreshing publications:', error);
+      alert('Paper may have been added, but failed to refresh the list. Please reload the page.');
+    }
+  };
+
+  /**
+   * Handle paper removal
+   */
+  const handleRemovePaper = async (userPaperId) => {
+    if (!window.confirm('Are you sure you want to remove this paper?')) return;
+
+    try {
+      await removePublication(userPaperId);
+
+      // ✅ IMMEDIATELY update local state
+      setUserData(prev => {
+        const updatedPublications = prev.publications.filter(pub => pub.id !== userPaperId);
+        const updatedMostCited = getMostCitedPapers(updatedPublications, 3);
+
+        return {
+          ...prev,
+          publications: updatedPublications,
+          totalPapers: updatedPublications.length,
+          mostCitedPapers: updatedMostCited
+        };
+      });
+
+      alert('Paper removed successfully!');
+    } catch (error) {
+      await fetchPublications(); // Only fetch on error
+      alert(`Failed to remove: ${error.message}`);
+    }
+  };
+
+  // Loading state
   if (loading) {
     return (
       <div>
@@ -328,7 +266,29 @@ const UserProfile = () => {
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="mt-3">Loading profile...</p>
+          <p className="mt-3 text-muted">Loading your profile...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div>
+        <Navbar />
+        <div className="container mt-5">
+          <div className="alert alert-danger" role="alert">
+            <h4 className="alert-heading">Error Loading Profile</h4>
+            <p>{error}</p>
+            <hr />
+            <button
+              className="btn btn-primary"
+              onClick={() => window.location.reload()}
+            >
+              Retry
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -337,14 +297,14 @@ const UserProfile = () => {
   return (
     <div>
       <Navbar />
-      <div className="container-fluid py-4 px-4">
+      <div className="container-fluid px-4 py-4" style={{ maxWidth: '1400px' }}>
         <div className="row g-4">
-          {/* LEFT SECTION - 8 COLUMNS */}
+          {/* MAIN CONTENT - 8 COLUMNS */}
           <div className="col-lg-8">
-            {/* Profile Header Card */}
+            {/* Profile Card */}
             <div className="card shadow-sm border-light mb-4">
               <div className="card-body p-4">
-                <div className="row align-items-center">
+                <div className="row align-items-center g-4">
                   {/* Avatar */}
                   <div className="col-auto">
                     <div className="profile-avatar position-relative">
@@ -361,14 +321,17 @@ const UserProfile = () => {
                           }}
                         />
                       ) : (
-                        <div className="avatar-circle">{userData.name.charAt(0)}</div>
+                        <div className="avatar-circle">
+                          {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
+                        </div>
                       )}
                       <div
                         className="avatar-edit-btn"
                         onClick={() => document.getElementById('profilePictureInput').click()}
-                        style={{ cursor: 'pointer' }}
+                        style={{ cursor: 'pointer', opacity: uploadingPicture ? 0.5 : 1 }}
+                        title="Upload profile picture"
                       >
-                        <span>📷</span>
+                        <span>{uploadingPicture ? '⏳' : '📷'}</span>
                       </div>
                       <input
                         type="file"
@@ -376,6 +339,7 @@ const UserProfile = () => {
                         accept="image/*"
                         style={{ display: 'none' }}
                         onChange={handleProfilePictureChange}
+                        disabled={uploadingPicture}
                       />
                     </div>
                   </div>
@@ -383,42 +347,55 @@ const UserProfile = () => {
                   {/* Profile Info */}
                   <div className="col">
                     <div className="d-flex align-items-baseline gap-3 mb-2">
-                      <h2 className="profile-name mb-0">{userData.name}</h2>
-                      <span className="profile-id">{userData.id}</span>
+                      <h2 className="profile-name mb-0">
+                        {userData.name || 'User'}
+                      </h2>
+                      {userData.id && <span className="profile-id">{userData.id}</span>}
                     </div>
 
-                    <p className="fw-semibold text-dark mb-2">{userData.institution}</p>
-                    <p className="text-muted mb-2">{userData.department}</p>
+                    {userData.institution && (
+                      <p className="fw-semibold text-dark mb-2">{userData.institution}</p>
+                    )}
+                    {userData.department && (
+                      <p className="text-muted mb-2">{userData.department}</p>
+                    )}
 
-                    <div className="d-flex align-items-center gap-2 mb-3 text-muted">
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="#34a853">
-                        <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14.4c-3.5 0-6.4-2.9-6.4-6.4S4.5 1.6 8 1.6s6.4 2.9 6.4 6.4-2.9 6.4-6.4 6.4z" />
-                        <path d="M10.7 6.3L7.5 9.5 5.3 7.3c-.3-.3-.8-.3-1.1 0s-.3.8 0 1.1l2.8 2.8c.3.3.8.3 1.1 0l3.8-3.8c.3-.3.3-.8 0-1.1-.3-.3-.9-.3-1.2 0z" />
-                      </svg>
-                      <span className="small">Verified email at {userData.email}</span>
-                    </div>
-
-                    <div className="mb-3">
-                      <div className="text-muted small fw-semibold mb-2">Research Interests</div>
-                      <div className="d-flex gap-2 flex-wrap">
-                        {userData.researchInterests.map((interest, idx) => (
-                          <span key={idx} className="badge research-interest-badge">
-                            {interest}
-                          </span>
-                        ))}
+                    {userData.email && (
+                      <div className="d-flex align-items-center gap-2 mb-3 text-muted">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="#34a853">
+                          <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14.4c-3.5 0-6.4-2.9-6.4-6.4S4.5 1.6 8 1.6s6.4 2.9 6.4 6.4-2.9 6.4-6.4 6.4z" />
+                          <path d="M10.7 6.3L7.5 9.5 5.3 7.3c-.3-.3-.8-.3-1.1 0s-.3.8 0 1.1l2.8 2.8c.3.3.8.3 1.1 0l3.8-3.8c.3-.3.3-.8 0-1.1-.3-.3-.9-.3-1.2 0z" />
+                        </svg>
+                        <span className="small">Verified email at {userData.email}</span>
                       </div>
-                    </div>
+                    )}
+
+                    {userData.researchInterests.length > 0 && (
+                      <div className="mb-3">
+                        <div className="text-muted small fw-semibold mb-2">Research Interests</div>
+                        <div className="d-flex gap-2 flex-wrap">
+                          {userData.researchInterests.map((interest, idx) => (
+                            <span key={idx} className="badge research-interest-badge">
+                              {interest}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
 
                     <div className="d-flex gap-3 align-items-center">
                       <button
                         className="btn btn-outline-primary fw-semibold"
                         onClick={() => setIsEditModalOpen(true)}
+                        disabled={updateLoading}
                       >
-                        Edit Profile
+                        {updateLoading ? 'Updating...' : 'Edit Profile'}
                       </button>
-                      <span className="text-muted small">
-                        Member since {userData.joinedDate}
-                      </span>
+                      {userData.joinedDate && (
+                        <span className="text-muted small">
+                          Member since {userData.joinedDate}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -435,7 +412,10 @@ const UserProfile = () => {
                       {userData.publications.length} papers
                     </span>
                   </div>
-                  <button className="btn btn-primary fw-semibold d-flex align-items-center gap-2" onClick={() => setIsUploadModalOpen(true)}>
+                  <button
+                    className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
+                    onClick={() => setIsUploadModalOpen(true)}
+                  >
                     <span className="fs-5">+</span>
                     <span>Upload Paper</span>
                   </button>
@@ -449,7 +429,10 @@ const UserProfile = () => {
                     </div>
                   ) : (
                     userData.publications.map((pub, idx) => (
-                      <div key={idx} className={`publication-item ${idx < userData.publications.length - 1 ? 'border-bottom' : ''}`}>
+                      <div
+                        key={pub.id || idx}
+                        className={`publication-item ${idx < userData.publications.length - 1 ? 'border-bottom' : ''}`}
+                      >
                         <div className="publication-title mb-2">{pub.title}</div>
                         <div className="publication-authors mb-1">{pub.authors}</div>
                         <div className="publication-journal mb-2">{pub.abstract}</div>
@@ -541,7 +524,10 @@ const UserProfile = () => {
                   </div>
                 ) : (
                   userData.mostCitedPapers.map((paper, idx) => (
-                    <div key={idx} className={`cited-paper ${idx < userData.mostCitedPapers.length - 1 ? 'border-bottom' : ''}`}>
+                    <div
+                      key={paper.id || idx}
+                      className={`cited-paper ${idx < userData.mostCitedPapers.length - 1 ? 'border-bottom' : ''}`}
+                    >
                       <div className="cited-paper-title mb-2">{paper.title}</div>
                       <div className="cited-paper-authors mb-1">{paper.authors}</div>
                       <div className="cited-paper-meta">

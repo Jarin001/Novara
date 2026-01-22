@@ -9,7 +9,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
 
   const handleFetchPaper = async () => {
     if (!paperId.trim()) {
-      setError('Please enter a Paper ID, DOI, or ArXiv ID');
+      setError('Please enter a Corpus ID, DOI, or ArXiv ID');
       return;
     }
 
@@ -43,6 +43,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
         
         // Ensure backward compatibility
         s2_paper_id: data.paperId || data.s2_paper_id,
+        corpus_id: data.corpusId || data.corpus_id,
         title: data.title,
         authors: data.authors?.map(a => typeof a === 'string' ? a : a.name) || data.author_names || [],
         published_year: data.year || data.published_year,
@@ -82,7 +83,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          s2_paper_id: paperDetails
+          paperData: paperDetails
         })
       });
 
@@ -139,7 +140,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
         <div className="upload-modal-body">
           {/* Input Section */}
           <div className="upload-input-section">
-            <label className="upload-label">Enter Paper ID, DOI, or ArXiv ID</label>
+            <label className="upload-label">Enter Corpus ID, DOI, or ArXiv ID</label>
             <div className="upload-input-group">
               <input
                 type="text"
@@ -147,7 +148,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
                 value={paperId}
                 onChange={(e) => setPaperId(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="e.g., 10.1038/nature12345 or 2401.12345"
+                placeholder="e.g., 123456789 or 10.1038/nature12345 or 2401.12345"
                 disabled={isLoading}
               />
               <button
@@ -173,7 +174,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
             </div>
             {error && <div className="upload-error">{error}</div>}
             <p className="upload-help-text">
-              Supports Semantic Scholar Paper ID, DOI, or ArXiv ID
+              Supports Corpus ID (e.g., 123456789), DOI (e.g., 10.1038/nature12345), or ArXiv ID (e.g., 2401.12345)
             </p>
           </div>
 
@@ -267,9 +268,13 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
                 {/* Journal Info */}
                 {paperDetails.journal && (
                   <div className="paper-preview-abstract" style={{ fontSize: '13px' }}>
-                    <strong>Journal:</strong> {paperDetails.journal.name || paperDetails.journal}
-                    {paperDetails.journal.volume && ` | Volume: ${paperDetails.journal.volume}`}
-                    {paperDetails.journal.pages && ` | Pages: ${paperDetails.journal.pages}`}
+                    <strong>Journal:</strong> {
+                      typeof paperDetails.journal === 'string' 
+                        ? paperDetails.journal 
+                        : (paperDetails.journal.name || 'Unknown Journal')
+                    }
+                    {typeof paperDetails.journal === 'object' && paperDetails.journal.volume && ` | Volume: ${paperDetails.journal.volume}`}
+                    {typeof paperDetails.journal === 'object' && paperDetails.journal.pages && ` | Pages: ${paperDetails.journal.pages}`}
                   </div>
                 )}
 

@@ -385,10 +385,17 @@ exports.getUserPublications = async (req, res) => {
         const paperContent = contentMap.get(pub.papers.id.toString());
         const abstract = paperContent?.abstract || '';
 
+        // CRITICAL FIX: Don't spread pub.papers as it overwrites the id
         return {
-          id: pub.id,
+          id: pub.id,                           // ← user_papers.id (for DELETE)
           uploaded_at: pub.uploaded_at,
-          ...pub.papers,
+          paper_id: pub.papers.id,              // ← papers.id
+          s2_paper_id: pub.papers.s2_paper_id,
+          title: pub.papers.title,
+          year: pub.papers.year,
+          published_date: pub.papers.published_date,
+          citation_count: pub.papers.citation_count,
+          fields_of_study: pub.papers.fields_of_study,
           authors: authors,
           abstract: abstract
         };
@@ -405,15 +412,26 @@ exports.getUserPublications = async (req, res) => {
   }
 };
 
+
 /**
  * Remove paper from user's publications
  */
+// ============================================================================
+// FIXED removeUserPublication function for paperController.js
+// Replace your existing removeUserPublication function with this
+// ============================================================================
+
 exports.removeUserPublication = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
     const { publication_id } = req.params;
 
+    console.log('🗑️ === DELETE REQUEST RECEIVED ===');
+    console.log('Auth ID:', authId);
+    console.log('Publication ID:', publication_id);
+
+    // Get user ID from auth_id
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -421,22 +439,95 @@ exports.removeUserPublication = async (req, res) => {
       .single();
 
     if (userError || !userData) {
+      console.error('❌ User not found:', userError);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const { error: deleteError } = await supabase
+    console.log('✅ User found, ID:', userData.id);
+
+    // CRITICAL: Check if publication exists BEFORE deleting
+    const { data: beforeCheck, error: beforeError } = await supabase
+      .from('user_papers')
+      .select('id, paper_id, user_id')
+      .eq('id', publication_id)
+      .eq('user_id', userData.id)
+      .maybeSingle();
+
+    console.log('📊 Before delete check:', beforeCheck);
+
+    if (!beforeCheck) {
+      console.warn('⚠️ Publication not found or does not belong to user');
+      return res.status(404).json({ 
+        message: 'Publication not found or you do not have permission to delete it' 
+      });
+    }
+
+    console.log('📄 Publication found, proceeding with deletion...');
+
+    // Attempt to delete - CRITICAL: Use .select() to see what was actually deleted
+    const { data: deleteResult, error: deleteError } = await supabase
       .from('user_papers')
       .delete()
       .eq('id', publication_id)
-      .eq('user_id', userData.id);
+      .eq('user_id', userData.id)
+      .select(); // This returns the deleted row(s)
 
-    if (deleteError) throw deleteError;
+    console.log('🗑️ Delete result:', deleteResult);
+    console.log('🗑️ Delete error:', deleteError);
 
-    res.json({ message: 'Publication removed successfully' });
+    if (deleteError) {
+      console.error('❌ Delete query error:', deleteError);
+      throw deleteError;
+    }
+
+    // CRITICAL CHECK: Verify something was actually deleted
+    if (!deleteResult || deleteResult.length === 0) {
+      console.error('❌❌❌ DELETE RETURNED NO ROWS - NOTHING WAS DELETED!');
+      return res.status(500).json({ 
+        message: 'Failed to delete publication - no rows affected',
+        debug: {
+          attempted_id: publication_id,
+          user_id: userData.id
+        }
+      });
+    }
+
+    console.log('✅ Deleted rows:', deleteResult.length);
+
+    // VERIFICATION: Check if the record still exists
+    const { data: afterCheck, error: afterError } = await supabase
+      .from('user_papers')
+      .select('id')
+      .eq('id', publication_id)
+      .maybeSingle();
+
+    if (afterCheck) {
+      console.error('❌❌❌ CRITICAL: RECORD STILL EXISTS AFTER DELETE!');
+      console.error('Record:', afterCheck);
+      return res.status(500).json({ 
+        message: 'Deletion appeared to succeed but record still exists',
+        debug: {
+          still_exists: true,
+          record: afterCheck
+        }
+      });
+    }
+
+    console.log('✅✅✅ Verification passed - record no longer exists');
+    console.log('🗑️ === DELETE SUCCESSFUL ===');
+
+    res.json({ 
+      message: 'Publication removed successfully',
+      deleted: true,
+      deleted_id: publication_id
+    });
 
   } catch (err) {
     console.error('❌ Error removing publication:', err);
-    res.status(500).json({ message: 'Failed to remove publication' });
+    res.status(500).json({ 
+      message: 'Failed to remove publication',
+      error: err.message 
+    });
   }
 };
 

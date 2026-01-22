@@ -26,10 +26,57 @@ const ALL_FIELDS = [
 ].join(",");
 
 
-// call the api to fetch details
+/**
+ * Detect the type of paper identifier and format it correctly for Semantic Scholar API
+ * @param {string} paperId - Can be DOI, ArXiv ID, Corpus ID, or S2 Paper ID
+ * @returns {string} Formatted identifier for Semantic Scholar API
+ */
+function formatPaperId(paperId) {
+  const trimmedId = paperId.trim();
+  
+  // Check if it's a Corpus ID (pure numbers)
+  if (/^\d+$/.test(trimmedId)) {
+    console.log('📋 Detected Corpus ID:', trimmedId);
+    return `CorpusId:${trimmedId}`;
+  }
+  
+  // Check if already has CorpusId prefix
+  if (/^CorpusId:\d+$/i.test(trimmedId)) {
+    console.log('📋 Detected Corpus ID with prefix:', trimmedId);
+    return trimmedId;
+  }
+  
+  // Check if it's a DOI (starts with "10." or has "doi:" prefix)
+  if (trimmedId.startsWith('10.') || trimmedId.toLowerCase().startsWith('doi:')) {
+    const doi = trimmedId.replace(/^doi:/i, '');
+    console.log('📄 Detected DOI:', doi);
+    return `DOI:${doi}`;
+  }
+  
+  // Check if it's an ArXiv ID (format: YYMM.NNNNN or YYMM.NNNNNvN)
+  if (/^\d{4}\.\d{4,5}(v\d+)?$/.test(trimmedId) || trimmedId.toLowerCase().startsWith('arxiv:')) {
+    const arxivId = trimmedId.replace(/^arxiv:/i, '');
+    console.log('📚 Detected ArXiv ID:', arxivId);
+    return `ARXIV:${arxivId}`;
+  }
+  
+  // Otherwise assume it's a Semantic Scholar Paper ID (internal hash)
+  console.log('🔍 Assuming S2 Paper ID:', trimmedId);
+  return trimmedId;
+}
 
+
+// call the api to fetch details
 exports.getPaperDetails = async (paperId) => {
-  const url = `${BASE_URL}/${encodeURIComponent(paperId)}`;
+  // Format the paper ID based on its type
+  const formattedId = formatPaperId(paperId);
+  
+  // Don't double-encode the colon in CorpusId, DOI, ARXIV prefixes
+  // encodeURIComponent would turn "CorpusId:123" into "CorpusId%3A123"
+  // which the API doesn't like. Instead, we need to keep the colon.
+  const url = `${BASE_URL}/${formattedId}`;
+
+  console.log('🌐 Calling Semantic Scholar API with URL:', url);
 
   try {
     const response = await axios.get(url, {
@@ -42,6 +89,12 @@ exports.getPaperDetails = async (paperId) => {
 
     const paper = response.data;
 
+    console.log('✅ Paper fetched successfully:', {
+      paperId: paper.paperId,
+      corpusId: paper.corpusId,
+      title: paper.title?.substring(0, 50) + '...'
+    });
+
     // fallback if open access pdf is not returned
     if (!paper.openAccessPdf || !paper.openAccessPdf.url) {
       paper.openAccessPdf = await fetchPdfFallback(paper);
@@ -49,7 +102,7 @@ exports.getPaperDetails = async (paperId) => {
 
 
     // add keywords of the paper
-        let keywords = [];
+    let keywords = [];
 
     try {
       // Abstract may be null → handle gracefully
@@ -60,7 +113,7 @@ exports.getPaperDetails = async (paperId) => {
         keywords = await extractKeywords(title, abstract);
       }
     } catch (err) {
-      console.warn("Keyword extraction failed:", err.message);
+      console.warn("⚠️ Keyword extraction failed:", err.message);
       keywords = [];
     }
 
@@ -68,15 +121,22 @@ exports.getPaperDetails = async (paperId) => {
 
     return paper;
   } catch (error) {
-    console.error("Error fetching paper details:", error.response?.data || error.message);
-    throw error;
+    console.error("❌ Error fetching paper details:", error.response?.data || error.message);
+    
+    // Provide more helpful error messages
+    if (error.response?.status === 404) {
+      throw new Error('Paper not found. Please check the Corpus ID, DOI, or ArXiv ID and try again.');
+    } else if (error.response?.status === 429) {
+      throw new Error('Rate limit exceeded. Please try again in a few moments.');
+    } else {
+      throw new Error('Failed to fetch paper details. Please try again later.');
+    }
   }
 };
 
 
 
 //fallback function for pdf
-
 const fetchPdfFallback = async (paper) => {
   const pdfFallback = {
     url: null,
@@ -132,7 +192,10 @@ const fetchPdfFallback = async (paper) => {
 
     return pdfFallback;
   } catch (err) {
-    console.error("Error fetching fallback PDF:", err.message);
+    console.error("⚠️ Error fetching fallback PDF:", err.message);
     return pdfFallback;
   }
 };
+
+// Export the format function for testing purposes
+exports.formatPaperId = formatPaperId;
