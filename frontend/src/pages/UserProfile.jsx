@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
@@ -42,6 +42,8 @@ if (typeof document !== 'undefined') {
 
 const UserProfile = () => {
   const navigate = useNavigate();
+  const { userId } = useParams(); // Get userId from URL if viewing someone else's profile
+  
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
@@ -50,6 +52,9 @@ const UserProfile = () => {
   const [error, setError] = useState(null);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [uploadingPicture, setUploadingPicture] = useState(false);
+
+  // Determine if viewing own profile
+  const [isOwnProfile, setIsOwnProfile] = useState(true);
 
   // User data with CLEAN defaults (no hardcoded values)
   const [userData, setUserData] = useState({
@@ -74,7 +79,7 @@ const UserProfile = () => {
   });
 
   /**
-   * Fetch user publications and update state
+   * Fetch user publications (for own profile)
    */
   const fetchPublications = async () => {
     try {
@@ -91,12 +96,47 @@ const UserProfile = () => {
       console.log('📚 Fetched publications:', publications.length);
     } catch (error) {
       console.error('Failed to fetch publications:', error);
-      // Don't throw - publications are optional, profile should still load
     }
   };
 
   /**
-   * Fetch user profile and publications on mount
+   * Fetch public user profile (for viewing others)
+   */
+  const fetchPublicProfile = async (targetUserId) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch public profile');
+      }
+
+      const data = await response.json();
+      
+      // Check if backend says this is own profile
+      if (data.user.isOwnProfile) {
+        // Redirect to own profile route
+        navigate('/profile');
+        return;
+      }
+
+      return data.user;
+    } catch (error) {
+      console.error('Error fetching public profile:', error);
+      throw error;
+    }
+  };
+
+  /**
+   * Initialize profile based on route
    */
   useEffect(() => {
     const initializeProfile = async () => {
@@ -113,25 +153,52 @@ const UserProfile = () => {
         setLoading(true);
         setError(null);
 
-        // Fetch user profile
-        const profile = await getUserProfile();
+        // Check if viewing someone else's profile (userId in URL)
+        if (userId) {
+          // VIEWING SOMEONE ELSE'S PROFILE
+          setIsOwnProfile(false);
+          
+          const publicProfile = await fetchPublicProfile(userId);
+          
+          // Update state with public profile data
+          setUserData(prev => ({
+            ...prev,
+            name: publicProfile.name || "",
+            affiliation: publicProfile.affiliation || "",
+            institution: publicProfile.affiliation || "",
+            researchInterests: publicProfile.research_interests || [],
+            joinedDate: publicProfile.joinedDate || "",
+            profile_picture_url: publicProfile.profile_picture_url || null,
+            publications: publicProfile.publications || [],
+            totalPapers: publicProfile.totalPapers || 0,
+            mostCitedPapers: publicProfile.mostCitedPapers || [],
+            // NO email, NO overview stats for public profiles
+          }));
+          
+        } else {
+          // VIEWING OWN PROFILE
+          setIsOwnProfile(true);
+          
+          // Fetch own full profile
+          const profile = await getUserProfile();
+          
+          // Update state with full profile data
+          setUserData(prev => ({
+            ...prev,
+            name: profile.name || "",
+            email: profile.email || "",
+            affiliation: profile.affiliation || "",
+            institution: profile.affiliation || "",
+            researchInterests: profile.research_interests || [],
+            joinedDate: profile.created_at 
+              ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+              : "",
+            profile_picture_url: profile.profile_picture_url || null
+          }));
 
-        // Update state with profile data
-        setUserData(prev => ({
-          ...prev,
-          name: profile.name || "",
-          email: profile.email || "",
-          affiliation: profile.affiliation || "",
-          institution: profile.affiliation || "",
-          researchInterests: profile.research_interests || [],
-          joinedDate: profile.created_at
-            ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-            : "",
-          profile_picture_url: profile.profile_picture_url || null
-        }));
-
-        // Fetch publications
-        await fetchPublications();
+          // Fetch own publications
+          await fetchPublications();
+        }
 
       } catch (error) {
         console.error("Failed to initialize profile:", error);
@@ -148,19 +215,19 @@ const UserProfile = () => {
     };
 
     initializeProfile();
-  }, [navigate]);
+  }, [navigate, userId]); // Re-run when userId changes
 
   /**
-   * Handle profile update
+   * Handle profile update (own profile only)
    */
   const handleSaveProfile = async (updatedData) => {
+    if (!isOwnProfile) return; // Safety check
+
     try {
       setUpdateLoading(true);
 
-      // Update profile via API
       await updateUserProfile(updatedData);
 
-      // Update local state
       setUserData(prev => ({
         ...prev,
         name: updatedData.name,
@@ -182,19 +249,19 @@ const UserProfile = () => {
   };
 
   /**
-   * Handle profile picture upload
+   * Handle profile picture upload (own profile only)
    */
   const handleProfilePictureChange = async (event) => {
+    if (!isOwnProfile) return; // Safety check
+
     const file = event.target.files[0];
     if (!file) return;
 
     try {
       setUploadingPicture(true);
 
-      // Upload picture via service
       const profilePictureUrl = await uploadProfilePicture(file);
 
-      // Update local state
       setUserData(prev => ({
         ...prev,
         profile_picture_url: profilePictureUrl
@@ -212,15 +279,14 @@ const UserProfile = () => {
   };
 
   /**
-   * Handle paper upload confirmation
+   * Handle paper upload confirmation (own profile only)
    */
   const handleConfirmPaper = async (paperDetails) => {
+    if (!isOwnProfile) return; // Safety check
+
     try {
       console.log('✅ Paper added successfully, refreshing publications...');
-
-      // Refresh publications list
       await fetchPublications();
-
       alert('Paper added to your publications successfully!');
     } catch (error) {
       console.error('Error refreshing publications:', error);
@@ -229,15 +295,15 @@ const UserProfile = () => {
   };
 
   /**
-   * Handle paper removal
+   * Handle paper removal (own profile only)
    */
   const handleRemovePaper = async (userPaperId) => {
+    if (!isOwnProfile) return; // Safety check
     if (!window.confirm('Are you sure you want to remove this paper?')) return;
 
     try {
       await removePublication(userPaperId);
 
-      // ✅ IMMEDIATELY update local state
       setUserData(prev => {
         const updatedPublications = prev.publications.filter(pub => pub.id !== userPaperId);
         const updatedMostCited = getMostCitedPapers(updatedPublications, 3);
@@ -252,7 +318,7 @@ const UserProfile = () => {
 
       alert('Paper removed successfully!');
     } catch (error) {
-      await fetchPublications(); // Only fetch on error
+      await fetchPublications();
       alert(`Failed to remove: ${error.message}`);
     }
   };
@@ -266,7 +332,7 @@ const UserProfile = () => {
           <div className="spinner-border text-primary" role="status">
             <span className="visually-hidden">Loading...</span>
           </div>
-          <p className="mt-3 text-muted">Loading your profile...</p>
+          <p className="mt-3 text-muted">Loading profile...</p>
         </div>
       </div>
     );
@@ -325,22 +391,28 @@ const UserProfile = () => {
                           {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
                         </div>
                       )}
-                      <div
-                        className="avatar-edit-btn"
-                        onClick={() => document.getElementById('profilePictureInput').click()}
-                        style={{ cursor: 'pointer', opacity: uploadingPicture ? 0.5 : 1 }}
-                        title="Upload profile picture"
-                      >
-                        <span>{uploadingPicture ? '⏳' : '📷'}</span>
-                      </div>
-                      <input
-                        type="file"
-                        id="profilePictureInput"
-                        accept="image/*"
-                        style={{ display: 'none' }}
-                        onChange={handleProfilePictureChange}
-                        disabled={uploadingPicture}
-                      />
+                      
+                      {/* Only show edit button for own profile */}
+                      {isOwnProfile && (
+                        <>
+                          <div
+                            className="avatar-edit-btn"
+                            onClick={() => document.getElementById('profilePictureInput').click()}
+                            style={{ cursor: 'pointer', opacity: uploadingPicture ? 0.5 : 1 }}
+                            title="Upload profile picture"
+                          >
+                            <span>{uploadingPicture ? '⏳' : '📷'}</span>
+                          </div>
+                          <input
+                            type="file"
+                            id="profilePictureInput"
+                            accept="image/*"
+                            style={{ display: 'none' }}
+                            onChange={handleProfilePictureChange}
+                            disabled={uploadingPicture}
+                          />
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -360,7 +432,8 @@ const UserProfile = () => {
                       <p className="text-muted mb-2">{userData.department}</p>
                     )}
 
-                    {userData.email && (
+                    {/* Only show email for own profile */}
+                    {isOwnProfile && userData.email && (
                       <div className="d-flex align-items-center gap-2 mb-3 text-muted">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="#34a853">
                           <path d="M8 0C3.6 0 0 3.6 0 8s3.6 8 8 8 8-3.6 8-8-3.6-8-8-8zm0 14.4c-3.5 0-6.4-2.9-6.4-6.4S4.5 1.6 8 1.6s6.4 2.9 6.4 6.4-2.9 6.4-6.4 6.4z" />
@@ -384,13 +457,17 @@ const UserProfile = () => {
                     )}
 
                     <div className="d-flex gap-3 align-items-center">
-                      <button
-                        className="btn btn-outline-primary fw-semibold"
-                        onClick={() => setIsEditModalOpen(true)}
-                        disabled={updateLoading}
-                      >
-                        {updateLoading ? 'Updating...' : 'Edit Profile'}
-                      </button>
+                      {/* Only show edit button for own profile */}
+                      {isOwnProfile && (
+                        <button
+                          className="btn btn-outline-primary fw-semibold"
+                          onClick={() => setIsEditModalOpen(true)}
+                          disabled={updateLoading}
+                        >
+                          {updateLoading ? 'Updating...' : 'Edit Profile'}
+                        </button>
+                      )}
+                      
                       {userData.joinedDate && (
                         <span className="text-muted small">
                           Member since {userData.joinedDate}
@@ -412,20 +489,29 @@ const UserProfile = () => {
                       {userData.publications.length} papers
                     </span>
                   </div>
-                  <button
-                    className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
-                    onClick={() => setIsUploadModalOpen(true)}
-                  >
-                    <span className="fs-5">+</span>
-                    <span>Upload Paper</span>
-                  </button>
+                  
+                  {/* Only show upload button for own profile */}
+                  {isOwnProfile && (
+                    <button
+                      className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
+                      onClick={() => setIsUploadModalOpen(true)}
+                    >
+                      <span className="fs-5">+</span>
+                      <span>Upload Paper</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Publications List */}
                 <div>
                   {userData.publications.length === 0 ? (
                     <div className="text-center py-5">
-                      <p className="text-muted">No publications yet. Click "Upload Paper" to add your first paper!</p>
+                      <p className="text-muted">
+                        {isOwnProfile 
+                          ? 'No publications yet. Click "Upload Paper" to add your first paper!'
+                          : 'No publications yet.'
+                        }
+                      </p>
                     </div>
                   ) : (
                     userData.publications.map((pub, idx) => (
@@ -437,26 +523,32 @@ const UserProfile = () => {
                         <div className="publication-authors mb-1">{pub.authors}</div>
                         <div className="publication-journal mb-2">{pub.abstract}</div>
                         <div className="publication-meta">
-                          <span className="publication-citations">Cited by {pub.citations}</span>
+                          <span className="publication-citations">Cited by {pub.citations || pub.citation_count || 0}</span>
                           <span className="mx-2">•</span>
                           <span>{pub.year}</span>
-                          <span className="mx-2">•</span>
-                          <button
-                            onClick={() => handleRemovePaper(pub.id)}
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              color: '#dc3545',
-                              cursor: 'pointer',
-                              fontSize: '14px',
-                              fontWeight: '500',
-                              padding: '0'
-                            }}
-                            onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
-                            onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
-                          >
-                            Remove
-                          </button>
+                          
+                          {/* Only show remove button for own profile */}
+                          {isOwnProfile && (
+                            <>
+                              <span className="mx-2">•</span>
+                              <button
+                                onClick={() => handleRemovePaper(pub.id)}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  color: '#dc3545',
+                                  cursor: 'pointer',
+                                  fontSize: '14px',
+                                  fontWeight: '500',
+                                  padding: '0'
+                                }}
+                                onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                              >
+                                Remove
+                              </button>
+                            </>
+                          )}
                         </div>
                       </div>
                     ))
@@ -468,53 +560,57 @@ const UserProfile = () => {
 
           {/* RIGHT SIDEBAR - 4 COLUMNS */}
           <div className="col-lg-4">
-            {/* Overview Section */}
-            <div className="card shadow-sm border-light mb-4">
-              <div className="card-body p-4">
-                <h3 className="sidebar-title">Overview</h3>
-                <div className="row g-3 text-center">
-                  <div className="col-3">
-                    <div className="stat-number">{userData.totalPapers}</div>
-                    <div className="stat-label">TOTAL<br />PAPERS</div>
-                  </div>
-                  <div className="col-3">
-                    <div className="stat-number">{userData.papersRead}</div>
-                    <div className="stat-label">PAPERS<br />READ</div>
-                  </div>
-                  <div className="col-3">
-                    <div className="stat-number">{userData.thisMonth}</div>
-                    <div className="stat-label">THIS<br />MONTH</div>
-                  </div>
-                  <div className="col-3">
-                    <div className="stat-number">{userData.readingNow}</div>
-                    <div className="stat-label">READING<br />NOW</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Reading Progress Section */}
-            <div className="card shadow-sm border-light mb-4">
-              <div className="card-body p-4">
-                <h3 className="sidebar-title">Reading Progress</h3>
-                <div className="row g-3 text-center">
-                  <div className="col-4">
-                    <div className="stat-number">{userData.toRead}</div>
-                    <div className="stat-label">TO READ</div>
-                  </div>
-                  <div className="col-4">
-                    <div className="stat-number">{userData.inProgress}</div>
-                    <div className="stat-label">IN<br />PROGRESS</div>
-                  </div>
-                  <div className="col-4">
-                    <div className="stat-number">{userData.completed}</div>
-                    <div className="stat-label">COMPLETED</div>
+            {/* Only show Overview for own profile */}
+            {isOwnProfile && (
+              <div className="card shadow-sm border-light mb-4">
+                <div className="card-body p-4">
+                  <h3 className="sidebar-title">Overview</h3>
+                  <div className="row g-3 text-center">
+                    <div className="col-3">
+                      <div className="stat-number">{userData.totalPapers}</div>
+                      <div className="stat-label">TOTAL<br />PAPERS</div>
+                    </div>
+                    <div className="col-3">
+                      <div className="stat-number">{userData.papersRead}</div>
+                      <div className="stat-label">PAPERS<br />READ</div>
+                    </div>
+                    <div className="col-3">
+                      <div className="stat-number">{userData.thisMonth}</div>
+                      <div className="stat-label">THIS<br />MONTH</div>
+                    </div>
+                    <div className="col-3">
+                      <div className="stat-number">{userData.readingNow}</div>
+                      <div className="stat-label">READING<br />NOW</div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
+            )}
 
-            {/* Most Cited Papers Section */}
+            {/* Only show Reading Progress for own profile */}
+            {isOwnProfile && (
+              <div className="card shadow-sm border-light mb-4">
+                <div className="card-body p-4">
+                  <h3 className="sidebar-title">Reading Progress</h3>
+                  <div className="row g-3 text-center">
+                    <div className="col-4">
+                      <div className="stat-number">{userData.toRead}</div>
+                      <div className="stat-label">TO READ</div>
+                    </div>
+                    <div className="col-4">
+                      <div className="stat-number">{userData.inProgress}</div>
+                      <div className="stat-label">IN<br />PROGRESS</div>
+                    </div>
+                    <div className="col-4">
+                      <div className="stat-number">{userData.completed}</div>
+                      <div className="stat-label">COMPLETED</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Most Cited Papers Section - show for everyone */}
             <div className="card shadow-sm border-light">
               <div className="card-body p-4">
                 <h3 className="sidebar-title">Most Cited Papers</h3>
@@ -531,7 +627,7 @@ const UserProfile = () => {
                       <div className="cited-paper-title mb-2">{paper.title}</div>
                       <div className="cited-paper-authors mb-1">{paper.authors}</div>
                       <div className="cited-paper-meta">
-                        {paper.year} • <strong>{paper.citations} citations</strong>
+                        {paper.year} • <strong>{paper.citations || paper.citation_count || 0} citations</strong>
                       </div>
                     </div>
                   ))
@@ -542,20 +638,23 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* Edit Profile Modal */}
-      <EditProfileModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        userData={userData}
-        onSave={handleSaveProfile}
-      />
+      {/* Only show modals for own profile */}
+      {isOwnProfile && (
+        <>
+          <EditProfileModal
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            userData={userData}
+            onSave={handleSaveProfile}
+          />
 
-      {/* Upload Paper Modal */}
-      <UploadPaperModal
-        isOpen={isUploadModalOpen}
-        onClose={() => setIsUploadModalOpen(false)}
-        onConfirm={handleConfirmPaper}
-      />
+          <UploadPaperModal
+            isOpen={isUploadModalOpen}
+            onClose={() => setIsUploadModalOpen(false)}
+            onConfirm={handleConfirmPaper}
+          />
+        </>
+      )}
     </div>
   );
 };

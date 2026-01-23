@@ -4,7 +4,8 @@ const { authenticate } = require('../middlewares/authMiddleware');
 const {
   getUserProfile,
   updateUserProfile,
-  uploadProfilePicture
+  uploadProfilePicture,
+  getPublicUserProfile
 } = require('../controllers/userController');
 
 // All routes require authentication
@@ -14,5 +15,6 @@ router.use(authenticate);
 router.get('/profile', getUserProfile);           // Get user profile
 router.put('/profile', updateUserProfile);        // Update user profile
 router.post('/profile-picture', uploadProfilePicture); // Upload profile picture
+router.get('/profile/:user_id', getPublicUserProfile);  // Get public user profile by user ID
 
 module.exports = router;

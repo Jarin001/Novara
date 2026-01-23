@@ -1,16 +1,19 @@
 const { supabase } = require('../config/supabase');
 const { errorHandler } = require('../utils/errorHandler');
 
+// ========================================
+// EXISTING FUNCTIONS (for own profile)
+// ========================================
 
-// Get user profile
+// Get user's own profile (full access)
 const getUserProfile = async (req, res) => {
   try {
     const authId = req.user.id;
-    const supabase = req.supabase; 
+    const supabase = req.supabase;
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, profile_picture_url, affiliation, research_interests, created_at, updated_at')  
+      .select('id, name, email, profile_picture_url, affiliation, research_interests, created_at, updated_at')
       .eq('auth_id', authId)
       .single();
 
@@ -31,16 +34,17 @@ const getUserProfile = async (req, res) => {
   }
 };
 
+// Update user's own profile
 const updateUserProfile = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
-    const { name, affiliation, researchInterests } = req.body;  // ADD researchInterests
+    const { name, affiliation, researchInterests } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
     if (affiliation !== undefined) updates.affiliation = affiliation;
-    if (researchInterests !== undefined) updates.research_interests = researchInterests;  
+    if (researchInterests !== undefined) updates.research_interests = researchInterests;
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ 
@@ -66,10 +70,11 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+// Upload profile picture
 const uploadProfilePicture = async (req, res) => {
   try {
     const authId = req.user.id;
-    const supabase = req.supabase; // ADD THIS LINE
+    const supabase = req.supabase;
     const { imageBase64, fileName } = req.body;
 
     if (!imageBase64 || !fileName) {
@@ -123,8 +128,127 @@ const uploadProfilePicture = async (req, res) => {
   }
 };
 
+// ========================================
+// NEW FUNCTION (single route with everything)
+// ========================================
+
+/**
+ * Get public profile of any user with publications
+ * ONE ROUTE - RETURNS EVERYTHING
+ */
+const getPublicUserProfile = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+    const requestingUserId = req.user?.id;
+    const supabase = req.supabase;
+
+    // Fetch user's basic info
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('id, name, profile_picture_url, affiliation, research_interests, created_at')
+      .eq('id', user_id)
+      .single();
+
+    if (userError) {
+      if (userError.code === 'PGRST116') {
+        return res.status(404).json({ error: 'User not found' });
+      }
+      throw userError;
+    }
+
+    // Fetch user's publications
+    const { data: publications, error: pubError } = await supabase
+      .from('user_papers')
+      .select(`
+        id,
+        uploaded_at,
+        publication_status,
+        papers (
+          id,
+          s2_paper_id,
+          title,
+          published_date,
+          citation_count,
+          fields_of_study,
+          venue
+        )
+      `)
+      .eq('user_id', user_id)
+      .order('uploaded_at', { ascending: false });
+
+    if (pubError) throw pubError;
+
+    // Get authors for each paper and transform data
+    const papersWithAuthors = await Promise.all(
+      (publications || []).map(async (pub) => {
+        const { data: authorData } = await supabase
+          .from('author_papers')
+          .select(`authors (name)`)
+          .eq('paper_id', pub.papers.id);
+
+        const authors = authorData?.map(a => a.authors.name) || [];
+
+        return {
+          id: pub.id,
+          title: pub.papers.title,
+          authors: authors,
+          citation_count: pub.papers.citation_count || 0,
+          year: pub.papers.published_date 
+            ? new Date(pub.papers.published_date).getFullYear() 
+            : 'N/A',
+          published_date: pub.papers.published_date,
+          fields_of_study: pub.papers.fields_of_study,
+          venue: pub.papers.venue
+        };
+      })
+    );
+
+    // Calculate most cited papers (top 3)
+    const mostCitedPapers = [...papersWithAuthors]
+      .sort((a, b) => b.citation_count - a.citation_count)
+      .slice(0, 3);
+
+    // Build complete public profile response
+    const publicProfile = {
+      id: userData.id,
+      name: userData.name,
+      profile_picture_url: userData.profile_picture_url,
+      affiliation: userData.affiliation,
+      research_interests: userData.research_interests || [],
+      created_at: userData.created_at,
+      joinedDate: userData.created_at 
+        ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+        : '',
+      isOwnProfile: false,
+      
+      // Publication data
+      publications: papersWithAuthors,
+      totalPapers: papersWithAuthors.length,
+      mostCitedPapers: mostCitedPapers
+    };
+
+    // Check if viewing own profile
+    if (requestingUserId && userData.id === requestingUserId) {
+      publicProfile.isOwnProfile = true;
+      return res.status(200).json({
+        message: 'This is your own profile. Use /api/users/profile for full data including email and stats.',
+        user: publicProfile,
+        redirectTo: '/api/users/profile'
+      });
+    }
+
+    res.status(200).json({
+      user: publicProfile
+    });
+
+  } catch (error) {
+    errorHandler(res, error, 'Failed to fetch public profile');
+  }
+};
+
 module.exports = {
   getUserProfile,
   updateUserProfile,
-  uploadProfilePicture
+  uploadProfilePicture,
+  getPublicUserProfile    
 };
