@@ -18,6 +18,13 @@ import {
   getMostCitedPapers
 } from '../services/paperService';
 
+// Import icons (using react-icons - install with: npm install react-icons)
+import { FiCamera, FiEdit2 } from 'react-icons/fi'; // Feather Icons
+// Alternative icon libraries you can use:
+// import { MdEdit, MdPhotoCamera } from 'react-icons/md'; // Material Design
+// import { BiCamera, BiEdit } from 'react-icons/bi'; // BoxIcons
+// import { AiOutlineCamera, AiOutlineEdit } from 'react-icons/ai'; // Ant Design
+
 // Add this CSS for the abstract display
 const additionalStyles = `
   .publication-journal {
@@ -42,7 +49,7 @@ if (typeof document !== 'undefined') {
 
 const UserProfile = () => {
   const navigate = useNavigate();
-  const { userId } = useParams(); // Get userId from URL if viewing someone else's profile
+  const { userId } = useParams();
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -56,7 +63,7 @@ const UserProfile = () => {
   // Determine if viewing own profile
   const [isOwnProfile, setIsOwnProfile] = useState(true);
 
-  // User data with CLEAN defaults (no hardcoded values)
+  // User data with CLEAN defaults
   const [userData, setUserData] = useState({
     name: "",
     id: "",
@@ -121,9 +128,7 @@ const UserProfile = () => {
 
       const data = await response.json();
       
-      // Check if backend says this is own profile
       if (data.user.isOwnProfile) {
-        // Redirect to own profile route
         navigate('/profile');
         return;
       }
@@ -142,7 +147,6 @@ const UserProfile = () => {
     const initializeProfile = async () => {
       const token = localStorage.getItem('access_token');
 
-      // Redirect if no token
       if (!token) {
         console.log("No authentication token found");
         navigate('/login');
@@ -153,14 +157,12 @@ const UserProfile = () => {
         setLoading(true);
         setError(null);
 
-        // Check if viewing someone else's profile (userId in URL)
         if (userId) {
           // VIEWING SOMEONE ELSE'S PROFILE
           setIsOwnProfile(false);
           
           const publicProfile = await fetchPublicProfile(userId);
           
-          // Update state with public profile data
           setUserData(prev => ({
             ...prev,
             name: publicProfile.name || "",
@@ -172,17 +174,14 @@ const UserProfile = () => {
             publications: publicProfile.publications || [],
             totalPapers: publicProfile.totalPapers || 0,
             mostCitedPapers: publicProfile.mostCitedPapers || [],
-            // NO email, NO overview stats for public profiles
           }));
           
         } else {
           // VIEWING OWN PROFILE
           setIsOwnProfile(true);
           
-          // Fetch own full profile
           const profile = await getUserProfile();
           
-          // Update state with full profile data
           setUserData(prev => ({
             ...prev,
             name: profile.name || "",
@@ -196,7 +195,6 @@ const UserProfile = () => {
             profile_picture_url: profile.profile_picture_url || null
           }));
 
-          // Fetch own publications
           await fetchPublications();
         }
 
@@ -204,7 +202,6 @@ const UserProfile = () => {
         console.error("Failed to initialize profile:", error);
         setError(error.message);
 
-        // If authentication failed, clear token and redirect
         if (error.message.includes('401') || error.message.includes('403')) {
           clearAuth();
           navigate('/login');
@@ -215,13 +212,10 @@ const UserProfile = () => {
     };
 
     initializeProfile();
-  }, [navigate, userId]); // Re-run when userId changes
+  }, [navigate, userId]);
 
-  /**
-   * Handle profile update (own profile only)
-   */
   const handleSaveProfile = async (updatedData) => {
-    if (!isOwnProfile) return; // Safety check
+    if (!isOwnProfile) return;
 
     try {
       setUpdateLoading(true);
@@ -248,11 +242,8 @@ const UserProfile = () => {
     }
   };
 
-  /**
-   * Handle profile picture upload (own profile only)
-   */
   const handleProfilePictureChange = async (event) => {
-    if (!isOwnProfile) return; // Safety check
+    if (!isOwnProfile) return;
 
     const file = event.target.files[0];
     if (!file) return;
@@ -278,11 +269,8 @@ const UserProfile = () => {
     }
   };
 
-  /**
-   * Handle paper upload confirmation (own profile only)
-   */
   const handleConfirmPaper = async (paperDetails) => {
-    if (!isOwnProfile) return; // Safety check
+    if (!isOwnProfile) return;
 
     try {
       console.log('✅ Paper added successfully, refreshing publications...');
@@ -294,11 +282,8 @@ const UserProfile = () => {
     }
   };
 
-  /**
-   * Handle paper removal (own profile only)
-   */
   const handleRemovePaper = async (userPaperId) => {
-    if (!isOwnProfile) return; // Safety check
+    if (!isOwnProfile) return;
     if (!window.confirm('Are you sure you want to remove this paper?')) return;
 
     try {
@@ -392,16 +377,26 @@ const UserProfile = () => {
                         </div>
                       )}
                       
-                      {/* Only show edit button for own profile */}
+                      {/* Camera icon with proper React icon */}
                       {isOwnProfile && (
                         <>
                           <div
                             className="avatar-edit-btn"
                             onClick={() => document.getElementById('profilePictureInput').click()}
-                            style={{ cursor: 'pointer', opacity: uploadingPicture ? 0.5 : 1 }}
+                            style={{ 
+                              cursor: 'pointer', 
+                              opacity: uploadingPicture ? 0.5 : 1,
+                              pointerEvents: uploadingPicture ? 'none' : 'auto'
+                            }}
                             title="Upload profile picture"
                           >
-                            <span>{uploadingPicture ? '⏳' : '📷'}</span>
+                            {uploadingPicture ? (
+                              <div className="spinner-border spinner-border-sm" role="status">
+                                <span className="visually-hidden">Uploading...</span>
+                              </div>
+                            ) : (
+                              <FiCamera size={18} />
+                            )}
                           </div>
                           <input
                             type="file"
@@ -432,7 +427,6 @@ const UserProfile = () => {
                       <p className="text-muted mb-2">{userData.department}</p>
                     )}
 
-                    {/* Only show email for own profile */}
                     {isOwnProfile && userData.email && (
                       <div className="d-flex align-items-center gap-2 mb-3 text-muted">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="#34a853">
@@ -457,14 +451,14 @@ const UserProfile = () => {
                     )}
 
                     <div className="d-flex gap-3 align-items-center">
-                      {/* Only show edit button for own profile */}
                       {isOwnProfile && (
                         <button
-                          className="btn btn-outline-primary fw-semibold"
+                          className="btn btn-outline-primary fw-semibold d-flex align-items-center gap-2"
                           onClick={() => setIsEditModalOpen(true)}
                           disabled={updateLoading}
                         >
-                          {updateLoading ? 'Updating...' : 'Edit Profile'}
+                          <FiEdit2 size={16} />
+                          <span>{updateLoading ? 'Updating...' : 'Edit Profile'}</span>
                         </button>
                       )}
                       
@@ -490,7 +484,6 @@ const UserProfile = () => {
                     </span>
                   </div>
                   
-                  {/* Only show upload button for own profile */}
                   {isOwnProfile && (
                     <button
                       className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
@@ -527,7 +520,6 @@ const UserProfile = () => {
                           <span className="mx-2">•</span>
                           <span>{pub.year}</span>
                           
-                          {/* Only show remove button for own profile */}
                           {isOwnProfile && (
                             <>
                               <span className="mx-2">•</span>
@@ -560,7 +552,6 @@ const UserProfile = () => {
 
           {/* RIGHT SIDEBAR - 4 COLUMNS */}
           <div className="col-lg-4">
-            {/* Only show Overview for own profile */}
             {isOwnProfile && (
               <div className="card shadow-sm border-light mb-4">
                 <div className="card-body p-4">
@@ -587,7 +578,6 @@ const UserProfile = () => {
               </div>
             )}
 
-            {/* Only show Reading Progress for own profile */}
             {isOwnProfile && (
               <div className="card shadow-sm border-light mb-4">
                 <div className="card-body p-4">
@@ -610,7 +600,6 @@ const UserProfile = () => {
               </div>
             )}
 
-            {/* Most Cited Papers Section - show for everyone */}
             <div className="card shadow-sm border-light">
               <div className="card-body p-4">
                 <h3 className="sidebar-title">Most Cited Papers</h3>
@@ -638,7 +627,6 @@ const UserProfile = () => {
         </div>
       </div>
 
-      {/* Only show modals for own profile */}
       {isOwnProfile && (
         <>
           <EditProfileModal
