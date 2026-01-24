@@ -1,46 +1,28 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
-
-const mockFallback = {
-  id: 0,
-  title: 'An Efficient Approximate Expectation Propagation Detector With Block-Diagonal Neumann-Series',
-  authors: ['Huizheng Wang', 'Bingyang Cheng', 'Chuan Zhang'],
-  venue: 'IEEE Transactions on Circuits',
-  date: 2023,
-  snippet: 'A block-diagonal Neumann-series-based expectation propagation approximation (BD-NS-EPA) algorithm is proposed...',
-  pdf: true,
-  citationCount: 11,
-  fields: ['Computer Science', 'Engineering'],
-  abstract: 'Expectation propagation (EP) achieves near-optimal performance for large-scale multiple-input multiple-output (L-MIMO) detection, however, at the expense of unaffordable matrix inversions. To tackle the issue, several low-complexity EP detectors have been proposed. However, they all fail to exploit the properties of channel matrices, thus resulting in unsatisfactory performance in non-ideal scenarios. To this end, in this paper, a block-diagonal Neumann-series-based expectation propagation approximation (BD-NS-EPA) algorithm is proposed, which is applicable for both ideal uncorrelated channels and the correlated channels with multiple-antenna user equipment system. First, a block-diagonal-based Neumann iteration is employed, which skillfully exerts the main information of the channels while reducing computational cost. An adjustable sorting message updating scheme then is introduced to reduce the update of redundant nodes during iterations. Numerical results show that, for $128\\times 32$ MIMO with the non-ideal channel, the proposed algorithm exhibits 0.3 dB away from the original EP when bit error-rate (BER) $=10^{-3}$, at the cost of mere 3% normalized complexity. The implementation results on SMIC 65-nm CMOS technology suggest that the proposed detector can achieve 1.252 Gbps/W and 0.275 Mbps/kGE hardware efficiency, further demonstrating that the proposed detectors can achieve a good trade-off between error-rate performance and hardware efficiency.',
-  doi: '10.1109/TCSI.2022.3229690',
-  corpusId: '256298793',
-  highlightedCitations: 2,
-  backgroundCitations: 2,
-  methodsCitations: 2,
-};
 
 // Helper functions for citation formatting
 const getCitationText = (item, format) => {
   if (!item) return '';
-  const authors = (item.authors || []).join(' and ');
-  const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
+  const authors = (item.authors || []).map(a => a.name || a).join(' and ');
+  const year = item.year || 'n.d.';
 
   if (format === 'BibTeX') {
-    const key = `${(item.authors && item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
-    return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
+    const key = `${(item.authors && item.authors[0] && (item.authors[0].name || item.authors[0]).replace(/\s+/g,'')) || 'author'}${year}`;
+    return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle=${item.venue || 'Unknown'},\n  year={${year}},\n}`;
   }
 
   if (format === 'MLA') {
-    return `${(item.authors || []).join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
+    return `${(item.authors || []).map(a => a.name || a).join(', ')}. "${item.title}." ${item.venue || 'Unknown'}, ${year}.`;
   }
 
   if (format === 'APA') {
-    return `${(item.authors || []).join(', ')} (${year}). ${item.title}. ${item.venue}.`;
+    return `${(item.authors || []).map(a => a.name || a).join(', ')} (${year}). ${item.title}. ${item.venue || 'Unknown'}.`;
   }
 
   if (format === 'IEEE') {
-    return `[1] ${(item.authors || []).join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
+    return `[1] ${(item.authors || []).map(a => a.name || a).join(', ')}, "${item.title}," ${item.venue || 'Unknown'}, ${year}.`;
   }
 
   return '';
@@ -75,9 +57,12 @@ const availableLibraries = [
 ];
 
 const PaperDetails = () => {
-  const loc = useLocation();
+  const { paperId } = useParams();
   const navigate = useNavigate();
-  const paper = (loc.state && loc.state.paper) || mockFallback;
+  const location = useLocation();
+  const [paper, setPaper] = useState(null);
+  const [paperLoading, setPaperLoading] = useState(true);
+  const [paperError, setPaperError] = useState(null);
   
   // State for existing features
   const [chatOpen, setChatOpen] = useState(false);
@@ -87,34 +72,289 @@ const PaperDetails = () => {
     { role: 'bot', text: 'Hello! I can help you understand this paper better. What would you like to know?' }
   ]);
   const [inputValue, setInputValue] = useState('');
+  const [isSending, setIsSending] = useState(false);
+  const [chatError, setChatError] = useState(null);
 
   // State for Save and Cite modals
   const [saveOpen, setSaveOpen] = useState(false);
   const [selectedLibraries, setSelectedLibraries] = useState([]);
   const [citeOpen, setCiteOpen] = useState(false);
-  const [citeFormat, setCiteFormat] = useState('BibTeX');
+  const [citeFormats, setCiteFormats] = useState([]);
+  const [citeFormat, setCiteFormat] = useState('bibtex');
   const [copied, setCopied] = useState(false);
+  const [citeLoading, setCiteLoading] = useState(false);
 
-  const handleSendMessage = () => {
-    if (!inputValue.trim()) return;
+  // State for keyword extraction
+  const [keywords, setKeywords] = useState([]);
+  const [keywordsLoading, setKeywordsLoading] = useState(false);
+  const [keywordsError, setKeywordsError] = useState(null);
+  const [keywordsExtracted, setKeywordsExtracted] = useState(false);
+  const [usingFallback, setUsingFallback] = useState(false);
+
+  // Refs for scrolling
+  const topicsSectionRef = useRef(null);
+  const detailsSectionRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // Fetch paper details from backend
+  useEffect(() => {
+    if (!paperId) {
+      setPaperError('No paper ID provided');
+      setPaperLoading(false);
+      return;
+    }
+
+    const fetchPaperDetails = async () => {
+      try {
+        setPaperLoading(true);
+        setPaperError(null);
+        console.log(`Fetching paper details for paperId: ${paperId}`);
+        
+        const url = `http://localhost:5000/api/papers/${paperId}`;
+        console.log(`Request URL: ${url}`);
+        
+        const response = await fetch(url);
+        console.log(`Response status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Paper details loaded:", data);
+          setPaper(data);
+          
+          // Check if paper already has keywords
+          if (data.keywords && data.keywords.length > 0) {
+            setKeywords(data.keywords);
+            setKeywordsExtracted(true);
+          }
+        } else {
+          const errorText = await response.text();
+          console.error(`Error response (${response.status}):`, errorText);
+          setPaperError(`Failed to load paper details (${response.status})`);
+        }
+      } catch (error) {
+        console.error("Paper details fetch error:", error);
+        setPaperError(`Error loading paper details: ${error.message}`);
+      } finally {
+        setPaperLoading(false);
+      }
+    };
+
+    fetchPaperDetails();
+  }, [paperId]);
+
+  // NEW: Auto-scroll to bottom of chat when new messages are added
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages]);
+
+  // NEW FUNCTION: Get JWT token from localStorage
+  const getAuthToken = () => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        return user.token || null;
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  // MODIFIED FUNCTION: Send message to AI backend
+  const handleSendMessage = async () => {
+    if (!inputValue.trim() || !paper || isSending) return;
     
+    const userMessage = inputValue.trim();
+    setInputValue('');
+    setChatError(null);
+    
+    // Add user message to chat
     const newMessages = [
       ...messages,
-      { role: 'user', text: inputValue }
+      { role: 'user', text: userMessage }
     ];
-    
-    // Simulate bot response
-    setTimeout(() => {
-      newMessages.push({
-        role: 'bot',
-        text: 'I understand. Based on the paper, I can tell you that this research focuses on the key concepts mentioned in the abstract. Would you like me to elaborate on any specific section?'
-      });
-      setMessages([...newMessages]);
-    }, 500);
-    
     setMessages(newMessages);
-    setInputValue('');
+    setIsSending(true);
+    
+    try {
+      // Get auth token
+      const token = getAuthToken();
+      if (!token) {
+        throw new Error('Please log in to use the AI chat feature');
+      }
+      
+      // Get PDF URL from paper data (assuming paper has pdfUrl property)
+      const pdfUrl = paper.pdfUrl || paper.url || '';
+      if (!pdfUrl) {
+        throw new Error('PDF URL not available for this paper');
+      }
+      
+      console.log("Sending question to AI backend:", { pdfUrl, question: userMessage });
+      
+      const response = await fetch('http://localhost:5000/api/paperai/ask', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          pdfUrl: pdfUrl,
+          question: userMessage
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Request failed with status ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log("AI response received:", data);
+      
+      // Add AI response to chat
+      setMessages([
+        ...newMessages,
+        { role: 'bot', text: data.answer || "I couldn't find an answer to that question in the paper." }
+      ]);
+      
+    } catch (error) {
+      console.error("Chat error:", error);
+      setChatError(error.message);
+      
+      // Add error message to chat
+      setMessages([
+        ...newMessages,
+        { role: 'bot', text: `Sorry, I encountered an error: ${error.message}` }
+      ]);
+    } finally {
+      setIsSending(false);
+    }
   };
+
+  // NEW FUNCTION: Extract keywords when Topics tab is clicked
+  const extractKeywordsForPaper = async () => {
+    if (!paper || keywordsExtracted || keywordsLoading) return;
+    
+    try {
+      setKeywordsLoading(true);
+      setKeywordsError(null);
+      setUsingFallback(false);
+      
+      console.log("Extracting keywords for paper:", paper.title);
+      
+      const response = await fetch('http://localhost:5000/api/keywords/extract', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: paper.title,
+          abstract: paper.abstract
+        })
+      });
+      
+      // First check if response is ok
+      if (!response.ok) {
+        let errorText;
+        try {
+          const errorData = await response.json();
+          
+          // Check if it's a quota error (429)
+          if (response.status === 429) {
+            console.log("AI quota exceeded, using fallback extraction");
+            // Simple fallback extraction based on title and abstract
+            const text = `${paper.title} ${paper.abstract}`.toLowerCase();
+            const words = text.split(/\W+/).filter(word => word.length > 3);
+            const commonTerms = ['machine learning', 'deep learning', 'artificial intelligence', 'data', 'analysis', 'method', 'study', 'research', 'model', 'system'];
+            
+            // Get unique words and limit to 10
+            const uniqueWords = [...new Set(words)].slice(0, 10);
+            setKeywords(uniqueWords.length > 0 ? uniqueWords : commonTerms.slice(0, 5));
+            setKeywordsExtracted(true);
+            setUsingFallback(true);
+            return;
+          }
+          
+          errorText = errorData.error || `HTTP ${response.status}`;
+          throw new Error(errorText);
+        } catch (jsonError) {
+          errorText = await response.text();
+          if (!errorText) {
+            errorText = `HTTP ${response.status}`;
+          }
+          throw new Error(errorText);
+        }
+      }
+      
+      // Try to parse as JSON
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error("JSON parse error:", jsonError);
+        throw new Error("Invalid response from server");
+      }
+      
+      if (data.success && data.data && data.data.keywords) {
+        console.log("Keywords extracted via AI:", data.data.keywords);
+        setKeywords(data.data.keywords);
+        setKeywordsExtracted(true);
+        setUsingFallback(false);
+      } else {
+        throw new Error(data.error || "Failed to extract keywords");
+      }
+    } catch (error) {
+      console.error("Keyword extraction error:", error);
+      setKeywordsError(`Failed to extract keywords: ${error.message}`);
+    } finally {
+      setKeywordsLoading(false);
+    }
+  };
+
+  // Handle tab click - extract keywords when Topics tab is clicked
+  const handleTabClick = (tab) => {
+    if (tab.isNavigation && tab.paperId) {
+      if (tab.id === 'citations') {
+        navigate(`/citations/${tab.paperId}`);
+      } else if (tab.id === 'references') {
+        navigate(`/references/${tab.paperId}`);
+      } else if (tab.id === 'related') {
+        navigate(`/related/${tab.paperId}`);
+      }
+    } else {
+      setActiveTab(tab.id);
+      
+      // Extract keywords when Topics tab is clicked
+      if (tab.id === 'topics' && paper && !keywordsExtracted && !keywordsLoading) {
+        extractKeywordsForPaper();
+      }
+    }
+  };
+
+  // Scroll to topics section when activeTab changes to 'topics'
+  useEffect(() => {
+    if (activeTab === 'topics' && topicsSectionRef.current) {
+      // Wait for next render cycle to ensure the section is rendered
+      setTimeout(() => {
+        topicsSectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 50);
+    } else if (activeTab === 'details' && detailsSectionRef.current) {
+      // Scroll to details section when Details tab is clicked
+      setTimeout(() => {
+        detailsSectionRef.current.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start'
+        });
+      }, 50);
+    }
+  }, [activeTab]);
 
   // Save modal functions
   const openSave = () => {
@@ -141,10 +381,41 @@ const PaperDetails = () => {
   };
 
   // Citation modal functions
-  const openCite = () => {
-    setCiteFormat('BibTeX');
+  const openCite = async () => {
+    if (!paper || !paper.paperId) return;
+    
+    setCiteLoading(true);
+    setCiteFormats([]);
     setCiteOpen(true);
     setCopied(false);
+    
+    try {
+      console.log(`Fetching citations for paper: ${paper.paperId}`);
+      const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Citations fetched:", data);
+        setCiteFormats(data.data || []);
+        
+        // Set default format to first available or bibtex
+        if (data.data && data.data.length > 0) {
+          setCiteFormat(data.data[0].id || 'bibtex');
+        } else {
+          setCiteFormat('bibtex');
+        }
+      } else {
+        console.error("Failed to fetch citations");
+        setCiteFormats([]);
+        setCiteFormat('bibtex');
+      }
+    } catch (error) {
+      console.error("Citation fetch error:", error);
+      setCiteFormats([]);
+      setCiteFormat('bibtex');
+    } finally {
+      setCiteLoading(false);
+    }
   };
 
   const closeCite = () => {
@@ -153,41 +424,94 @@ const PaperDetails = () => {
   };
 
   const copyCitation = async () => {
-    const txt = getCitationText(paper, citeFormat);
+    let txt = '';
+    
+    // Try to get citation from backend format
+    if (citeFormats && citeFormats.length > 0) {
+      const selectedFormat = citeFormats.find(f => f.id === citeFormat);
+      if (selectedFormat) {
+        // For BibTeX, use plain text. For HTML formats, extract text content
+        if (selectedFormat.id === 'bibtex') {
+          txt = selectedFormat.value || '';
+        } else {
+          // Create a temporary div to extract text from HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = selectedFormat.value || '';
+          txt = tempDiv.textContent || tempDiv.innerText || '';
+        }
+      }
+    }
+    
+    // Fallback to local generation if not available
+    if (!txt && paper) {
+      txt = getCitationText(paper, citeFormat);
+    }
+    
     try {
       await navigator.clipboard.writeText(txt);
       setCopied(true);
       setTimeout(()=>setCopied(false), 1600);
     } catch (e) {
-      const el = document.getElementById('cite-textarea');
+      const el = document.getElementById(citeFormat === 'bibtex' ? 'cite-textarea' : 'cite-html');
       if (el) {
-        el.select();
+        // For textarea, use select(). For div, create range
+        if (citeFormat === 'bibtex') {
+          el.select();
+        } else {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
         try { document.execCommand('copy'); setCopied(true); setTimeout(()=>setCopied(false),1600); } catch(_){}
       }
     }
   };
 
   const downloadBibTeX = () => {
-    const content = getCitationText(paper, 'BibTeX');
-    const name = sanitizeFilename(paper.title) + '.bib';
+    let content = '';
+    
+    // Try to get BibTeX from backend format
+    if (citeFormats && citeFormats.length > 0) {
+      const bibTexFormat = citeFormats.find(f => f.id === 'bibtex');
+      if (bibTexFormat) {
+        content = bibTexFormat.value || '';
+      }
+    }
+    
+    // Fallback to local generation if not available
+    if (!content && paper) {
+      content = getCitationText(paper, 'BibTeX');
+    }
+    
+    const name = sanitizeFilename((paper && paper.title) || 'paper') + '.bib';
     downloadFile(name, content, 'application/x-bibtex');
   };
 
+  // Tabs configuration
   const tabs = [
     { id: 'details', label: 'Details' },
     { id: 'topics', label: 'Topics' },
-    { id: 'citations', label: `${paper.citationCount} Citations`, isNavigation: true, path: '/citations' },
-    { id: 'references', label: '47 References', isNavigation: true, path: '/references' },
-    { id: 'related', label: 'Related Papers', isNavigation: true, path: '/related' },
+    { 
+      id: 'citations', 
+      label: `Citations (${(paper && paper.citationCount) || 0})`, 
+      isNavigation: true, 
+      paperId: paper?.paperId 
+    },
+    { 
+      id: 'references', 
+      label: `References (${(paper && paper.referenceCount) || 0})`, 
+      isNavigation: true, 
+      paperId: paper?.paperId 
+    },
+    { 
+      id: 'related', 
+      label: 'Related Papers', 
+      isNavigation: true, 
+      paperId: paper?.paperId 
+    },
   ];
-
-  const handleTabClick = (tab) => {
-    if (tab.isNavigation && tab.path) {
-      navigate(tab.path, { state: { paper: paper } });
-    } else {
-      setActiveTab(tab.id);
-    }
-  };
 
   // Close modals when clicking outside
   useEffect(() => {
@@ -227,7 +551,48 @@ const PaperDetails = () => {
         transition: 'margin-right 0.3s ease'
       }}>
         
-        {/* Main Content Container */}
+        {/* Loading State */}
+        {paperLoading && (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            maxWidth: 1400,
+            margin: '0 auto'
+          }}>
+            <div style={{ fontSize: 18, color: '#666' }}>Loading paper details...</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>Paper ID: {paperId}</div>
+          </div>
+        )}
+        
+        {/* Error State */}
+        {paperError && (
+          <div style={{ 
+            textAlign: 'center', 
+            padding: '60px 20px',
+            maxWidth: 1400,
+            margin: '0 auto'
+          }}>
+            <div style={{ fontSize: 18, color: '#d32f2f' }}>Error: {paperError}</div>
+            <button 
+              onClick={() => window.location.reload()}
+              style={{ 
+                marginTop: 20,
+                padding: '8px 16px',
+                background: '#3E513E',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
+        
+        {/* Main Content Container & Tabs */}
+        {paper && !paperLoading && !paperError && (
+        <>
         <div style={{ 
           display: 'flex', 
           gap: 32,
@@ -272,30 +637,36 @@ const PaperDetails = () => {
             {/* Authors & Meta */}
             <div style={{ marginBottom: 24 }}>
               <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 12, alignItems: 'center' }}>
-                {paper.authors.map((author, idx) => (
-                  <React.Fragment key={idx}>
-                    <span 
-                      style={{ 
-                        color: '#3E513E', 
-                        cursor: 'pointer',
-                        textDecoration: 'none',
-                        fontSize: 14
-                      }}
-                    >
-                      {author}
-                    </span>
-                    {idx < paper.authors.length - 1 && <span style={{ margin: '0 4px', color: '#666' }}>·</span>}
-                  </React.Fragment>
-                ))}
-                {paper.authors.length > 0 && <span style={{ color: '#999', fontSize: 13 }}>+2 authors</span>}
+                {(paper.authors || []).map((author, idx) => {
+                  const authorName = author.name || author;
+                  return (
+                    <React.Fragment key={idx}>
+                      <span 
+                        style={{ 
+                          color: '#3E513E', 
+                          cursor: 'pointer',
+                          textDecoration: 'none',
+                          fontSize: 14
+                        }}
+                      >
+                        {authorName}
+                      </span>
+                      {idx < (paper.authors || []).length - 1 && <span style={{ margin: '0 4px', color: '#666' }}>·</span>}
+                    </React.Fragment>
+                  );
+                })}
               </div>
               
               <div style={{ color: '#999', fontSize: 13 }}>
-                <span>Published in <a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>{paper.venue}</a></span>
+                <span>Published in <a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>{paper.venue || 'Unknown'}</a></span>
                 <span style={{ margin: '0 8px' }}>·</span>
-                <span>{paper.date}</span>
-                <span style={{ margin: '0 8px' }}>·</span>
-                <span><a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>Computer Science, Engineering</a></span>
+                <span>{paper.year || 'n.d.'}</span>
+                {paper.fieldsOfStudy && paper.fieldsOfStudy.length > 0 && (
+                  <>
+                    <span style={{ margin: '0 8px' }}>·</span>
+                    <span><a href="#" style={{ color: '#3E513E', textDecoration: 'none' }}>{paper.fieldsOfStudy.join(', ')}</a></span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -310,51 +681,102 @@ const PaperDetails = () => {
                 <strong style={{ fontSize: 14, color: '#333' }}>Abstract</strong>
               </div>
               <p style={{ margin: '0 0 12px 0', fontSize: 14, color: '#333', lineHeight: 1.6 }}>
-                {abstractExpanded ? (paper.abstract || paper.snippet) : (paper.abstract || paper.snippet).substring(0, 200) + '...'}
+                {abstractExpanded ? paper.abstract : (paper.abstract || '').substring(0, 200) + '...'}
               </p>
-              <button 
-                onClick={() => setAbstractExpanded(!abstractExpanded)}
-                style={{ 
-                  color: '#3E513E', 
-                  textDecoration: 'none', 
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: 14,
-                  padding: 0
-                }}>
-                {abstractExpanded ? 'Collapse' : 'Expand'}
-              </button>
+              {paper.abstract && paper.abstract.length > 200 && (
+                <button 
+                  onClick={() => setAbstractExpanded(!abstractExpanded)}
+                  style={{ 
+                    color: '#3E513E', 
+                    textDecoration: 'none', 
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    padding: 0
+                  }}
+                >
+                  {abstractExpanded ? 'Collapse' : 'Expand'}
+                </button>
+              )}
             </div>
 
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap' }}>
+            {/* Action Buttons - Ordered: PDF, Save, Cite */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
+              
+              {/* PDF Button */}
+              {paper.openAccessPdf && paper.openAccessPdf.url ? (
+                <a 
+                  href={paper.openAccessPdf.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    padding: '8px 12px',
+                    background: '#3E513E',
+                    color: '#fff',
+                    border: '1px solid #3E513E',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 12,
+                    fontWeight: 500,
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  [PDF] {paper.openAccessPdf.status || 'Open Access'}
+                </a>
+              ) : (
+                <button 
+                  disabled
+                  style={{
+                    padding: '8px 12px',
+                    background: '#f0f0f0',
+                    color: '#999',
+                    border: '1px solid #d0d0d0',
+                    borderRadius: 4,
+                    cursor: 'not-allowed',
+                    fontSize: 12,
+                    fontWeight: 500
+                  }}
+                >
+                  [PDF] Unavailable
+                </button>
+              )}
+              
+              {/* Save to Library Button */}
               <button 
                 onClick={openSave}
                 style={{
-                  padding: '10px 16px',
+                  padding: '8px 12px',
                   background: 'transparent',
                   color: '#3E513E',
-                  border: '1px solid #d0d0d0',
+                  border: '1px solid #3E513E',
                   borderRadius: 4,
                   cursor: 'pointer',
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 500
-                }}>
+                }}
+              >
                 Save to Library
               </button>
+              
+              {/* Cite Button */}
               <button 
                 onClick={openCite}
                 style={{
-                  padding: '10px 16px',
+                  padding: '8px 12px',
                   background: 'transparent',
                   color: '#3E513E',
-                  border: '1px solid #d0d0d0',
+                  border: '1px solid #3E513E',
                   borderRadius: 4,
                   cursor: 'pointer',
-                  fontSize: 14,
+                  fontSize: 12,
                   fontWeight: 500
-                }}>
+                }}
+              >
                 Cite
               </button>
             </div>
@@ -375,7 +797,6 @@ const PaperDetails = () => {
           marginRight: -40,
           width: 'calc(100% + 80px)'
         }}>
-          {/* Tabs Header - Full Width, Equally Spaced */}
           <div style={{ 
             display: 'flex', 
             borderTop: '1px solid #e0e0e0',
@@ -414,7 +835,11 @@ const PaperDetails = () => {
             margin: '0 auto'
           }}>
             {/* ALWAYS SHOW DETAILS CONTENT */}
-            <div id="details-section" style={{ marginBottom: activeTab === 'topics' ? 40 : 0 }}>
+            <div 
+              ref={detailsSectionRef}
+              id="details-section" 
+              style={{ marginBottom: activeTab === 'topics' ? 40 : 0 }}
+            >
               <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Paper Details</h3>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                 <div>
@@ -435,11 +860,11 @@ const PaperDetails = () => {
                 </div>
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Year</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.date}</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.year || 'n.d.'}</p>
                 </div>
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Authors</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.authors.length}</p>
+                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{(paper.authors || []).length}</p>
                 </div>
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Citations</p>
@@ -450,99 +875,165 @@ const PaperDetails = () => {
 
             {/* SHOW TOPICS CONTENT BELOW DETAILS WHEN TOPICS TAB IS ACTIVE */}
             {activeTab === 'topics' && (
-              <div id="topics-section" style={{ borderTop: '1px solid #e0e0e0', paddingTop: 40 }}>
-                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Topics</h3>
+              <div 
+                ref={topicsSectionRef}
+                id="topics-section" 
+                style={{ borderTop: '1px solid #e0e0e0', paddingTop: 40 }}
+              >
+                <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Topics & Keywords</h3>
                 
-                {/* Main Topics */}
-                <div style={{ marginBottom: 30 }}>
-                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Main Topics</h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Signal Processing
-                    </span>
-                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      MIMO Systems
-                    </span>
-                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Expectation Propagation
-                    </span>
-                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Wireless Communication
-                    </span>
-                    <span style={{ background: '#e8f5e9', color: '#2e7d32', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Hardware Efficiency
-                    </span>
+                {/* Keyword Extraction Status */}
+                {keywordsLoading && (
+                  <div style={{ 
+                    marginBottom: 20,
+                    padding: '12px 16px',
+                    background: '#f8f9fa',
+                    borderRadius: 4,
+                    borderLeft: '4px solid #3E513E'
+                  }}>
+                    <div style={{ fontSize: 14, color: '#3E513E', fontWeight: 500 }}>
+                      <span style={{ marginRight: 8 }}>⏳</span>
+                      Extracting keywords using AI... This may take a moment.
+                    </div>
                   </div>
+                )}
+                
+                {keywordsError && (
+                  <div style={{ 
+                    marginBottom: 20,
+                    padding: '12px 16px',
+                    background: '#fdeded',
+                    borderRadius: 4,
+                    borderLeft: '4px solid #d32f2f'
+                  }}>
+                    <div style={{ fontSize: 14, color: '#d32f2f', fontWeight: 500, marginBottom: 8 }}>
+                      <span style={{ marginRight: 8 }}>⚠️</span>
+                      {keywordsError}
+                    </div>
+                    <button 
+                      onClick={extractKeywordsForPaper}
+                      style={{
+                        padding: '6px 12px',
+                        background: 'transparent',
+                        color: '#d32f2f',
+                        border: '1px solid #d32f2f',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}
+                    >
+                      Try Again
+                    </button>
+                  </div>
+                )}
+                
+                {/* Main Keywords */}
+                <div style={{ marginBottom: 30 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', margin: 0 }}>
+                      Extracted Keywords {keywords.length > 0 && `(${keywords.length})`}
+                      {usingFallback && <span style={{ fontSize: 11, color: '#666', fontStyle: 'italic', marginLeft: 8 }}>(using fallback)</span>}
+                    </h4>
+                    
+                    {!keywordsLoading && keywords.length === 0 && !keywordsError && (
+                      <button 
+                        onClick={extractKeywordsForPaper}
+                        style={{
+                          padding: '6px 12px',
+                          background: '#3E513E',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: 4,
+                          cursor: 'pointer',
+                          fontSize: 12,
+                          fontWeight: 500,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6
+                        }}
+                      >
+                        <span>🔍</span>
+                        Extract Keywords
+                      </button>
+                    )}
+                  </div>
+                  
+                  {keywords.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {keywords.map((keyword, idx) => (
+                        <button 
+                          key={idx}
+                          onClick={() => {
+                            navigate(`/results?q=${encodeURIComponent(keyword)}`);
+                          }}
+                          style={{ 
+                            background: '#e8f5e9', 
+                            color: '#2e7d32', 
+                            padding: '6px 12px', 
+                            borderRadius: 16, 
+                            fontSize: 13,
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#c8e6c9'}
+                          onMouseLeave={(e) => e.target.style.background = '#e8f5e9'}
+                        >
+                          {keyword}
+                        </button>
+                      ))}
+                    </div>
+                  ) : !keywordsLoading && !keywordsError ? (
+                    <div style={{ 
+                      padding: '20px',
+                      background: '#f8f9fa',
+                      borderRadius: 4,
+                      textAlign: 'center'
+                    }}>
+                      <p style={{ fontSize: 13, color: '#666', margin: '0 0 12px 0' }}>
+                        No keywords extracted yet. Click "Extract Keywords" to analyze this paper.
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
 
-                {/* Related Topics */}
-                <div style={{ marginBottom: 30 }}>
-                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Related Topics</h4>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Machine Learning
-                    </span>
-                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Numerical Methods
-                    </span>
-                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Matrix Computations
-                    </span>
-                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      Communication Theory
-                    </span>
-                    <span style={{ background: '#f3e5f5', color: '#7b1fa2', padding: '6px 12px', borderRadius: 16, fontSize: 13 }}>
-                      VLSI Design
-                    </span>
-                  </div>
-                </div>
-
-                {/* Topic Distribution */}
-                <div>
-                  <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Topic Distribution</h4>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, color: '#555' }}>Signal Processing</span>
-                        <span style={{ fontSize: 13, color: '#777' }}>85%</span>
-                      </div>
-                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: '85%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, color: '#555' }}>MIMO Systems</span>
-                        <span style={{ fontSize: 13, color: '#777' }}>72%</span>
-                      </div>
-                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: '72%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, color: '#555' }}>Wireless Communication</span>
-                        <span style={{ fontSize: 13, color: '#777' }}>68%</span>
-                      </div>
-                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: '68%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                        <span style={{ fontSize: 13, color: '#555' }}>Hardware Efficiency</span>
-                        <span style={{ fontSize: 13, color: '#777' }}>45%</span>
-                      </div>
-                      <div style={{ height: 6, background: '#e0e0e0', borderRadius: 3, overflow: 'hidden' }}>
-                        <div style={{ width: '45%', height: '100%', background: '#3E513E', borderRadius: 3 }}></div>
-                      </div>
+                {/* Fields of Study */}
+                {paper.fieldsOfStudy && paper.fieldsOfStudy.length > 0 && (
+                  <div style={{ marginBottom: 30 }}>
+                    <h4 style={{ fontSize: 14, fontWeight: 600, color: '#444', marginBottom: 12 }}>Fields of Study</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                      {paper.fieldsOfStudy.map((field, idx) => (
+                        <button 
+                          key={idx}
+                          onClick={() => {
+                            navigate(`/results?q=${encodeURIComponent(field)}`);
+                          }}
+                          style={{ 
+                            background: '#f3e5f5', 
+                            color: '#7b1fa2', 
+                            padding: '6px 12px', 
+                            borderRadius: 16, 
+                            fontSize: 13,
+                            border: 'none',
+                            cursor: 'pointer',
+                            transition: 'all 0.2s ease'
+                          }}
+                          onMouseEnter={(e) => e.target.style.background = '#e1bee7'}
+                          onMouseLeave={(e) => e.target.style.background = '#f3e5f5'}
+                        >
+                          {field}
+                        </button>
+                      ))}
                     </div>
                   </div>
-                </div>
+                )}
               </div>
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Save Modal */}
@@ -613,7 +1104,7 @@ const PaperDetails = () => {
                   color: '#666',
                   lineHeight: 1.4 
                 }}>
-                  {paper.authors.join(', ')} • {paper.venue} • {paper.date}
+                  {(paper.authors || []).slice(0, 2).map(a => a.name || a).join(', ')} {(paper.authors || []).length > 2 ? '+ others' : ''} • {paper.venue || 'Unknown'} • {paper.year || 'n.d.'}
                 </p>
               </div>
 
@@ -743,99 +1234,141 @@ const PaperDetails = () => {
 
             {/* Content */}
             <div style={{ padding: '24px' }}>
-              {/* Format tabs */}
-              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
-                {['BibTeX', 'MLA', 'APA', 'IEEE'].map(fmt => (
-                  <button
-                    key={fmt}
-                    onClick={() => setCiteFormat(fmt)}
-                    style={{
-                      padding: '12px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: citeFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontWeight: citeFormat === fmt ? 600 : 500,
-                      color: citeFormat === fmt ? '#3E513E' : '#666'
-                    }}
-                  >
-                    {fmt}
-                  </button>
-                ))}
-              </div>
+              {citeLoading && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#666' }}>
+                  Loading citation formats...
+                </div>
+              )}
+              
+              {!citeLoading && citeFormats.length > 0 && (
+                <>
+                  {/* Format tabs */}
+                  <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20, overflowX: 'auto' }}>
+                    {citeFormats.map(fmt => (
+                      <button
+                        key={fmt.id}
+                        onClick={() => setCiteFormat(fmt.id)}
+                        style={{
+                          padding: '12px 16px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderBottom: citeFormat === fmt.id ? '3px solid #3E513E' : '3px solid transparent',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: citeFormat === fmt.id ? 600 : 500,
+                          color: citeFormat === fmt.id ? '#3E513E' : '#666',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {fmt.label}
+                      </button>
+                    ))}
+                  </div>
 
-              {/* Citation text box */}
-              <div style={{ marginBottom: 20 }}>
-                <textarea
-                  id="cite-textarea"
-                  readOnly
-                  value={getCitationText(paper, citeFormat)}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    padding: 12,
-                    fontFamily: 'monospace',
-                    fontSize: 12,
-                    border: '1px solid #d0d0d0',
-                    borderRadius: 4,
-                    resize: 'none',
-                    background: '#fafafa'
-                  }}
-                />
-              </div>
+                  {/* Citation display area */}
+                  <div style={{ marginBottom: 20 }}>
+                    {citeFormat === 'bibtex' ? (
+                      <textarea
+                        id="cite-textarea"
+                        readOnly
+                        value={(() => {
+                          const selected = citeFormats.find(f => f.id === citeFormat);
+                          return selected ? selected.value : '';
+                        })()}
+                        style={{
+                          width: '100%',
+                          height: 200,
+                          padding: 12,
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          border: '1px solid #d0d0d0',
+                          borderRadius: 4,
+                          resize: 'none',
+                          background: '#fafafa'
+                        }}
+                      />
+                    ) : (
+                      <div
+                        id="cite-html"
+                        style={{
+                          width: '100%',
+                          height: 200,
+                          padding: 12,
+                          fontSize: 12,
+                          border: '1px solid #d0d0d0',
+                          borderRadius: 4,
+                          background: '#fafafa',
+                          overflowY: 'auto'
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: (() => {
+                            const selected = citeFormats.find(f => f.id === citeFormat);
+                            return selected ? selected.value : '';
+                          })()
+                        }}
+                      />
+                    )}
+                  </div>
 
-              {/* Divider */}
-              <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
+                  {/* Divider */}
+                  <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
 
-              {/* Copy and Export */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {/* Export / BibTeX on the left */}
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  {/* Copy and Export */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* Export / BibTeX on the left */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={downloadBibTeX}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#3E513E',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 500
+                          }}
+                        >
+                          BibTeX
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Copy button on the right */}
                     <button
-                      onClick={downloadBibTeX}
+                      onClick={copyCitation}
                       style={{
-                        padding: '8px 16px',
-                        background: '#3E513E',
-                        color: '#fff',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        background: 'transparent',
                         border: 'none',
-                        borderRadius: 4,
+                        color: '#3E513E',
                         cursor: 'pointer',
                         fontSize: 13,
-                        fontWeight: 500
+                        fontWeight: 500,
                       }}
                     >
-                      BibTeX
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Copy
                     </button>
                   </div>
+
+                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
+                </>
+              )}
+              
+              {!citeLoading && citeFormats.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                  No citation formats available
                 </div>
-
-                {/* Copy button on the right */}
-                <button
-                  onClick={copyCitation}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#3E513E',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    fontWeight: 500,
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Copy
-                </button>
-              </div>
-
-              {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
+              )}
             </div>
           </div>
         </div>
@@ -957,6 +1490,55 @@ const PaperDetails = () => {
               </div>
             </div>
           ))}
+          
+          {/* Loading indicator when sending */}
+          {isSending && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-start',
+              marginBottom: 8
+            }}>
+              <div style={{
+                maxWidth: '80%',
+                padding: '10px 14px',
+                borderRadius: '12px 12px 12px 4px',
+                background: '#f0f0f0',
+                color: '#333',
+                fontSize: 13,
+                lineHeight: 1.4,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <div style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  background: '#3E513E',
+                  animation: 'pulse 1.5s infinite'
+                }}></div>
+                Thinking...
+              </div>
+            </div>
+          )}
+          
+          {/* Error message */}
+          {chatError && !isSending && (
+            <div style={{
+              padding: '8px 12px',
+              background: '#fdeded',
+              color: '#d32f2f',
+              fontSize: 12,
+              borderRadius: 4,
+              margin: '8px 0',
+              borderLeft: '3px solid #d32f2f'
+            }}>
+              {chatError}
+            </div>
+          )}
+          
+          {/* Empty div for auto-scroll */}
+          <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
@@ -972,30 +1554,35 @@ const PaperDetails = () => {
             placeholder="Ask about the paper..."
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+            onKeyPress={(e) => e.key === 'Enter' && !isSending && handleSendMessage()}
+            disabled={isSending || !paper}
             style={{
               flex: 1,
               padding: '8px 12px',
               border: '1px solid #ddd',
               borderRadius: 4,
               fontSize: 13,
-              outline: 'none'
+              outline: 'none',
+              opacity: isSending || !paper ? 0.7 : 1,
+              cursor: isSending || !paper ? 'not-allowed' : 'text'
             }}
           />
           <button
             onClick={handleSendMessage}
+            disabled={!inputValue.trim() || isSending || !paper}
             style={{
               padding: '8px 12px',
-              background: '#3E513E',
+              background: (!inputValue.trim() || isSending || !paper) ? '#cccccc' : '#3E513E',
               color: '#fff',
               border: 'none',
               borderRadius: 4,
-              cursor: 'pointer',
+              cursor: (!inputValue.trim() || isSending || !paper) ? 'not-allowed' : 'pointer',
               fontSize: 13,
-              fontWeight: 500
+              fontWeight: 500,
+              minWidth: 60
             }}
           >
-            Send
+            {isSending ? '...' : 'Send'}
           </button>
         </div>
 
@@ -1006,7 +1593,7 @@ const PaperDetails = () => {
           background: '#f5f5f5',
           textAlign: 'center'
         }}>
-          <a
+          <button
             onClick={() => setChatOpen(false)}
             style={{
               color: '#3E513E',
@@ -1019,9 +1606,18 @@ const PaperDetails = () => {
             }}
           >
             Close
-          </a>
+          </button>
         </div>
       </div>
+      
+      {/* Add CSS for pulse animation */}
+      <style>{`
+        @keyframes pulse {
+          0% { opacity: 0.6; }
+          50% { opacity: 1; }
+          100% { opacity: 0.6; }
+        }
+      `}</style>
     </>
   );
 };

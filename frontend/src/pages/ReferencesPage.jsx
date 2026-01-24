@@ -1,32 +1,6 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
-
-// Helper functions for citation formatting
-const getCitationText = (item, format) => {
-  if (!item) return '';
-  const authors = (item.authors || []).join(' and ');
-  const year = typeof item.date === 'number' ? item.date : (new Date(item.date).getFullYear() || 'n.d.');
-
-  if (format === 'BibTeX') {
-    const key = `${(item.authors && item.authors[0] || 'author').replace(/\s+/g,'')}${year}`;
-    return `@inproceedings{${key},\n  title={${item.title}},\n  author={${authors}},\n  booktitle={${item.venue}},\n  year={${year}},\n}`;
-  }
-
-  if (format === 'MLA') {
-    return `${(item.authors || []).join(', ')}. "${item.title}." ${item.venue}, ${year}.`;
-  }
-
-  if (format === 'APA') {
-    return `${(item.authors || []).join(', ')} (${year}). ${item.title}. ${item.venue}.`;
-  }
-
-  if (format === 'IEEE') {
-    return `[1] ${(item.authors || []).join(', ')}, "${item.title}," ${item.venue}, ${year}.`;
-  }
-
-  return '';
-};
 
 const sanitizeFilename = (s = '') => {
   return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
@@ -44,122 +18,19 @@ const downloadFile = (filename, content, mime = 'text/plain') => {
   URL.revokeObjectURL(url);
 };
 
-// Mock libraries data
-const availableLibraries = [
-  "My Research Papers",
-  "Biology Collection",
-  "Environmental Studies",
-  "COVID-19 Research",
-  "Team Dynamics",
-  "Vaccination Studies",
-  "Medical Papers",
-  "Sociology Collection",
-];
-
-// Mock references data
-const mockReferences = (paperTitle) => {
-  return [
-    {
-      id: 201,
-      title: 'Expectation Propagation Algorithms for MIMO Detection',
-      authors: ['Frank Miller', 'Grace Lee'],
-      venue: 'IEEE Transactions on Wireless Communications',
-      date: 2020,
-      snippet: `A foundational paper on expectation propagation methods for MIMO detection systems that ${paperTitle} builds upon...`,
-      pdf: true,
-      citationCount: 45,
-      fields: ['MIMO', 'Detection'],
-    },
-    {
-      id: 202,
-      title: 'Neumann Series Approximations for Matrix Inversion',
-      authors: ['Henry Davis'],
-      venue: 'Journal of Numerical Analysis',
-      date: 2019,
-      snippet: `This paper provides theoretical foundations for Neumann series-based approximations used in ${paperTitle}...`,
-      pdf: true,
-      citationCount: 28,
-      fields: ['Numerical Methods'],
-    },
-    {
-      id: 203,
-      title: 'Block-Diagonal Preconditioners in Signal Processing',
-      authors: ['Isabel Martinez', 'Jack Taylor'],
-      venue: 'Signal Processing Review',
-      date: 2021,
-      snippet: `Block-diagonal structures are exploited for efficient computation in signal processing as applied in ${paperTitle}...`,
-      pdf: false,
-      citationCount: 17,
-      fields: ['Signal Processing'],
-    },
-    {
-      id: 204,
-      title: 'Hardware Implementation of MIMO Detectors',
-      authors: ['Kevin Anderson'],
-      venue: 'IEEE Design & Test',
-      date: 2020,
-      snippet: `A comprehensive review of hardware-efficient MIMO detector implementations relevant to ${paperTitle}...`,
-      pdf: true,
-      citationCount: 32,
-      fields: ['Hardware', 'MIMO'],
-    },
-    {
-      id: 205,
-      title: 'Massive MIMO Detection: Algorithms and Architectures',
-      authors: ['Linda Wilson', 'Michael Brown'],
-      venue: 'IEEE Communications Surveys & Tutorials',
-      date: 2022,
-      snippet: `Survey of detection algorithms for massive MIMO systems including approaches similar to ${paperTitle}...`,
-      pdf: true,
-      citationCount: 58,
-      fields: ['Survey', 'MIMO'],
-    },
-    {
-      id: 206,
-      title: 'Low-Complexity Signal Processing for 5G',
-      authors: ['Nancy Clark'],
-      venue: '5G Signal Processing Conference',
-      date: 2021,
-      snippet: `Discussion of low-complexity algorithms for 5G systems, relevant to the approach in ${paperTitle}...`,
-      pdf: false,
-      citationCount: 23,
-      fields: ['5G', 'Signal Processing'],
-    },
-    {
-      id: 207,
-      title: 'ASIC Design for Wireless Communications',
-      authors: ['Oliver Taylor', 'Patricia Harris'],
-      venue: 'IEEE Journal of Solid-State Circuits',
-      date: 2020,
-      snippet: `Hardware design considerations for wireless communication systems as explored in ${paperTitle}...`,
-      pdf: true,
-      citationCount: 41,
-      fields: ['ASIC', 'Hardware Design'],
-    },
-    {
-      id: 208,
-      title: 'Energy-Efficient Baseband Processors',
-      authors: ['Quincy Roberts'],
-      venue: 'IEEE Transactions on Circuits and Systems',
-      date: 2021,
-      snippet: `Design of energy-efficient baseband processors for wireless systems, a focus of ${paperTitle}...`,
-      pdf: true,
-      citationCount: 19,
-      fields: ['Energy Efficiency', 'Hardware'],
-    },
-  ];
-};
-
 const ReferencesPage = () => {
-  const location = useLocation();
+  const { paperId } = useParams();
   const navigate = useNavigate();
-  const paper = location.state?.paper || {
-    title: 'An Efficient Approximate Expectation Propagation Detector With Block-Diagonal Neumann-Series',
-  };
+  
+  const [references, setReferences] = useState([]);
+  const [referencesLoading, setReferencesLoading] = useState(true);
+  const [referencesError, setReferencesError] = useState(null);
+  const [totalResults, setTotalResults] = useState(0);
+  const [visibleCount, setVisibleCount] = useState(10);
   
   const [selectedFields, setSelectedFields] = useState([]);
   const [sortBy, setSortBy] = useState('relevance');
-  const [dateRange, setDateRange] = useState([2010, 2026]);
+  const [dateRange, setDateRange] = useState([2000, 2026]);
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
   
@@ -171,11 +42,124 @@ const ReferencesPage = () => {
   // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
   const [citeItem, setCiteItem] = useState(null);
-  const [citeFormat, setCiteFormat] = useState('BibTeX');
+  const [citationFormats, setCitationFormats] = useState([]); // Store fetched citation formats
+  const [selectedFormat, setSelectedFormat] = useState('bibtex'); // Default format
+  const [citationLoading, setCitationLoading] = useState(false);
+  const [citationError, setCitationError] = useState(null);
   const [copied, setCopied] = useState(false);
   
   const containerRef = useRef(null);
 
+  // Fetch references from backend
+  useEffect(() => {
+    if (!paperId) {
+      setReferencesError('No paper ID provided');
+      setReferencesLoading(false);
+      return;
+    }
+
+    const fetchReferences = async () => {
+      try {
+        setReferencesLoading(true);
+        setReferencesError(null);
+        console.log(`Fetching references for paper: ${paperId}`);
+        
+        // First, get the paper details to know the reference count
+        const paperResponse = await fetch(`http://localhost:5000/api/papers/${paperId}`);
+        if (!paperResponse.ok) {
+          const errorText = await paperResponse.text();
+          console.error(`Paper details error (${paperResponse.status}):`, errorText);
+          throw new Error(`Failed to fetch paper details: ${paperResponse.status}`);
+        }
+        
+        const paperData = await paperResponse.json();
+        const referenceCount = paperData.referenceCount || 0;
+        
+        console.log(`Paper has ${referenceCount} references, now fetching references...`);
+        
+        // Then fetch references using the paper-references controller
+        const response = await fetch(
+          `http://localhost:5000/api/papers/${paperId}/references?referenceCount=${referenceCount}&limit=100`
+        );
+        
+        console.log(`References response status: ${response.status}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log("References raw data:", data);
+          
+          // Handle different response formats
+          let referencesArray = [];
+          
+          if (data.data && Array.isArray(data.data)) {
+            referencesArray = data.data;
+          } else if (data.references && Array.isArray(data.references)) {
+            referencesArray = data.references;
+          } else if (Array.isArray(data)) {
+            referencesArray = data;
+          } else if (data.citedPapers && Array.isArray(data.citedPapers)) {
+            referencesArray = data.citedPapers;
+          } else {
+            console.warn("Unexpected response format:", data);
+            referencesArray = [];
+          }
+          
+          // Format and validate the references
+          const formattedReferences = referencesArray.map((ref, index) => {
+            // Safely extract authors - handle both string and object formats
+            let authorsArray = [];
+            if (Array.isArray(ref.authors)) {
+              authorsArray = ref.authors.map(author => {
+                if (typeof author === 'object') {
+                  return author.name || author.authorName || author.fullName || '';
+                }
+                return author || '';
+              }).filter(name => name); // Remove empty names
+            } else if (typeof ref.authors === 'string') {
+              authorsArray = [ref.authors];
+            } else if (ref.author) {
+              authorsArray = [ref.author];
+            }
+            
+            return {
+              ...ref,
+              id: ref.paperId || ref.id || `ref-${index}`,
+              title: ref.title || 'No title available',
+              authors: authorsArray,
+              year: ref.year || ref.date || 0,
+              venue: ref.venue || ref.journal || ref.publicationVenue || 'Unknown',
+              abstract: ref.abstract || 'No abstract available',
+              fieldsOfStudy: Array.isArray(ref.fieldsOfStudy) ? ref.fieldsOfStudy : 
+                           Array.isArray(ref.fields) ? ref.fields : [],
+              citationCount: ref.citationCount || 0,
+              paperId: ref.paperId || ref.id || `ref-${index}`
+            };
+          });
+          
+          console.log("Formatted references:", formattedReferences);
+          setReferences(formattedReferences);
+          setTotalResults(formattedReferences.length);
+        } else {
+          const errorText = await response.text();
+          console.error(`Error (${response.status}):`, errorText);
+          setReferencesError(`Failed to load references (${response.status}): ${errorText}`);
+          setReferences([]);
+          setTotalResults(0);
+        }
+      } catch (error) {
+        console.error("References fetch error:", error);
+        setReferencesError(`Error loading references: ${error.message}`);
+        setReferences([]);
+        setTotalResults(0);
+      } finally {
+        setReferencesLoading(false);
+      }
+    };
+
+    fetchReferences();
+  }, [paperId]);
+
+  // Handle outside clicks for dropdowns
   useEffect(() => {
     const onDocClick = (e) => {
       if (!containerRef.current) return;
@@ -211,50 +195,64 @@ const ReferencesPage = () => {
     };
   }, [saveOpen, citeOpen]);
 
-  const results = mockReferences(paper.title);
-
+  // Filter and sort references
   const visible = useMemo(() => {
-    let list = results.slice();
+    let list = references.slice();
 
-    // Fields filter
-    if (selectedFields.length) {
-      list = list.filter((r) => r.fields && r.fields.some(f => selectedFields.includes(f)));
+    // Filter by fields of study
+    if (selectedFields.length > 0) {
+      list = list.filter((r) => {
+        if (!r.fieldsOfStudy || !Array.isArray(r.fieldsOfStudy)) return false;
+        return r.fieldsOfStudy.some(f => selectedFields.includes(f));
+      });
     }
 
-    // Date range filter
+    // Filter by date range
     if (dateRange && dateRange.length === 2) {
       const [minY, maxY] = dateRange;
-      list = list.filter((r) => r.date >= minY && r.date <= maxY);
+      list = list.filter((r) => {
+        const year = r.year || 0;
+        return year >= minY && year <= maxY;
+      });
     }
 
-    // Sorting
+    // Sort by citations or relevance
     if (sortBy === 'citations') {
-      list.sort((a,b)=> (b.citationCount || 0) - (a.citationCount || 0));
+      list.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
+    } else {
+      // Default relevance sorting (by year in descending order)
+      list.sort((a, b) => {
+        const yearA = a.year || 0;
+        const yearB = b.year || 0;
+        return yearB - yearA;
+      });
     }
 
-    return list;
-  }, [results, selectedFields, dateRange, sortBy]);
+    return list.slice(0, visibleCount);
+  }, [references, selectedFields, dateRange, sortBy, visibleCount]);
 
-  const availableFields = [
-    "MIMO",
-    "Detection",
-    "Numerical Methods",
-    "Signal Processing",
-    "Hardware",
-    "Survey",
-    "5G",
-    "ASIC",
-    "Energy Efficiency",
-    "Hardware Design",
+  // Extract available fields from references
+  const availableFields = useMemo(() => {
+    const fields = new Set();
+    references.forEach(r => {
+      if (Array.isArray(r.fieldsOfStudy)) {
+        r.fieldsOfStudy.forEach(f => fields.add(f));
+      }
+    });
+    return Array.from(fields).sort().slice(0, 10);
+  }, [references]);
+
+  // Mock libraries data
+  const availableLibraries = [
+    "My Research Papers",
+    "Biology Collection",
+    "Environmental Studies",
+    "COVID-19 Research",
+    "Team Dynamics",
+    "Vaccination Studies",
+    "Medical Papers",
+    "Sociology Collection",
   ];
-
-  const total = 47; // Mock total number of references
-
-  const onHeaderSearch = (e) => {
-    e && e.preventDefault && e.preventDefault();
-    const val = e.target.elements["headerSearch"].value || "";
-    navigate(`/search?q=${encodeURIComponent(val)}&type=publications`);
-  };
 
   // Save modal functions
   const openSave = (item) => {
@@ -282,39 +280,153 @@ const ReferencesPage = () => {
     );
   };
 
-  // Citation modal functions
-  const openCite = (item) => {
-    setCiteItem(item);
-    setCiteFormat('BibTeX');
-    setCiteOpen(true);
-    setCopied(false);
+  // Citation modal functions - UPDATED to fetch from backend
+  const openCite = async (item) => {
+    try {
+      setCitationLoading(true);
+      setCitationError(null);
+      setCiteItem(item);
+      setCitationFormats([]);
+      setSelectedFormat('bibtex');
+      
+      // Fetch citation formats from your backend for the clicked paper
+      const clickedPaperId = item.paperId || item.id;
+      if (!clickedPaperId) {
+        throw new Error('Paper ID not found for citation');
+      }
+      
+      console.log(`Fetching citations for paper: ${clickedPaperId}`);
+      const response = await fetch(`http://localhost:5000/api/citations/${clickedPaperId}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`Citation fetch error (${response.status}):`, errorText);
+        throw new Error(`Failed to fetch citation formats: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log("Citation fetch result:", result);
+      
+      if (result.success && result.data) {
+        setCitationFormats(result.data);
+        setCiteOpen(true);
+      } else {
+        throw new Error(result.message || 'No citation data received');
+      }
+    } catch (error) {
+      console.error('Error fetching citation formats:', error);
+      setCitationError(`Failed to load citation formats: ${error.message}`);
+      // Fallback to manual generation if backend fails
+      setCiteOpen(true);
+    } finally {
+      setCitationLoading(false);
+    }
   };
 
   const closeCite = () => {
     setCiteOpen(false);
     setCiteItem(null);
+    setCitationFormats([]);
+    setCitationError(null);
     setCopied(false);
   };
 
   const copyCitation = async () => {
-    const txt = getCitationText(citeItem, citeFormat);
     try {
-      await navigator.clipboard.writeText(txt);
+      const format = citationFormats.find(f => f.id === selectedFormat);
+      if (!format) {
+        throw new Error('No citation format found');
+      }
+      
+      await navigator.clipboard.writeText(format.value);
       setCopied(true);
-      setTimeout(()=>setCopied(false), 1600);
-    } catch (e) {
-      const el = document.getElementById('cite-textarea');
-      if (el) {
-        el.select();
-        try { document.execCommand('copy'); setCopied(true); setTimeout(()=>setCopied(false),1600); } catch(_){}
+      setTimeout(() => setCopied(false), 1600);
+    } catch (error) {
+      console.error('Copy failed:', error);
+      // Fallback method
+      const textarea = document.getElementById('cite-textarea');
+      if (textarea) {
+        textarea.select();
+        try {
+          document.execCommand('copy');
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        } catch (err) {
+          console.error('Fallback copy also failed:', err);
+        }
       }
     }
   };
 
-  const downloadBibTeX = (item) => {
-    const content = getCitationText(item, 'BibTeX');
-    const name = sanitizeFilename((item && item.title) || 'citation') + '.bib';
-    downloadFile(name, content, 'application/x-bibtex');
+  const downloadCitation = () => {
+    const format = citationFormats.find(f => f.id === selectedFormat);
+    if (!format) return;
+    
+    const extension = format.id === 'bibtex' ? 'bib' : 'txt';
+    const filename = sanitizeFilename(citeItem?.title || 'citation') + `.${extension}`;
+    const mimeType = format.id === 'bibtex' ? 'application/x-bibtex' : 'text/plain';
+    
+    downloadFile(filename, format.value, mimeType);
+  };
+
+  // Fallback function if backend citation fetch fails
+  const getFallbackCitationText = (item, format) => {
+    if (!item) return '';
+    
+    // Safely get authors array
+    const authorsArray = Array.isArray(item.authors) ? item.authors : [];
+    const authorsString = authorsArray.map(a => {
+      if (typeof a === 'object') return a.name || '';
+      return a || '';
+    }).filter(name => name).join(' and ');
+    
+    const year = item.year || 'n.d.';
+    const title = item.title || 'No title';
+    const venue = item.venue || 'Unknown';
+
+    if (format === 'bibtex' || format === 'BibTeX') {
+      const firstAuthor = authorsArray[0];
+      const authorName = firstAuthor ? 
+        (typeof firstAuthor === 'object' ? firstAuthor.name : firstAuthor) : 
+        'author';
+      const key = `${(authorName || 'author').replace(/\s+/g,'')}${year}`;
+      return `@inproceedings{${key},\n  title={${title}},\n  author={${authorsString}},\n  booktitle={${venue}},\n  year={${year}},\n}`;
+    }
+
+    if (format === 'mla' || format === 'MLA') {
+      return `${authorsString}. "${title}." ${venue}, ${year}.`;
+    }
+
+    if (format === 'apa' || format === 'APA') {
+      return `${authorsString} (${year}). ${title}. ${venue}.`;
+    }
+
+    if (format === 'ieee' || format === 'IEEE') {
+      return `[1] ${authorsString}, "${title}," ${venue}, ${year}.`;
+    }
+
+    return '';
+  };
+
+  // Get current citation text (either from backend or fallback)
+  const getCurrentCitationText = () => {
+    if (citationFormats.length > 0) {
+      const format = citationFormats.find(f => f.id === selectedFormat);
+      return format ? format.value : '';
+    }
+    // Fallback to manual generation if backend failed
+    return getFallbackCitationText(citeItem, selectedFormat);
+  };
+
+  // Get citation label for display
+  const getCitationLabel = (id) => {
+    const format = citationFormats.find(f => f.id === id);
+    return format ? format.label : id.toUpperCase();
+  };
+
+  // Handle load more
+  const handleLoadMore = () => {
+    setVisibleCount(prev => prev + 10);
   };
 
   return (
@@ -322,148 +434,225 @@ const ReferencesPage = () => {
       <Navbar />
 
       <div style={{ paddingTop: 100, paddingLeft: 40, paddingRight: 40 }}>
-        {/* Header showing which paper's references we're viewing */}
-        <div style={{ marginBottom: 24 }}>
-          <h2 style={{ fontSize: 20, fontWeight: 600, color: '#333', marginBottom: 8 }}>
-            References for: {paper.title}
-          </h2>
-          <p style={{ color: '#666', fontSize: 14 }}>
-            Showing papers referenced by this work
-          </p>
-        </div>
-
-        <h3 style={{ marginTop: 8, marginBottom: 12, fontSize: 16, fontWeight: 500, color: '#333' }}>
-          About {total.toLocaleString()} results
-        </h3>
-
-        {/* Filters row */}
-        <div ref={containerRef} style={{ display: "flex", gap: 12, marginBottom: 18, alignItems: "center", flexWrap: 'wrap' }}>
-          {/* Fields of Study dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
-            {openFields && (
-              <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
-                <strong style={{display:'block', marginBottom:8}}>Fields of Study</strong>
-                {availableFields.map((f) => (
-                  <label key={f} style={{ display: 'block', marginBottom: 6 }}>
-                    <input type="checkbox" checked={selectedFields.includes(f)} onChange={() => {
-                      setSelectedFields((prev) => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
-                    }} /> <span style={{marginLeft:8}}>{f}</span>
-                  </label>
-                ))}
-              </div>
-            )}
+        {/* Loading State */}
+        {referencesLoading && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: 18, color: '#666' }}>Loading references...</div>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>Paper ID: {paperId}</div>
           </div>
+        )}
 
-          {/* Date Range dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
-            {openDate && (
-              <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
-                <div style={{ position: 'relative', padding: '6px 0' }}>
-                  <input
-                    type="range"
-                    min={2000}
-                    max={2026}
-                    value={dateRange[0]}
-                    onChange={(e)=>{
-                      const val = Number(e.target.value);
-                      setDateRange([Math.min(val, dateRange[1]), dateRange[1]]);
-                    }}
-                    style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, display: 'block' }}
-                  />
-                  <input
-                    type="range"
-                    min={2000}
-                    max={2026}
-                    value={dateRange[1]}
-                    onChange={(e)=>{
-                      const val = Number(e.target.value);
-                      setDateRange([dateRange[0], Math.max(val, dateRange[0])]);
-                    }}
-                    style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, marginTop: -36, display: 'block' }}
-                  />
-                </div>
-                <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
-                  <small>{dateRange[0]}</small>
-                  <small>{dateRange[1]}</small>
-                </div>
-                <div style={{ display:'flex', gap:8, marginTop:12 }}>
-                  <button onClick={()=>setDateRange([2026,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>This year</button>
-                  <button onClick={()=>setDateRange([2021,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 5 years</button>
-                  <button onClick={()=>setDateRange([2016,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 10 years</button>
-                </div>
-              </div>
-            )}
+        {/* Error State */}
+        {referencesError && (
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <div style={{ fontSize: 18, color: '#d32f2f' }}>Error: {referencesError}</div>
+            <button 
+              onClick={() => window.location.reload()}
+              style={{ 
+                marginTop: 20,
+                padding: '8px 16px',
+                background: '#3E513E',
+                color: 'white',
+                border: 'none',
+                borderRadius: 4,
+                cursor: 'pointer'
+              }}
+            >
+              Retry
+            </button>
           </div>
+        )}
 
-          {/* Sort dropdown */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap:8 }}>
-            <label style={{ color:'#444', fontSize:13 }}>Sort by</label>
-            <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} style={{ padding:'6px 8px' }}>
-              <option value="relevance">Relevance</option>
-              <option value="citations">Citation count</option>
-            </select>
-          </div>
-        </div>
-
-        <div>
-          {visible.map((r, i) => (
-            <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
-              <button 
-                onClick={() => navigate('/paper', { state: { paper: r } })}
-                style={{ 
-                  color: "#3E513E", 
-                  fontSize: 20, 
-                  fontWeight: 600, 
-                  textDecoration: "none",
-                  background: "transparent",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: 0,
-                  textAlign: "left"
-                }}
-              >
-                {r.title}
-              </button>
-
-              <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                {r.authors.map((a) => (
-                  <span key={a} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>{a}</span>
-                ))}
-                <span style={{ color: "#888", fontSize: 13 }}>{r.venue} · {r.date}</span>
-              </div>
-
-              <p style={{ marginTop: 10, color: "#444" }}>
-                {r.snippet} 
-                <a href="#" style={{ color: "#3E513E", marginLeft: 4 }}>Expand</a>
+        {/* Main Content */}
+        {!referencesLoading && !referencesError && (
+          <>
+            {/* Header showing which paper's references we're viewing */}
+            <div style={{ marginBottom: 24 }}>
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: '#333', marginBottom: 8 }}>
+                Papers Referenced By This Work
+              </h2>
+              <p style={{ color: '#666', fontSize: 14 }}>
+                Showing {visible.length} of {totalResults} papers referenced by this work
               </p>
+            </div>
 
-              <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                <button onClick={() => openSave(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Save</button>
-                <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Cite</button>
-                <span style={{ marginLeft: 'auto', color: '#666' }}>
-                  {r.citationCount} citations
-                </span>
-                {r.pdf && (
-                  <span style={{ color: '#666' }}>
-                    
-                  </span>
+            <h3 style={{ marginTop: 8, marginBottom: 12, fontSize: 16, fontWeight: 500, color: '#333' }}>
+              About {totalResults.toLocaleString()} results
+            </h3>
+
+            {/* Filters row */}
+            <div ref={containerRef} style={{ display: "flex", gap: 12, marginBottom: 18, alignItems: "center", flexWrap: 'wrap' }}>
+              {/* Fields of Study dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => { setOpenFields(o=>!o); setOpenDate(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Fields of Study ▾</button>
+                {openFields && availableFields.length > 0 && (
+                  <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 12, width: 260, zIndex: 60 }}>
+                    <strong style={{display:'block', marginBottom:8}}>Fields of Study</strong>
+                    {availableFields.map((f) => (
+                      <label key={f} style={{ display: 'block', marginBottom: 6 }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedFields.includes(f)} 
+                          onChange={() => {
+                            setSelectedFields((prev) => prev.includes(f) ? prev.filter(x=>x!==f) : [...prev, f]);
+                          }} 
+                        /> 
+                        <span style={{marginLeft:8}}>{f}</span>
+                      </label>
+                    ))}
+                  </div>
                 )}
               </div>
-            </div>
-          ))}
-        </div>
 
-        {/* pagination */}
-        <div style={{ marginTop: 20, display: "flex", gap: 6, alignItems: "center", fontSize: 12 }}>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"←"}</button>
-          <button style={{ padding: "4px 8px", background: "#3E513E", color: "#fff", fontSize: 12 }}>1</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>2</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>3</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>4</button>
-          <button style={{ padding: "4px 8px", fontSize: 12 }}>{"→"}</button>
-        </div>
+              {/* Date Range dropdown */}
+              <div style={{ position: 'relative' }}>
+                <button onClick={() => { setOpenDate(o=>!o); setOpenFields(false); }} style={{ padding: "8px 12px", border: "1px solid #e2e6ea", background: "#fff" }}>Date Range ▾</button>
+                {openDate && (
+                  <div style={{ position: 'absolute', top: 40, left: 0, background: '#fff', border: '1px solid #ddd', boxShadow: '0 6px 18px rgba(0,0,0,0.08)', padding: 16, width: 360, zIndex:50, overflow: 'hidden', boxSizing: 'border-box' }}>
+                    <div style={{ position: 'relative', padding: '6px 0' }}>
+                      <input
+                        type="range"
+                        min={2000}
+                        max={2026}
+                        value={dateRange[0]}
+                        onChange={(e)=>{
+                          const val = Number(e.target.value);
+                          setDateRange([Math.min(val, dateRange[1]), dateRange[1]]);
+                        }}
+                        style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, display: 'block' }}
+                      />
+                      <input
+                        type="range"
+                        min={2000}
+                        max={2026}
+                        value={dateRange[1]}
+                        onChange={(e)=>{
+                          const val = Number(e.target.value);
+                          setDateRange([dateRange[0], Math.max(val, dateRange[0])]);
+                        }}
+                        style={{ width: 'calc(100% - 48px)', marginLeft: 24, marginRight: 24, marginTop: -36, display: 'block' }}
+                      />
+                    </div>
+                    <div style={{ display:'flex', justifyContent:'space-between', marginTop:6 }}>
+                      <small>{dateRange[0]}</small>
+                      <small>{dateRange[1]}</small>
+                    </div>
+                    <div style={{ display:'flex', gap:8, marginTop:12 }}>
+                      <button onClick={()=>setDateRange([2026,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>This year</button>
+                      <button onClick={()=>setDateRange([2021,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 5 years</button>
+                      <button onClick={()=>setDateRange([2016,2026])} style={{padding:'8px 12px', border:'1px solid #9b9b9b', background:'#f5f5f5'}}>Last 10 years</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Sort dropdown */}
+              <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap:8 }}>
+                <label style={{ color:'#444', fontSize:13 }}>Sort by</label>
+                <select value={sortBy} onChange={(e)=>setSortBy(e.target.value)} style={{ padding:'6px 8px' }}>
+                  <option value="relevance">Relevance</option>
+                  <option value="citations">Citation count</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              {visible.map((r, i) => (
+                <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
+                  <button 
+                    onClick={() => {
+                      const targetPaperId = r.paperId || r.id;
+                      if (targetPaperId) {
+                        navigate(`/paper/${targetPaperId}`);
+                      }
+                    }}
+                    style={{ 
+                      color: "#3E513E", 
+                      fontSize: 20, 
+                      fontWeight: 600, 
+                      textDecoration: "none",
+                      background: "transparent",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: 0,
+                      textAlign: "left"
+                    }}
+                  >
+                    {r.title || 'No title available'}
+                  </button>
+
+                  <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                    {/* Safely render authors */}
+                    {Array.isArray(r.authors) && r.authors.length > 0 ? (
+                      r.authors.slice(0, 3).map((a, idx) => {
+                        const authorName = typeof a === 'object' ? a.name || '' : a || '';
+                        if (!authorName) return null;
+                        return (
+                          <span key={idx} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>
+                            {authorName}
+                          </span>
+                        );
+                      })
+                    ) : (
+                      <span style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>
+                        Unknown author
+                      </span>
+                    )}
+                    {r.authors && r.authors.length > 3 && (
+                      <span style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>
+                        +{r.authors.length - 3} more
+                      </span>
+                    )}
+                    <span style={{ color: "#888", fontSize: 13 }}>
+                      {r.venue || 'Unknown'} · {r.year || 'n.d.'}
+                    </span>
+                  </div>
+
+                  <p style={{ marginTop: 10, color: "#444" }}>
+                    {r.abstract ? 
+                      (r.abstract.length > 200 ? r.abstract.substring(0, 200) + '...' : r.abstract) : 
+                      'No abstract available'}
+                  </p>
+
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
+                    <button onClick={() => openSave(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Save</button>
+                    <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Cite</button>
+                    <span style={{ marginLeft: 'auto', color: '#666' }}>
+                      {r.citationCount || 0} citations
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {visible.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                No references found
+              </div>
+            )}
+
+            {/* Load More Button */}
+            {visible.length < references.length && (
+              <div style={{ textAlign: 'center', marginTop: 24 }}>
+                <button
+                  onClick={handleLoadMore}
+                  style={{
+                    padding: '8px 24px',
+                    background: '#3E513E',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    fontSize: 14,
+                    fontWeight: 500
+                  }}
+                >
+                  Load More References
+                </button>
+              </div>
+            )}
+          </>
+        )}
       </div>
 
       {/* Save Modal */}
@@ -534,7 +723,9 @@ const ReferencesPage = () => {
                   color: '#666',
                   lineHeight: 1.4 
                 }}>
-                  {saveItem.authors.join(', ')} • {saveItem.venue} • {saveItem.date}
+                  {(Array.isArray(saveItem.authors) ? saveItem.authors.slice(0, 2).map(a => typeof a === 'object' ? a.name : a) : ['Unknown author']).join(', ')} 
+                  {(Array.isArray(saveItem.authors) && saveItem.authors.length > 2 ? '+ others' : '')} • 
+                  {saveItem.venue || 'Unknown'} • {saveItem.year || 'n.d.'}
                 </p>
               </div>
 
@@ -664,26 +855,63 @@ const ReferencesPage = () => {
 
             {/* Content */}
             <div style={{ padding: '24px' }}>
+              {citationLoading ? (
+                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  <div style={{ fontSize: 16, color: '#666' }}>Loading citation formats...</div>
+                </div>
+              ) : citationError ? (
+                <div style={{ marginBottom: 20 }}>
+                  <div style={{ color: '#d32f2f', fontSize: 14, marginBottom: 16 }}>
+                    {citationError}
+                  </div>
+                  <div style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>
+                    Using basic citation format instead...
+                  </div>
+                </div>
+              ) : null}
+
               {/* Format tabs */}
               <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
-                {['BibTeX', 'MLA', 'APA', 'IEEE'].map(fmt => (
-                  <button
-                    key={fmt}
-                    onClick={() => setCiteFormat(fmt)}
-                    style={{
-                      padding: '12px 16px',
-                      background: 'transparent',
-                      border: 'none',
-                      borderBottom: citeFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
-                      cursor: 'pointer',
-                      fontSize: 14,
-                      fontWeight: citeFormat === fmt ? 600 : 500,
-                      color: citeFormat === fmt ? '#3E513E' : '#666'
-                    }}
-                  >
-                    {fmt}
-                  </button>
-                ))}
+                {citationFormats.length > 0 ? (
+                  citationFormats.map(format => (
+                    <button
+                      key={format.id}
+                      onClick={() => setSelectedFormat(format.id)}
+                      style={{
+                        padding: '12px 16px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: selectedFormat === format.id ? '3px solid #3E513E' : '3px solid transparent',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: selectedFormat === format.id ? 600 : 500,
+                        color: selectedFormat === format.id ? '#3E513E' : '#666'
+                      }}
+                    >
+                      {format.label}
+                    </button>
+                  ))
+                ) : (
+                  // Fallback tabs if no citation formats loaded
+                  ['bibtex', 'mla', 'apa', 'ieee'].map(fmt => (
+                    <button
+                      key={fmt}
+                      onClick={() => setSelectedFormat(fmt)}
+                      style={{
+                        padding: '12px 16px',
+                        background: 'transparent',
+                        border: 'none',
+                        borderBottom: selectedFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
+                        cursor: 'pointer',
+                        fontSize: 14,
+                        fontWeight: selectedFormat === fmt ? 600 : 500,
+                        color: selectedFormat === fmt ? '#3E513E' : '#666'
+                      }}
+                    >
+                      {fmt.toUpperCase()}
+                    </button>
+                  ))
+                )}
               </div>
 
               {/* Citation text box */}
@@ -691,13 +919,13 @@ const ReferencesPage = () => {
                 <textarea
                   id="cite-textarea"
                   readOnly
-                  value={getCitationText(citeItem, citeFormat)}
+                  value={getCurrentCitationText()}
                   style={{
                     width: '100%',
                     height: 200,
                     padding: 12,
-                    fontFamily: 'monospace',
-                    fontSize: 12,
+                    fontFamily: selectedFormat === 'bibtex' ? 'monospace' : 'inherit',
+                    fontSize: selectedFormat === 'bibtex' ? 12 : 14,
                     border: '1px solid #d0d0d0',
                     borderRadius: 4,
                     resize: 'none',
@@ -711,12 +939,12 @@ const ReferencesPage = () => {
 
               {/* Copy and Export */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                {/* Export / BibTeX on the left */}
+                {/* Export */}
                 <div>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button
-                      onClick={() => downloadBibTeX(citeItem)}
+                      onClick={downloadCitation}
                       style={{
                         padding: '8px 16px',
                         background: '#3E513E',
@@ -728,35 +956,36 @@ const ReferencesPage = () => {
                         fontWeight: 500
                       }}
                     >
-                      BibTeX
+                      Download {selectedFormat === 'bibtex' ? 'BibTeX' : 'Text'}
                     </button>
                   </div>
                 </div>
 
-                {/* Copy button on the right */}
-                <button
-                  onClick={copyCitation}
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    background: 'transparent',
-                    border: 'none',
-                    color: '#3E513E',
-                    cursor: 'pointer',
-                    fontSize: 13,
-                    fontWeight: 500,
-                  }}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                  Copy
-                </button>
+                {/* Copy button */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13 }}>Copied!</span>}
+                  <button
+                    onClick={copyCitation}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#3E513E',
+                      cursor: 'pointer',
+                      fontSize: 13,
+                      fontWeight: 500,
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                    Copy
+                  </button>
+                </div>
               </div>
-
-              {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
             </div>
           </div>
         </div>

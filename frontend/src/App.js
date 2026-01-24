@@ -46,10 +46,10 @@ function App() {
         {/* Core routes */}
         <Route path="/home" element={<Home />} />
         <Route path="/search" element={<SearchRouteSwitch />} />
-        <Route path="/paper" element={<PaperDetails />} />
-        <Route path="/citations" element={<CitationsPage />} />
-        <Route path="/references" element={<ReferencesPage />} />
-        <Route path="/related" element={<RelatedPapersPage />} />
+        <Route path="/paper/:paperId" element={<PaperDetails />} />
+        <Route path="/citations/:paperId" element={<CitationsPage />} />
+        <Route path="/references/:paperId" element={<ReferencesPage />} />
+        <Route path="/related/:paperId" element={<RelatedPapersPage />} />
         <Route path="/bibtex" element={<Bibtex />} />
 
         {/* User routes */}

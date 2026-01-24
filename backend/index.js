@@ -51,15 +51,13 @@ app.get("/", (req, res) => {
 // ========================================
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/papers', paperRoutes);
 app.use('/api/libraries', libraryRoutes);
 app.use('/api/user/papers', userPapersRoutes); // NEW: Get all user papers across libraries
-
 
 //autocomplete route
 app.use("/api/autocomplete", autocompleteRoute);
 
-//paper-search route
+//paper-search route (must come BEFORE paperRoutes to avoid conflicts)
 app.use("/api/papers", paperSearchRoute);
 
 //paper-details route
