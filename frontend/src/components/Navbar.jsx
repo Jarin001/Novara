@@ -1,56 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useUser } from "../contexts/UserContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("User");
-  const [userPhoto, setUserPhoto] = useState(null);
-
-  // Check authentication status on mount and when location changes
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('access_token');
-      setIsLoggedIn(!!token);
-      
-      // Fetch user profile data if logged in
-      if (token) {
-        try {
-          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/users/profile`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          
-          if (response.ok) {
-            const data = await response.json();
-            setUserName(data.user?.name || "User");
-            setUserPhoto(data.user?.profile_picture_url || null);
-          } else {
-            // Token might be invalid, clear it
-            console.error('Failed to fetch profile');
-          }
-        } catch (error) {
-          console.error('Error fetching user profile:', error);
-        }
-      } else {
-        // Reset user data if not logged in
-        setUserName("User");
-        setUserPhoto(null);
-      }
-    };
-
-    checkAuth();
-    
-    // Listen for storage changes (useful for multi-tab scenarios)
-    window.addEventListener('storage', checkAuth);
-    
-    return () => {
-      window.removeEventListener('storage', checkAuth);
-    };
-  }, [location]); // Re-check when route changes
+  
+  // Get user data from context instead of fetching
+  const { userData, isLoggedIn, logout: contextLogout } = useUser();
 
   const handleAboutClick = () => {
     if (location.pathname === '/') {
@@ -80,12 +38,8 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
-    // Remove the token
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    
-    // Update state
-    setIsLoggedIn(false);
+    // Use context logout function
+    contextLogout();
     setDropdownOpen(false);
     
     // Navigate to home and reload
@@ -172,20 +126,20 @@ const Navbar = () => {
                 width: "40px",
                 height: "40px",
                 borderRadius: "50%",
-                backgroundColor: userPhoto ? "transparent" : "#fff",
+                backgroundColor: userData.profile_picture_url ? "transparent" : "#fff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 position: "relative",
                 overflow: "hidden",
-                border: userPhoto ? "2px solid #fff" : "none",
+                border: userData.profile_picture_url ? "2px solid #fff" : "none",
               }}
               title="User Profile"
             >
-              {userPhoto ? (
+              {userData.profile_picture_url ? (
                 <img 
-                  src={userPhoto} 
-                  alt={userName}
+                  src={userData.profile_picture_url} 
+                  alt={userData.name}
                   style={{
                     width: "100%",
                     height: "100%",
@@ -247,7 +201,7 @@ const Navbar = () => {
                   borderBottom: "1px solid #f0f0f0",
                   fontWeight: "600",
                 }}>
-                  {userName}
+                  {userData.name}
                 </div>
                 
                 <div 

@@ -9,6 +9,9 @@ import {
   useLocation,
 } from "react-router-dom";
 
+// Import UserProvider for global user state management
+import { UserProvider } from "./contexts/UserContext";
+
 // Pages
 import Home from "./pages/Home";
 import SearchResults from "./pages/SearchResults";
@@ -33,31 +36,33 @@ function SearchRouteSwitch() {
 
 function App() {
   return (
-    <Router>
-      <Routes>
-        {/* Auth routes */}
-        <Route path="/login" element={<LoginRegister />} />
-        <Route path="/register" element={<LoginRegister />} />
-        <Route path="/verify-email" element={<VerifyEmail />} />
+    <UserProvider>
+      <Router>
+        <Routes>
+          {/* Auth routes */}
+          <Route path="/login" element={<LoginRegister />} />
+          <Route path="/register" element={<LoginRegister />} />
+          <Route path="/verify-email" element={<VerifyEmail />} />
 
-        {/* Default landing page */}
-        <Route path="/" element={<Home />} />
+          {/* Default landing page */}
+          <Route path="/" element={<Home />} />
 
-        {/* Core routes */}
-        <Route path="/home" element={<Home />} />
-        <Route path="/search" element={<SearchRouteSwitch />} />
-        <Route path="/paper" element={<PaperDetails />} />
-        <Route path="/citations" element={<CitationsPage />} />
-        <Route path="/references" element={<ReferencesPage />} />
-        <Route path="/related" element={<RelatedPapersPage />} />
-        <Route path="/bibtex" element={<Bibtex />} />
+          {/* Core routes */}
+          <Route path="/home" element={<Home />} />
+          <Route path="/search" element={<SearchRouteSwitch />} />
+          <Route path="/paper" element={<PaperDetails />} />
+          <Route path="/citations" element={<CitationsPage />} />
+          <Route path="/references" element={<ReferencesPage />} />
+          <Route path="/related" element={<RelatedPapersPage />} />
+          <Route path="/bibtex" element={<Bibtex />} />
 
-        {/* User routes */}
-        <Route path="/profile" element={<UserProfile />} />
-         <Route path="/profile/:userId" element={<UserProfile />} />
-        <Route path="/library" element={<UserLibrary />} />
-      </Routes>
-    </Router>
+          {/* User routes */}
+          <Route path="/profile" element={<UserProfile />} />
+           <Route path="/profile/:userId" element={<UserProfile />} />
+          <Route path="/library" element={<UserLibrary />} />
+        </Routes>
+      </Router>
+    </UserProvider>
   );
 }
 

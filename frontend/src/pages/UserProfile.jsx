@@ -313,8 +313,15 @@ const UserProfile = () => {
     return (
       <div>
         <Navbar />
-        <div className="container mt-5 text-center">
-          <div className="spinner-border text-primary" role="status">
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          marginTop: '80px'
+        }}>
+          <div className="spinner-border text-primary" role="status" style={{ width: '3rem', height: '3rem' }}>
             <span className="visually-hidden">Loading...</span>
           </div>
           <p className="mt-3 text-muted">Loading profile...</p>
@@ -328,8 +335,15 @@ const UserProfile = () => {
     return (
       <div>
         <Navbar />
-        <div className="container mt-5">
-          <div className="alert alert-danger" role="alert">
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: 'calc(100vh - 80px)',
+          marginTop: '80px',
+          padding: '0 20px'
+        }}>
+          <div className="alert alert-danger" role="alert" style={{ maxWidth: '600px', width: '100%' }}>
             <h4 className="alert-heading">Error Loading Profile</h4>
             <p>{error}</p>
             <hr />
