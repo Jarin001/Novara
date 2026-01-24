@@ -1,4 +1,4 @@
-// paperController.js - CORRECTED VERSION
+
 
 const paperDetailsService = require('../services/paperdetails.service');
 

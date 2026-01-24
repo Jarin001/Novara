@@ -1,6 +1,7 @@
 const { errorHandler } = require('../utils/errorHandler');
 const PaperService = require('../services/paperService');
 const LibraryAccessService = require('../services/libraryAccessService');
+const AuthorService = require('../services/authorService');
 
 /**
  * Save paper to a library (HYBRID: SQL + Mongo)
@@ -20,6 +21,7 @@ exports.savePaperToLibrary = async (req, res) => {
       fields_of_study,
       abstract,
       bibtex,
+      authors = [], // Array of {name, affiliation}
       user_note = '',
       reading_status = 'unread'
     } = req.body;
@@ -45,6 +47,11 @@ exports.savePaperToLibrary = async (req, res) => {
       fields_of_study
     });
 
+    // Handle authors
+    if (authors && authors.length > 0) {
+      await AuthorService.linkAuthorsToaPaper(supabase, paper.id, authors);
+    }
+
     // Save paper content (MongoDB)
     await PaperService.savePaperContent(paper.id, s2_paper_id, abstract, bibtex);
 
@@ -60,9 +67,12 @@ exports.savePaperToLibrary = async (req, res) => {
     // Save user note (MongoDB)
     await PaperService.saveUserNote(userId, library_id, paper.id, user_note);
 
+    // Get the complete paper with authors for response
+    const paperWithAuthors = await AuthorService.getPaperWithAuthors(supabase, paper.id);
+
     res.status(201).json({
       message: 'Paper saved successfully',
-      paper,
+      paper: paperWithAuthors,
       library_paper: libraryPaper
     });
 
@@ -108,10 +118,11 @@ exports.getLibraryPapers = async (req, res) => {
 
     const paperIds = papers.map(p => p.papers.id);
 
-    // Get MongoDB data
-    const [contentMap, notes] = await Promise.all([
+    // Get MongoDB data and authors
+    const [contentMap, notes, authorsMap] = await Promise.all([
       PaperService.getPaperContents(paperIds),
-      PaperService.getUserNotes(userId, library_id, paperIds)
+      PaperService.getUserNotes(userId, library_id, paperIds),
+      AuthorService.getAuthorsForPapers(supabase, paperIds)
     ]);
 
     const noteMap = Object.fromEntries(
@@ -125,6 +136,7 @@ exports.getLibraryPapers = async (req, res) => {
       added_at: lp.added_at,
       last_read_at: lp.last_read_at,
       ...lp.papers,
+      authors: authorsMap[lp.papers.id] || [],
       abstract: contentMap[lp.papers.id]?.abstract || '',
       bibtex: contentMap[lp.papers.id]?.bibtex || '',
       user_note: noteMap[lp.papers.id.toString()]?.userNote || ''
@@ -200,10 +212,11 @@ exports.getAllUserPapers = async (req, res) => {
     const uniquePapers = PaperService.removeDuplicatesAndAggregate(libraryPapers);
     const paperIds = uniquePapers.map(p => p.paper_id);
 
-    // Get MongoDB data
-    const [contentMap, notes] = await Promise.all([
+    // Get MongoDB data and authors
+    const [contentMap, notes, authorsMap] = await Promise.all([
       PaperService.getPaperContents(paperIds),
-      PaperService.getUserNotes(userId, null, paperIds)
+      PaperService.getUserNotes(userId, null, paperIds),
+      AuthorService.getAuthorsForPapers(supabase, paperIds)
     ]);
 
     // Group notes by paper
@@ -227,6 +240,7 @@ exports.getAllUserPapers = async (req, res) => {
       year: up.paper_data.year,
       citation_count: up.paper_data.citation_count,
       fields_of_study: up.paper_data.fields_of_study,
+      authors: authorsMap[up.paper_id] || [],
       abstract: contentMap[up.paper_id]?.abstract || '',
       bibtex: contentMap[up.paper_id]?.bibtex || '',
       first_added_at: up.first_added_at,
