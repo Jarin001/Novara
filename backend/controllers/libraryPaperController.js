@@ -332,9 +332,9 @@ exports.updateReadingStatus = async (req, res) => {
     const { library_id, paper_id } = req.params;
     const { reading_status } = req.body;
 
-    if (!['unread', 'reading', 'read'].includes(reading_status)) {
+    if (!['unread', 'in_progress', 'read'].includes(reading_status)) {
       return res.status(400).json({
-        message: 'Invalid reading status. Must be: unread, reading, or read'
+        message: 'Invalid reading status. Must be: unread, in_progress, or read'
       });
     }
 
