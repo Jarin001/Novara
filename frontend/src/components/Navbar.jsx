@@ -44,7 +44,7 @@ const Navbar = () => {
   };
 
   const handleSignUp = () => {
-    navigate('/login'); // Since your login page handles both
+    navigate('/register'); // Navigate to register page
   };
 
   const toggleDropdown = () => {

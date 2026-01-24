@@ -21,7 +21,7 @@ import UserProfile from "./pages/UserProfile";
 import UserLibrary from "./pages/UserLibrary";
 import Bibtex from "./pages/Bibtex";
 import LoginRegister from "./pages/LoginRegister";
-import VerifyEmail from "./pages/VerifyEmail"; // Add this
+import VerifyEmail from "./pages/VerifyEmail"; 
 
 // Search routing helper
 function SearchRouteSwitch() {
@@ -54,6 +54,7 @@ function App() {
 
         {/* User routes */}
         <Route path="/profile" element={<UserProfile />} />
+         <Route path="/profile/:userId" element={<UserProfile />} />
         <Route path="/library" element={<UserLibrary />} />
       </Routes>
     </Router>

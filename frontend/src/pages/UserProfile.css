@@ -58,18 +58,109 @@
   font-size: 18px;
 }
 
-/* Profile Info */
+/* Profile Info - FIXED COLORS FOR BETTER VISIBILITY */
 .profile-name {
   font-size: 26px;
-  color: #1f1f1f;
-  font-weight: 500;
+  color: #202124 !important; /* Darker for better visibility */
+  font-weight: 600;
   letter-spacing: -0.5px;
 }
 
 .profile-id {
   font-size: 18px;
-  color: #5f6368;
-  font-weight: 400;
+  color: #1f5e3a !important; /* Green instead of grey */
+  font-weight: 500;
+}
+
+/* Institution and Department - Better Contrast */
+.fw-semibold.text-dark {
+  color: #202124 !important; /* Dark text instead of grey */
+}
+
+/* GLOBAL FIX: Override ALL text-muted to be visible */
+.text-muted {
+  color: #3c4043 !important; /* Darker grey - visible on all backgrounds */
+}
+
+/* For elements that should be truly dark (not just muted) */
+.text-muted.fw-semibold,
+.text-muted.small.fw-semibold {
+  color: #202124 !important; /* Fully dark */
+  font-weight: 600 !important;
+}
+
+/* FIX: "Member since" text - lighter and subtle */
+.text-muted.small:not(.fw-semibold) {
+  color: #5f6368 !important; /* Lighter grey for subtle text */
+  font-size: 13px !important;
+  font-weight: 400 !important; /* Regular weight */
+}
+
+/* More specific: "Member since" in button area */
+.d-flex.gap-3.align-items-center .text-muted.small {
+  color: #5f6368 !important; /* Lighter grey - subtle but visible */
+  font-size: 13px !important;
+  font-weight: 400 !important;
+}
+
+/* Global font family - ensure consistency */
+* {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+body,
+.profile-name,
+.profile-id,
+.section-title,
+.sidebar-title,
+.publication-title,
+.publication-authors,
+.publication-journal,
+.cited-paper-title,
+.text-muted,
+.small,
+span,
+p,
+h1, h2, h3, h4, h5, h6,
+.btn,
+button,
+input {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Email verified section - FIXED FOR BETTER VISIBILITY */
+.text-muted .small {
+  color: #202124 !important; /* Dark text for visibility */
+  font-size: 14px !important; /* Slightly larger */
+  font-weight: 500 !important; /* Bolder */
+}
+
+/* Make sure the email text is visible */
+span.small {
+  color: #202124 !important;
+  font-weight: 500 !important;
+}
+
+/* Target the email div specifically */
+.d-flex.align-items-center.gap-2.mb-3.text-muted span {
+  color: #202124 !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+}
+
+/* FIX: Research Interests label visibility */
+.text-muted.small.fw-semibold {
+  color: #202124 !important; /* Dark text */
+  font-size: 13px !important;
+  font-weight: 600 !important; /* Bold */
+  text-transform: uppercase; /* Make it stand out */
+  letter-spacing: 0.5px;
+}
+
+/* Alternative: target any small semibold text-muted */
+.small.fw-semibold {
+  color: #202124 !important;
+  font-weight: 600 !important;
 }
 
 /* Research Interest Badges */
@@ -92,14 +183,14 @@
 /* Section Titles */
 .section-title {
   font-size: 22px;
-  color: #1f1f1f;
-  font-weight: 500;
+  color: #202124 !important; /* Darker for visibility */
+  font-weight: 600;
 }
 
 .sidebar-title {
   font-size: 18px;
-  color: #1f1f1f;
-  font-weight: 500;
+  color: #202124 !important; /* Darker for visibility */
+  font-weight: 600;
   margin-bottom: 20px;
   padding-bottom: 10px;
   border-bottom: 3px solid #1f5e3a;
@@ -210,6 +301,7 @@
 /* Card Customization */
 .card {
   border-radius: 12px;
+  background-color: #ffffff; /* Ensure white background */
 }
 
 .border-light {
@@ -248,6 +340,16 @@
   border-color: #16432a;
 }
 
+/* FIX: Add proper spacing from navbar */
+.container-fluid {
+  margin-top: 80px; /* Add space below navbar */
+}
+
+/* Alternative: If you want the navbar to not be fixed */
+body {
+  padding-top: 0;
+}
+
 /* Responsive Adjustments */
 @media (max-width: 991px) {
   .profile-name {
@@ -267,5 +369,10 @@
   .profile-avatar {
     width: 100px;
     height: 100px;
+  }
+  
+  /* Adjust navbar spacing for mobile */
+  .container-fluid {
+    margin-top: 70px;
   }
 }

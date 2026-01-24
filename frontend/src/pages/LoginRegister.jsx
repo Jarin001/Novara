@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../config/supabase';
 import './LoginRegister.css';
 
@@ -9,6 +9,7 @@ export default function LoginRegister() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -17,6 +18,15 @@ export default function LoginRegister() {
     confirmPassword: '',
     affiliation: ''
   });
+
+  // Set initial mode based on the current route
+  useEffect(() => {
+    if (location.pathname === '/register') {
+      setIsLogin(false);
+    } else if (location.pathname === '/login') {
+      setIsLogin(true);
+    }
+  }, [location.pathname]);
 
  const handleSubmit = async (e) => {
   e.preventDefault();
@@ -46,7 +56,7 @@ export default function LoginRegister() {
       // Store the token from YOUR backend
       localStorage.setItem('access_token', data.session.access_token);
       console.log('Login successful, token stored');
-      navigate('/profile');
+      navigate('/search');
       
     } else {
       // REGISTER - Call YOUR backend
@@ -70,6 +80,10 @@ export default function LoginRegister() {
       const data = await response.json();
       
       if (!response.ok) {
+        // Check if there are detailed password validation errors
+        if (data.details && Array.isArray(data.details)) {
+          throw new Error(data.error + ':\n• ' + data.details.join('\n• '));
+        }
         throw new Error(data.error || 'Registration failed');
       }
 
@@ -86,9 +100,9 @@ export default function LoginRegister() {
       } else {
         // Auto-confirmed (rare)
         if (data.session?.access_token) {
-          localStorage.setItem('supabase_token', data.session.access_token);
+          localStorage.setItem('access_token', data.session.access_token);
         }
-        navigate('/profile');
+        navigate('/search');
       }
     }
   } catch (error) {
@@ -105,9 +119,17 @@ export default function LoginRegister() {
   };
 
   const switchMode = () => {
-    setIsLogin(!isLogin);
+    const newMode = !isLogin;
+    setIsLogin(newMode);
     setError('');
     setFormData({ name: '', email: '', password: '', confirmPassword: '', affiliation: '' });
+    
+    // Navigate to the appropriate route
+    if (newMode) {
+      navigate('/login');
+    } else {
+      navigate('/register');
+    }
   };
 
   return (
@@ -140,7 +162,7 @@ export default function LoginRegister() {
 
               {/* Error Display */}
               {error && (
-                <div className="alert alert-danger alert-dismissible fade show mb-3" role="alert">
+                <div className="alert alert-danger alert-dismissible fade show mb-3" role="alert" style={{ whiteSpace: 'pre-line' }}>
                   {error}
                   <button type="button" className="btn-close" onClick={() => setError('')}></button>
                 </div>
@@ -286,10 +308,6 @@ export default function LoginRegister() {
                   ) : (
                     <>
                       {isLogin ? 'Sign In' : 'Create Account'}
-                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="ms-2">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                      </svg>
                     </>
                   )}
                 </button>

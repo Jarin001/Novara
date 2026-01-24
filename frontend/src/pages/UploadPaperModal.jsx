@@ -9,7 +9,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
 
   const handleFetchPaper = async () => {
     if (!paperId.trim()) {
-      setError('Please enter a Paper ID, DOI, or ArXiv ID');
+      setError('Please enter a Corpus ID, DOI, or ArXiv ID');
       return;
     }
 
@@ -36,21 +36,26 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
 
       const data = await response.json();
       
-      // Transform the API response to match our component structure
+      // Store ALL fields from the API response
       setPaperDetails({
-        s2_paper_id: data.s2_paper_id,
+        // Store everything from API
+        ...data,
+        
+        // Ensure backward compatibility
+        s2_paper_id: data.paperId || data.s2_paper_id,
+        corpus_id: data.corpusId || data.corpus_id,
         title: data.title,
-        authors: data.authors || [],
-        published_year: data.published_year,
-        citation_count: data.citation_count || 0,
-        fields_of_study: data.fields_of_study || [],
+        authors: data.authors?.map(a => typeof a === 'string' ? a : a.name) || data.author_names || [],
+        published_year: data.year || data.published_year,
+        citation_count: data.citationCount || data.citation_count || 0,
+        fields_of_study: data.fieldsOfStudy || data.fields_of_study || [],
         venue: data.venue || null,
         abstract: data.abstract || null,
-        doi: data.doi || null,
-        arxiv_id: data.arxiv_id || null,
-        is_open_access: data.is_open_access || false,
-        pdf_url: data.pdf_url || null,
-        publication_date: data.publication_date || null
+        doi: data.externalIds?.DOI || data.doi || null,
+        arxiv_id: data.externalIds?.ArXiv || data.arxiv_id || null,
+        is_open_access: data.isOpenAccess || data.is_open_access || false,
+        pdf_url: data.openAccessPdf?.url || data.pdf_url || null,
+        publication_date: data.publicationDate || data.publication_date || null
       });
 
     } catch (err) {
@@ -78,11 +83,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          s2_paper_id: paperDetails.s2_paper_id,
-          title: paperDetails.title,
-          published_year: paperDetails.published_year,
-          citation_count: paperDetails.citation_count,
-          fields_of_study: paperDetails.fields_of_study
+          paperData: paperDetails
         })
       });
 
@@ -139,7 +140,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
         <div className="upload-modal-body">
           {/* Input Section */}
           <div className="upload-input-section">
-            <label className="upload-label">Enter Paper ID, DOI, or ArXiv ID</label>
+            <label className="upload-label">Enter Corpus ID, DOI, or ArXiv ID</label>
             <div className="upload-input-group">
               <input
                 type="text"
@@ -147,7 +148,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
                 value={paperId}
                 onChange={(e) => setPaperId(e.target.value)}
                 onKeyPress={handleKeyPress}
-                placeholder="e.g., 10.1038/nature12345 or 2401.12345"
+                placeholder="e.g., 123456789 or 10.1038/nature12345 or 2401.12345"
                 disabled={isLoading}
               />
               <button
@@ -173,7 +174,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
             </div>
             {error && <div className="upload-error">{error}</div>}
             <p className="upload-help-text">
-              Supports Semantic Scholar Paper ID, DOI, or ArXiv ID
+              Supports Corpus ID (e.g., 123456789), DOI (e.g., 10.1038/nature12345), or ArXiv ID (e.g., 2401.12345)
             </p>
           </div>
 
@@ -246,8 +247,53 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
                   </div>
                 )}
 
+                {/* TLDR */}
+                {paperDetails.tldr && (
+                  <div className="paper-preview-abstract">
+                    <strong>TL;DR:</strong>
+                    <p>{paperDetails.tldr}</p>
+                  </div>
+                )}
+
+                {/* Keywords */}
+                {paperDetails.keywords && paperDetails.keywords.length > 0 && (
+                  <div className="paper-preview-fields">
+                    <strong style={{ display: 'block', marginBottom: '8px', fontSize: '13px' }}>Keywords:</strong>
+                    {paperDetails.keywords.map((keyword, idx) => (
+                      <span key={idx} className="field-tag" style={{ backgroundColor: '#16432a' }}>{keyword}</span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Journal Info */}
+                {paperDetails.journal && (
+                  <div className="paper-preview-abstract" style={{ fontSize: '13px' }}>
+                    <strong>Journal:</strong> {
+                      typeof paperDetails.journal === 'string' 
+                        ? paperDetails.journal 
+                        : (paperDetails.journal.name || 'Unknown Journal')
+                    }
+                    {typeof paperDetails.journal === 'object' && paperDetails.journal.volume && ` | Volume: ${paperDetails.journal.volume}`}
+                    {typeof paperDetails.journal === 'object' && paperDetails.journal.pages && ` | Pages: ${paperDetails.journal.pages}`}
+                  </div>
+                )}
+
+                {/* Publication Types */}
+                {paperDetails.publicationTypes && paperDetails.publicationTypes.length > 0 && (
+                  <div className="paper-preview-ids">
+                    <div className="id-item">
+                      <strong>Type:</strong> {paperDetails.publicationTypes.join(', ')}
+                    </div>
+                  </div>
+                )}
+
                 {/* External IDs */}
                 <div className="paper-preview-ids">
+                  {paperDetails.corpusId && (
+                    <div className="id-item">
+                      <strong>Corpus ID:</strong> {paperDetails.corpusId}
+                    </div>
+                  )}
                   {paperDetails.doi && (
                     <div className="id-item">
                       <strong>DOI:</strong> {paperDetails.doi}
@@ -258,12 +304,29 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
                       <strong>ArXiv:</strong> {paperDetails.arxiv_id}
                     </div>
                   )}
+                  {paperDetails.externalIds?.PubMed && (
+                    <div className="id-item">
+                      <strong>PubMed:</strong> {paperDetails.externalIds.PubMed}
+                    </div>
+                  )}
+                  {paperDetails.externalIds?.ACL && (
+                    <div className="id-item">
+                      <strong>ACL:</strong> {paperDetails.externalIds.ACL}
+                    </div>
+                  )}
                   {paperDetails.is_open_access && (
                     <div className="id-item open-access">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
                       </svg>
                       Open Access
+                    </div>
+                  )}
+                  {paperDetails.pdf_url && (
+                    <div className="id-item">
+                      <a href={paperDetails.pdf_url} target="_blank" rel="noopener noreferrer" style={{ color: '#1f5e3a', textDecoration: 'none' }}>
+                        <strong>📄 PDF Available</strong>
+                      </a>
                     </div>
                   )}
                 </div>

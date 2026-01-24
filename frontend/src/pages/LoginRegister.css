@@ -2,7 +2,7 @@
 .auth-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #000000 0%, #0a0a0a 50%, #0d2818 100%);
+  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%);
   overflow: hidden;
 }
 
@@ -18,7 +18,7 @@
   position: absolute;
   border-radius: 50%;
   filter: blur(60px);
-  opacity: 0.7;
+  opacity: 0.3;
   animation: pulse 6s ease-in-out infinite;
 }
 
@@ -27,7 +27,7 @@
   left: -10rem;
   width: 20rem;
   height: 20rem;
-  background-color: rgba(20, 50, 30, 0.4);
+  background-color: rgba(34, 197, 94, 0.25);
 }
 
 .circle-2 {
@@ -35,7 +35,7 @@
   right: -10rem;
   width: 20rem;
   height: 20rem;
-  background-color: rgba(16, 46, 26, 0.4);
+  background-color: rgba(16, 185, 129, 0.25);
   animation-delay: 2s;
 }
 
@@ -45,7 +45,7 @@
   transform: translate(-50%, -50%);
   width: 20rem;
   height: 20rem;
-  background-color: rgba(21, 54, 32, 0.2);
+  background-color: rgba(134, 239, 172, 0.2);
   animation-delay: 4s;
 }
 
@@ -64,12 +64,12 @@
 .auth-card {
   position: relative;
   z-index: 1;
-  background: rgba(17, 24, 39, 0.8);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(20px);
-  border: 1px solid rgba(21, 54, 32, 0.3);
+  border: 2px solid #3E513E;
   border-radius: 1.5rem;
   padding: 2rem;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
 }
 
 /* Header */
@@ -79,9 +79,9 @@
   justify-content: center;
   width: 4rem;
   height: 4rem;
-  background: linear-gradient(135deg, #1f5e3a 0%, #16432a 100%);
+  background: #3E513E;
   border-radius: 50%;
-  box-shadow: 0 4px 12px rgba(31, 94, 58, 0.5);
+  box-shadow: 0 4px 12px rgba(62, 81, 62, 0.4);
 }
 
 .auth-icon-wrapper svg {
@@ -89,23 +89,23 @@
 }
 
 .auth-title {
-  color: white;
+  color: #1e293b;
   font-size: 1.875rem;
   font-weight: bold;
   margin-bottom: 0.5rem;
 }
 
 .auth-subtitle {
-  color: #d1d5db;
+  color: #64748b;
   margin-bottom: 0;
   font-size: 1rem;
 }
 
 /* Form Inputs */
 .auth-input {
-  background: rgba(31, 41, 55, 0.5) !important;
-  border: 1px solid #4b5563 !important;
-  color: #f3f4f6 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
   border-radius: 0.75rem;
   padding: 0.75rem 1rem;
   transition: all 0.3s ease;
@@ -113,21 +113,21 @@
 }
 
 .auth-input:focus {
-  background: rgba(31, 41, 55, 0.7) !important;
-  border-color: #1f5e3a !important;
-  box-shadow: 0 0 0 3px rgba(31, 94, 58, 0.3) !important;
-  color: #ffffff !important;
+  background: #ffffff !important;
+  border-color: #3E513E !important;
+  box-shadow: 0 0 0 3px rgba(62, 81, 62, 0.2) !important;
+  color: #1e293b !important;
 }
 
 .auth-input::placeholder {
-  color: #d1d5db !important;
+  color: #94a3b8 !important;
   opacity: 1 !important;
 }
 
 .input-group-text {
-  color: #f3f4f6 !important;
-  background: rgba(31, 41, 55, 0.5) !important;
-  border: 1px solid #4b5563 !important;
+  color: #64748b !important;
+  background: #f8fafc !important;
+  border: 1px solid #cbd5e1 !important;
   border-right: none;
   border-radius: 0.75rem 0 0 0.75rem;
 }
@@ -138,37 +138,37 @@
 }
 
 .auth-toggle-btn {
-  background: rgba(31, 41, 55, 0.5) !important;
-  border-color: #4b5563 !important;
+  background: #f8fafc !important;
+  border-color: #cbd5e1 !important;
   border-left: none !important;
   border-radius: 0 0.75rem 0.75rem 0 !important;
-  color: #f3f4f6 !important;
+  color: #64748b !important;
 }
 
 .auth-toggle-btn:hover {
-  color: #22c55e !important;
-  background: rgba(31, 41, 55, 0.7) !important;
-  border-color: #22c55e !important;
+  color: #3E513E !important;
+  background: #f1f5f9 !important;
+  border-color: #3E513E !important;
 }
 
 /* Submit Button */
 .auth-submit-btn {
-  background: linear-gradient(135deg, #1f5e3a 0%, #16432a 100%);
+  background: #3E513E;
   border: none;
   border-radius: 0.75rem;
   padding: 0.75rem 1.5rem;
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: 0 4px 12px rgba(31, 94, 58, 0.5);
+  box-shadow: 0 4px 12px rgba(62, 81, 62, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .auth-submit-btn:hover {
-  background: linear-gradient(135deg, #1a5331 0%, #133a23 100%);
+  background: #2d3d2d;
   transform: scale(1.02);
-  box-shadow: 0 6px 16px rgba(31, 94, 58, 0.6);
+  box-shadow: 0 6px 16px rgba(62, 81, 62, 0.5);
 }
 
 /* Divider */
@@ -185,23 +185,23 @@
   top: 50%;
   width: 100%;
   height: 1px;
-  background: #4b5563;
+  background: #e2e8f0;
 }
 
 .auth-divider span {
   position: relative;
-  background: rgba(17, 24, 39, 0.9);
+  background: #ffffff;
   padding: 0 1rem;
-  color: #d1d5db;
+  color: #64748b;
   font-size: 0.95rem;
   font-weight: 500;
 }
 
 /* Social Buttons */
 .auth-social-btn {
-  background: rgba(31, 41, 55, 0.6) !important;
-  border: 1px solid #4b5563 !important;
-  color: #f3f4f6 !important;
+  background: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #475569 !important;
   border-radius: 0.75rem;
   padding: 0.75rem;
   transition: all 0.3s ease;
@@ -212,25 +212,25 @@
 }
 
 .auth-social-btn:hover {
-  background: rgba(31, 41, 55, 0.9) !important;
-  border-color: #22c55e !important;
-  color: #ffffff !important;
+  background: #f8fafc !important;
+  border-color: #3E513E !important;
+  color: #1e293b !important;
 }
 
 /* Links */
 .btn-link.text-success {
-  color: #22c55e !important;
+  color: #3E513E !important;
   font-size: 0.95rem;
   font-weight: 600;
 }
 
 .btn-link.text-success:hover {
-  color: #16a34a !important;
+  color: #2d3d2d !important;
 }
 
 /* Switch Mode Text */
 .switch-mode-text {
-  color: #ffffff !important;
+  color: #475569 !important;
   font-size: 0.95rem;
   font-weight: 500;
   display: flex;
@@ -240,18 +240,18 @@
 }
 
 .switch-mode-link {
-  color: #22c55e !important;
+  color: #3E513E !important;
   font-weight: 600 !important;
   line-height: 1;
 }
 
 .switch-mode-link:hover {
-  color: #16a34a !important;
+  color: #2d3d2d !important;
 }
 
 /* Text Muted Override */
 .text-muted {
-  color: #f3f4f6 !important;
+  color: #64748b !important;
   font-size: 0.95rem;
   font-weight: 400;
 }
