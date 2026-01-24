@@ -145,7 +145,7 @@ const ResearchLibrary = () => {
         id: paper.library_paper_id,
         dbPaperId: paper.id,
         title: paper.title,
-        authors: paper.fields_of_study ? [paper.fields_of_study] : [],
+        authors: paper.authors || [],
         venue: paper.venue || "Unknown Venue",
         date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
         citations: paper.citation_count || 0,
@@ -169,64 +169,47 @@ const ResearchLibrary = () => {
     }
   };
 
-  // Fetch all papers from all libraries
+  // Fetch all papers from all libraries (deduplicated from backend)
   const fetchAllPapers = async () => {
     try {
       const token = getAuthToken();
       if (!token) return;
 
-      // Get all libraries first
-      const libsResponse = await fetch(`${API_BASE_URL}/api/libraries`, {
+      // Fetch all unique papers across all libraries from backend
+      const response = await fetch(`${API_BASE_URL}/api/user/papers`, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!libsResponse.ok) return;
-
-      const libsData = await libsResponse.json();
-      const allLibs = [
-        ...(libsData.my_libraries || []),
-        ...(libsData.shared_with_me || [])
-      ];
-
-      // Fetch papers from each library
-      const allPapers = [];
-      for (const lib of allLibs) {
-        try {
-          const papersResponse = await fetch(`${API_BASE_URL}/api/libraries/${lib.id}/papers`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (papersResponse.ok) {
-            const papersData = await papersResponse.json();
-            const transformed = papersData.papers?.map(paper => ({
-              id: paper.library_paper_id,
-              dbPaperId: paper.id,
-              title: paper.title,
-              authors: paper.fields_of_study ? [paper.fields_of_study] : [],
-              venue: paper.venue || "Unknown Venue",
-              date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
-              citations: paper.citation_count || 0,
-              source: "Database",
-              abstract: paper.abstract || "No abstract available",
-              libraryId: lib.id,
-              readingStatus: paper.reading_status || "unread",
-              notes: paper.user_note || "",
-              addedDate: new Date(paper.added_at || Date.now()),
-              field: paper.fields_of_study || "Unknown Field",
-              bibtex: paper.bibtex || ""
-            })) || [];
-            allPapers.push(...transformed);
-          }
-        } catch (err) {
-          console.error(`Error fetching papers for library ${lib.id}:`, err);
-        }
+      if (!response.ok) {
+        throw new Error('Failed to fetch all papers');
       }
 
-      setPapers(allPapers);
+      const data = await response.json();
+
+      // Transform backend data to frontend format
+      const transformedPapers = data.papers?.map(paper => ({
+        id: paper.paper_id,
+        dbPaperId: paper.id,
+        title: paper.title,
+        authors: paper.authors || [],
+        venue: paper.venue || "Unknown Venue",
+        date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
+        citations: paper.citation_count || 0,
+        source: "Database",
+        abstract: paper.abstract || "No abstract available",
+        libraryId: paper.library_ids?.[0] || "all",
+        readingStatus: paper.reading_statuses?.[0] || "unread",
+        notes: paper.notes?.[0]?.user_note || "",
+        addedDate: new Date(paper.first_added_at || Date.now()),
+        field: paper.fields_of_study || "Unknown Field",
+        bibtex: paper.bibtex || ""
+      })) || [];
+
+      setPapers(transformedPapers);
     } catch (err) {
       console.error('Error fetching all papers:', err);
     }
@@ -425,7 +408,25 @@ const ResearchLibrary = () => {
         return;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${dbPaperId}/status`, {
+      // Find the paper to get its library ID
+      const paper = papers.find(p => p.id === paperId);
+      if (!paper) {
+        console.error('Paper not found with id:', paperId);
+        console.log('Available paper ids:', papers.map(p => p.id));
+        setError('Paper not found');
+        return;
+      }
+
+      console.log('Updating reading status for paper:', {
+        paperId,
+        dbPaperId,
+        libraryId: paper.libraryId,
+        status,
+        url: `${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${dbPaperId}/status`
+      });
+
+      // Revert back to using dbPaperId (paper_id from papers table)
+const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${dbPaperId}/status`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -434,10 +435,16 @@ const ResearchLibrary = () => {
         body: JSON.stringify({ reading_status: status })
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to update reading status');
+        console.error('Backend error:', errorData);
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to update reading status`);
       }
+
+      const responseData = await response.json();
+      console.log('Success response:', responseData);
 
       setPapers(prev =>
         prev.map(p =>
@@ -448,7 +455,7 @@ const ResearchLibrary = () => {
 
     } catch (err) {
       console.error('Error updating reading status:', err);
-      setError('Failed to update reading status');
+      setError(err.message || 'Failed to update reading status');
     }
   };
 
@@ -469,7 +476,7 @@ const ResearchLibrary = () => {
       const paper = papers.find(p => p.id === notesModal.paperId);
       if (!paper) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${paper.dbPaperId}/note`, {
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${paper.dbPaperId}/note`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -508,7 +515,7 @@ const ResearchLibrary = () => {
       const paper = papers.find(p => p.id === notesModal.paperId);
       if (!paper) return;
 
-      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${paper.dbPaperId}/note`, {
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${paper.dbPaperId}/note`, {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -562,16 +569,7 @@ const ResearchLibrary = () => {
     if (!searchTerm.trim()) return libraryMatch;
 
     const searchLower = searchTerm.toLowerCase();
-    return (
-      libraryMatch &&
-      (p.title.toLowerCase().includes(searchLower) ||
-        p.authors.some((author) =>
-          author.toLowerCase().includes(searchLower),
-        ) ||
-        p.abstract.toLowerCase().includes(searchLower) ||
-        p.field.toLowerCase().includes(searchLower) ||
-        p.venue.toLowerCase().includes(searchLower))
-    );
+    return libraryMatch && p.title.toLowerCase().includes(searchLower);
   });
 
   const sortedPapers = [...filteredPapers].sort((a, b) => {
@@ -591,7 +589,7 @@ const ResearchLibrary = () => {
     switch (status) {
       case "read":
         return { backgroundColor: "#d1f4e0", color: "#166534" };
-      case "in-progress":
+      case "in_progress":
         return { backgroundColor: "#fef3c7", color: "#854d0e" };
       case "unread":
         return { backgroundColor: "#f3f4f6", color: "#1f2937" };
@@ -600,15 +598,15 @@ const ResearchLibrary = () => {
     }
   };
 
-  // Show loading state
-  if (loading.libraries) {
+  // Show loading state until libraries are loaded on initial page load, OR until initial papers load
+  if (loading.libraries || (papers.length === 0 && loading.papers)) {
     return (
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#ffffff" }}>
         <Navbar />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", marginTop: "64px" }}>
           <div style={{ textAlign: "center" }}>
             <Loader2 size={48} className="spin" style={{ color: "#3E513E", marginBottom: "16px", animation: "spin 1s linear infinite" }} />
-            <p style={{ color: "#3E513E" }}>Loading libraries...</p>
+            <p style={{ color: "#3E513E" }}>{loading.libraries ? "Loading libraries..." : "Loading papers..."}</p>
           </div>
         </div>
         <style>{`
@@ -809,7 +807,6 @@ const ResearchLibrary = () => {
                       sharedLibraries.find((l) => l.id === selectedLibrary)?.name ||
                       "Library"}
                 </h2>
-                {loading.papers && <Loader2 size={20} className="spin" style={{ color: "#3E513E" }} />}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <button
@@ -899,20 +896,24 @@ const ResearchLibrary = () => {
                       >
                         {paper.title}
                       </h3>
-                      <button
-                        onClick={() => setNotesModal({ show: true, paperId: paper.id, notes: paper.notes || "" })}
-                        title="Add/Edit Notes"
-                        style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
-                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
-                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                      >
-                        <StickyNote size={18} style={{ color: paper.notes ? "#ca8a04" : "#9ca3af" }} fill={paper.notes ? "#fef3c7" : "none"} />
-                      </button>
+                      {selectedLibrary !== "all" && (
+                        <button
+                          onClick={() => setNotesModal({ show: true, paperId: paper.id, notes: paper.notes || "" })}
+                          title="Add/Edit Notes"
+                          style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                        >
+                          <StickyNote size={18} style={{ color: paper.notes ? "#ca8a04" : "#9ca3af" }} fill={paper.notes ? "#fef3c7" : "none"} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Authors */}
                     <div style={{ fontSize: "0.875rem", color: "#374151", marginBottom: "8px" }}>
-                      {paper.authors.join(", ")}
+                      {Array.isArray(paper.authors) && paper.authors.length > 0 
+                        ? paper.authors.map(a => a.name || a).join(", ")
+                        : "Unknown Authors"}
                     </div>
 
                     {/* Field */}
@@ -952,7 +953,7 @@ const ResearchLibrary = () => {
                           Cite
                         </button>
                         <button onClick={() => handleRemovePaper(paper.id, paper.dbPaperId)}
-                          style={{ color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0, display: selectedLibrary === "all" ? "none" : "block" }}
                           onMouseOver={(e) => (e.currentTarget.style.color = "#991b1b")}
                           onMouseOut={(e) => (e.currentTarget.style.color = "#dc2626")}
                         >
@@ -960,23 +961,25 @@ const ResearchLibrary = () => {
                         </button>
                       </div>
 
-                      <select
-                        value={paper.readingStatus}
-                        onChange={(e) => handleReadingStatusChange(paper.id, paper.dbPaperId, e.target.value)}
-                        style={{
-                          padding: "4px 12px",
-                          borderRadius: "9999px",
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          border: "none",
-                          cursor: "pointer",
-                          ...getStatusColor(paper.readingStatus),
-                        }}
-                      >
-                        <option value="unread">Unread</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="read">Read</option>
-                      </select>
+                      {selectedLibrary !== "all" && (
+                        <select
+                          value={paper.readingStatus}
+                          onChange={(e) => handleReadingStatusChange(paper.id, paper.dbPaperId, e.target.value)}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "9999px",
+                            fontSize: "0.75rem",
+                            fontWeight: 500,
+                            border: "none",
+                            cursor: "pointer",
+                            ...getStatusColor(paper.readingStatus),
+                          }}
+                        >
+                          <option value="unread">Unread</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="read">Read</option>
+                        </select>
+                      )}
                     </div>
                   </div>
                 ))}
