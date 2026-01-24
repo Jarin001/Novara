@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useRef, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
+import { API_ENDPOINTS } from "../config/api";
 
 const sanitizeFilename = (s = '') => {
   return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
@@ -38,6 +39,12 @@ const RelatedPapersPage = () => {
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveItem, setSaveItem] = useState(null);
   const [selectedLibraries, setSelectedLibraries] = useState([]);
+  const [userLibraries, setUserLibraries] = useState([]);
+  const [librariesLoading, setLibrariesLoading] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
+  const [newLibraryName, setNewLibraryName] = useState('');
+  const [creatingLibrary, setCreatingLibrary] = useState(false);
   
   // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
@@ -101,6 +108,58 @@ const RelatedPapersPage = () => {
 
     fetchRelatedPapers();
   }, [paperId]);
+
+  // Check authentication and fetch user libraries
+  useEffect(() => {
+    const checkAuthAndFetchLibraries = async () => {
+      try {
+        const token = localStorage.getItem('access_token');
+        if (!token) {
+          setIsAuthenticated(false);
+          setUserLibraries([]);
+          return;
+        }
+
+        setLibrariesLoading(true);
+        const response = await fetch(API_ENDPOINTS.LIBRARIES, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('User libraries fetched:', data);
+          setIsAuthenticated(true);
+          // Extract library data from the response - handle both formats
+          let libraries = [];
+          if (data.my_libraries && Array.isArray(data.my_libraries)) {
+            libraries = data.my_libraries.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }));
+          }
+          if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
+          }
+          setUserLibraries(libraries);
+        } else if (response.status === 401) {
+          setIsAuthenticated(false);
+          setUserLibraries([]);
+          localStorage.removeItem('access_token');
+        } else {
+          console.error('Failed to fetch libraries:', response.status);
+          setUserLibraries([]);
+        }
+      } catch (error) {
+        console.error('Error fetching libraries:', error);
+        setUserLibraries([]);
+      } finally {
+        setLibrariesLoading(false);
+      }
+    };
+
+    checkAuthAndFetchLibraries();
+  }, []);
 
   // Handle outside clicks for dropdowns
   useEffect(() => {
@@ -184,17 +243,10 @@ const RelatedPapersPage = () => {
     return Array.from(fields).sort().slice(0, 10);
   }, [relatedPapers]);
 
-  // Mock libraries data
-  const availableLibraries = [
-    "My Research Papers",
-    "Biology Collection",
-    "Environmental Studies",
-    "COVID-19 Research",
-    "Team Dynamics",
-    "Vaccination Studies",
-    "Medical Papers",
-    "Sociology Collection",
-  ];
+  // Use real user libraries or empty array
+  const availableLibraries = isAuthenticated && userLibraries.length > 0 
+    ? userLibraries 
+    : [];
 
   // Handle show more
   const handleShowMore = () => {
@@ -203,6 +255,11 @@ const RelatedPapersPage = () => {
 
   // Save modal functions
   const openSave = (item) => {
+    if (!isAuthenticated) {
+      alert('Please log in to save papers to libraries');
+      navigate('/login');
+      return;
+    }
     setSaveItem(item);
     setSelectedLibraries([]);
     setSaveOpen(true);
@@ -214,17 +271,136 @@ const RelatedPapersPage = () => {
     setSelectedLibraries([]);
   };
 
-  const handleSaveToLibraries = () => {
-    console.log(`Saving paper "${saveItem?.title}" to libraries:`, selectedLibraries);
-    closeSave();
+  const handleSaveToLibraries = async () => {
+    if (selectedLibraries.length === 0) {
+      alert('Please select at least one library');
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert('Please log in to save papers');
+        navigate('/login');
+        return;
+      }
+
+      // Prepare paper data
+      const paperData = {
+        s2_paper_id: saveItem.paperId || saveItem.id || '',
+        title: saveItem.title || '',
+        venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
+        published_year: saveItem.year || new Date().getFullYear(),
+        citation_count: saveItem.citationCount || 0,
+        fields_of_study: saveItem.fieldsOfStudy || [],
+        abstract: saveItem.abstract || '',
+        bibtex: saveItem.bibtex || '',
+        authors: (saveItem.authors || []).map(a => ({ 
+          name: a.name || a,
+          affiliation: a.affiliation || ''
+        })),
+        reading_status: 'unread',
+        user_note: ''
+      };
+
+      // Save to each selected library
+      let savedCount = 0;
+      let failedCount = 0;
+      const failedLibraries = [];
+
+      for (const library of selectedLibraries) {
+        try {
+          const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(paperData)
+          });
+
+          if (response.ok) {
+            savedCount++;
+          } else {
+            const errorData = await response.json();
+            failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+            failedCount++;
+          }
+        } catch (error) {
+          failedLibraries.push(`${library.name}: ${error.message}`);
+          failedCount++;
+        }
+      }
+
+      if (savedCount > 0) {
+        alert(`Paper saved to ${savedCount} librar${savedCount === 1 ? 'y' : 'ies'}!${failedCount > 0 ? `\n\nFailed to save to ${failedCount} librar${failedCount === 1 ? 'y' : 'ies'}:\n${failedLibraries.join('\n')}` : ''}`);
+        closeSave();
+      } else {
+        alert(`Failed to save paper:\n${failedLibraries.join('\n')}`);
+      }
+    } catch (error) {
+      console.error('Error saving paper:', error);
+      alert('Error saving paper: ' + error.message);
+    }
+  };
+
+  const handleCreateLibrary = async () => {
+    if (!newLibraryName.trim()) return;
+    
+    try {
+      setCreatingLibrary(true);
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        alert('Please log in to create a library');
+        return;
+      }
+      
+      const response = await fetch(`${API_ENDPOINTS.LIBRARIES}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ name: newLibraryName.trim() })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Backend returns { message, library }
+        const newLibrary = data.library;
+        setUserLibraries([...userLibraries, { id: newLibrary.id, name: newLibrary.name, role: 'creator' }]);
+        setNewLibraryName('');
+        setShowNewLibraryModal(false);
+      } else {
+        let errorMsg = 'Failed to create library';
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorMsg;
+        } catch (e) {
+          // Response is not JSON, use status text
+          errorMsg = `${response.status} ${response.statusText}`;
+        }
+        console.error('Error creating library:', errorMsg);
+        alert('Failed to create library: ' + errorMsg);
+      }
+    } catch (error) {
+      console.error('Error creating library:', error);
+      alert('Error creating library: ' + error.message);
+    } finally {
+      setCreatingLibrary(false);
+    }
   };
 
   const toggleLibrarySelection = (library) => {
-    setSelectedLibraries(prev => 
-      prev.includes(library) 
-        ? prev.filter(l => l !== library)
-        : [...prev, library]
-    );
+    setSelectedLibraries(prev => {
+      const libraryId = library.id;
+      const isSelected = prev.some(l => l.id === libraryId);
+      if (isSelected) {
+        return prev.filter(l => l.id !== libraryId);
+      } else {
+        return [...prev, library];
+      }
+    });
   };
 
   // Citation modal functions - UPDATED to fetch from backend
@@ -758,35 +934,68 @@ const RelatedPapersPage = () => {
                   Select libraries to save to:
                 </div>
                 
-                <div style={{ 
-                  maxHeight: 200,
-                  overflowY: 'auto', 
-                  border: '1px solid #e0e0e0', 
-                  borderRadius: 4 
-                }}>
+                {availableLibraries.length === 0 ? (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: '#666',
+                    background: '#f9f9f9',
+                    borderRadius: 4,
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: 13 }}>
+                      You haven't created any libraries yet.
+                    </p>
+                    <button
+                      onClick={() => {
+                        closeSave();
+                        navigate('/libraries');
+                      }}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#3E513E',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}
+                    >
+                      Create Library
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    maxHeight: 200,
+                    overflowY: 'auto', 
+                    border: '1px solid #e0e0e0', 
+                    borderRadius: 4 
+                  }}>
                   {availableLibraries.map((library, index) => (
                     <label
-                      key={index}
+                      key={library.id}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         padding: '10px 14px',
                         borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
                         cursor: 'pointer',
-                        backgroundColor: selectedLibraries.includes(library) ? '#f0f7f0' : 'transparent',
+                        backgroundColor: selectedLibraries.some(l => l.id === library.id) ? '#f0f7f0' : 'transparent',
                         transition: 'background-color 0.2s',
                       }}
                     >
                       <input
                         type="checkbox"
-                        checked={selectedLibraries.includes(library)}
+                        checked={selectedLibraries.some(l => l.id === library.id)}
                         onChange={() => toggleLibrarySelection(library)}
                         style={{ marginRight: 10 }}
                       />
-                      <span style={{ fontSize: 13, color: '#333' }}>{library}</span>
+                      <span style={{ fontSize: 13, color: '#333' }}>{library.name}</span>
                     </label>
                   ))}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Divider */}
@@ -818,6 +1027,84 @@ const RelatedPapersPage = () => {
                   Save to {selectedLibraries.length > 0 ? `${selectedLibraries.length} ` : ''}Library{selectedLibraries.length !== 1 ? 'ies' : ''}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create New Library Modal */}
+      {showNewLibraryModal && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 3000 
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 8,
+            padding: '24px',
+            width: '90%',
+            maxWidth: '400px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#333' }}>
+              Create New Library
+            </h3>
+            <input
+              type="text"
+              value={newLibraryName}
+              onChange={(e) => setNewLibraryName(e.target.value)}
+              placeholder="Library name"
+              autoFocus
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateLibrary()}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                fontSize: 14,
+                marginBottom: '16px',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowNewLibraryModal(false);
+                  setNewLibraryName('');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f0f0f0',
+                  color: '#333',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateLibrary}
+                disabled={!newLibraryName.trim() || creatingLibrary}
+                style={{
+                  padding: '8px 16px',
+                  background: newLibraryName.trim() && !creatingLibrary ? '#3E513E' : '#ccc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: newLibraryName.trim() && !creatingLibrary ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                {creatingLibrary ? 'Creating...' : 'Create'}
+              </button>
             </div>
           </div>
         </div>
@@ -1004,6 +1291,84 @@ const RelatedPapersPage = () => {
                   </button>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create New Library Modal */}
+      {showNewLibraryModal && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, left: 0, right: 0, bottom: 0, 
+          background: 'rgba(0,0,0,0.5)', 
+          display: 'flex', alignItems: 'center', justifyContent: 'center', 
+          zIndex: 3000 
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 8,
+            padding: '24px',
+            width: '90%',
+            maxWidth: '400px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#333' }}>
+              Create New Library
+            </h3>
+            <input
+              type="text"
+              value={newLibraryName}
+              onChange={(e) => setNewLibraryName(e.target.value)}
+              placeholder="Library name"
+              autoFocus
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateLibrary()}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                fontSize: 14,
+                marginBottom: '16px',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowNewLibraryModal(false);
+                  setNewLibraryName('');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f0f0f0',
+                  color: '#333',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateLibrary}
+                disabled={!newLibraryName.trim() || creatingLibrary}
+                style={{
+                  padding: '8px 16px',
+                  background: newLibraryName.trim() && !creatingLibrary ? '#3E513E' : '#ccc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: newLibraryName.trim() && !creatingLibrary ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                {creatingLibrary ? 'Creating...' : 'Create'}
+              </button>
             </div>
           </div>
         </div>

@@ -57,20 +57,23 @@ app.use('/api/user/papers', userPapersRoutes); // NEW: Get all user papers acros
 //autocomplete route
 app.use("/api/autocomplete", autocompleteRoute);
 
-//paper-search route (must come BEFORE paperRoutes to avoid conflicts)
+//paper-search route (must come BEFORE other paper routes)
 app.use("/api/papers", paperSearchRoute);
 
-//paper-details route
-app.use("/api/papers", paperDetailsRoute);
+//user publications routes (must come before generic /:paperId)
+app.use("/api/papers", paperRoutes);
 
-//route to get citations of a paper
+//route to get citations of a paper (must come before generic /:paperId)
 app.use("/api/papers", paperCitationsRoute);
 
-// route to get papers cited by a paper
+// route to get papers cited by a paper (must come before generic /:paperId)
 app.use("/api/papers", paperReferencesRoute);
 
-//route to get related papers of a paper
-app.use("/api/papers", relatedPapersRoute)
+//route to get related papers of a paper (must come before generic /:paperId)
+app.use("/api/papers", relatedPapersRoute);
+
+//paper-details route (must come LAST to avoid catching other routes)
+app.use("/api/papers", paperDetailsRoute);
 
 //citation generation route
 app.use('/api/citations', citationRoutes);
