@@ -31,6 +31,7 @@ const ResearchLibrary = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState(null);
   const [newLibraryName, setNewLibraryName] = useState("");
+  const [newLibraryDescription, setNewLibraryDescription] = useState("");
   const [notesModal, setNotesModal] = useState({
     show: false,
     paperId: null,
@@ -234,7 +235,7 @@ const ResearchLibrary = () => {
         },
         body: JSON.stringify({
           name: newLibraryName.trim(),
-          description: "",
+          description: newLibraryDescription.trim(),
           is_public: false
         })
       });
@@ -264,6 +265,7 @@ const ResearchLibrary = () => {
       ]);
 
       setNewLibraryName("");
+      setNewLibraryDescription("");
       setShowNewLibraryModal(false);
       setError("");
 
@@ -292,7 +294,7 @@ const ResearchLibrary = () => {
         },
         body: JSON.stringify({
           name: newLibraryName.trim(),
-          description: editingLibrary.description || "",
+          description: newLibraryDescription.trim(),
           is_public: editingLibrary.is_public || false
         })
       });
@@ -314,6 +316,7 @@ const ResearchLibrary = () => {
       );
 
       setNewLibraryName("");
+      setNewLibraryDescription("");
       setEditingLibrary(null);
       setShowEditModal(false);
       setError("");
@@ -698,6 +701,7 @@ const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/p
                         e.stopPropagation();
                         setEditingLibrary(library);
                         setNewLibraryName(library.name);
+                        setNewLibraryDescription(library.description || "");
                         setShowEditModal(true);
                       }}
                       style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer" }}
@@ -1075,11 +1079,14 @@ const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/p
               </button>
             </div>
             <input type="text" value={newLibraryName} onChange={(e) => setNewLibraryName(e.target.value)} placeholder="Enter library name"
-              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none" }}
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "12px", outline: "none" }}
               onKeyPress={(e) => e.key === "Enter" && handleCreateLibrary()}
             />
+            <textarea value={newLibraryDescription} onChange={(e) => setNewLibraryDescription(e.target.value)} placeholder="Enter optional description"
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none", resize: "vertical", minHeight: "80px" }}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button onClick={() => setShowNewLibraryModal(false)}
+              <button onClick={() => { setShowNewLibraryModal(false); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "10px 16px", color: "#6b7280", backgroundColor: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", fontWeight: 500, cursor: "pointer" }}
               >
                 Cancel
@@ -1100,18 +1107,21 @@ const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/p
           <div style={{ backgroundColor: "white", borderRadius: "8px", padding: "20px", width: "90%", maxWidth: "500px", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
               <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: 0 }}>Edit Library</h3>
-              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); }}
+              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "8px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X size={20} style={{ color: "#6b7280" }} />
               </button>
             </div>
             <input type="text" value={newLibraryName} onChange={(e) => setNewLibraryName(e.target.value)} placeholder="Enter library name"
-              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none" }}
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "12px", outline: "none" }}
               onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
             />
+            <textarea value={newLibraryDescription} onChange={(e) => setNewLibraryDescription(e.target.value)} placeholder="Enter optional description"
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none", resize: "vertical", minHeight: "80px" }}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); }}
+              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "10px 16px", color: "#6b7280", backgroundColor: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", fontWeight: 500, cursor: "pointer" }}
               >
                 Cancel
