@@ -560,7 +560,7 @@ const PaperDetails = () => {
             margin: '0 auto'
           }}>
             <div style={{ fontSize: 18, color: '#666' }}>Loading paper details...</div>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>Paper ID: {paperId}</div>
+            
           </div>
         )}
         

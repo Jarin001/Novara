@@ -370,7 +370,7 @@ const RelatedPapersPage = () => {
         {relatedLoading && (
           <div style={{ textAlign: 'center', padding: '60px 20px' }}>
             <div style={{ fontSize: 18, color: '#666' }}>Loading related papers...</div>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>Paper ID: {paperId}</div>
+            {/* <div style={{ fontSize: 12, color: '#999', marginTop: 10 }}>Paper ID: {paperId}</div> */}
           </div>
         )}
 
@@ -528,12 +528,116 @@ const RelatedPapersPage = () => {
                       'No abstract available'}
                   </p>
 
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 8 }}>
-                    <button onClick={() => openSave(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Save</button>
-                    <button onClick={() => openCite(r)} style={{ background: 'transparent', border: 'none', color: '#888', cursor: 'pointer', padding: 0 }}>Cite</button>
-                    <span style={{ marginLeft: 'auto', color: '#666' }}>
-                      {r.citationCount || 0} citations
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+                    {/* Citations Count */}
+                    <span style={{ 
+                      display: "inline-flex", 
+                      alignItems: "center", 
+                      gap: 6,
+                      padding: "6px 10px",
+                      background: "#f5f5f5",
+                      border: "1px solid #e0e0e0",
+                      borderRadius: 4,
+                      fontSize: 12,
+                      color: "#333",
+                      fontWeight: 500
+                    }}>
+                      {r.citationCount ? r.citationCount.toLocaleString() : 0}
                     </span>
+
+                    {/* PDF Button */}
+                    {r.openAccessPdf && r.openAccessPdf.url ? (
+                      <a 
+                        href={r.openAccessPdf.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 10px",
+                          background: "#fff",
+                          border: "1px solid #e0e0e0",
+                          borderRadius: 4,
+                          fontSize: 12,
+                          color: "#333",
+                          textDecoration: "none",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        [PDF]
+                      </a>
+                    ) : null}
+
+                    {/* ArXiv Button - if available */}
+                    {r.externalIds && r.externalIds.ArXiv ? (
+                      <a 
+                        href={`https://arxiv.org/abs/${r.externalIds.ArXiv}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 10px",
+                          background: "#fff",
+                          border: "1px solid #e0e0e0",
+                          borderRadius: 4,
+                          fontSize: 12,
+                          color: "#333",
+                          textDecoration: "none",
+                          cursor: "pointer",
+                          fontWeight: 500,
+                          whiteSpace: "nowrap"
+                        }}
+                      >
+                        arXiv
+                      </a>
+                    ) : null}
+
+                    {/* Save Button */}
+                    <button 
+                      onClick={() => openSave(r)} 
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        background: "#fff",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: "#333",
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      Save
+                    </button>
+
+                    {/* Cite Button */}
+                    <button 
+                      onClick={() => openCite(r)} 
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        background: "#fff",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: "#333",
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      Cite
+                    </button>
                   </div>
                 </div>
               ))}
