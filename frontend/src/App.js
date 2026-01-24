@@ -22,6 +22,7 @@ import UserLibrary from "./pages/UserLibrary";
 import Bibtex from "./pages/Bibtex";
 import LoginRegister from "./pages/LoginRegister";
 import VerifyEmail from "./pages/VerifyEmail"; 
+import Authors from "./pages/authors";  
 
 // Search routing helper
 function SearchRouteSwitch() {
@@ -46,6 +47,7 @@ function App() {
         {/* Core routes */}
         <Route path="/home" element={<Home />} />
         <Route path="/search" element={<SearchRouteSwitch />} />
+        <Route path="/authors" element={<Authors />} />
         <Route path="/paper/:paperId" element={<PaperDetails />} />
         <Route path="/citations/:paperId" element={<CitationsPage />} />
         <Route path="/references/:paperId" element={<ReferencesPage />} />

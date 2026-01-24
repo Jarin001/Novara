@@ -3,6 +3,10 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import { API_ENDPOINTS } from '../config/api';
 
+// Import the icons
+import bookmarkIcon from "../images/bookmark.png";
+import invertedCommasIcon from "../images/inverted-commas.png";
+
 // Helper functions for citation formatting
 const getCitationText = (item, format) => {
   if (!item) return '';
@@ -86,6 +90,9 @@ const PaperDetails = () => {
   const [keywordsExtracted, setKeywordsExtracted] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
 
+  // NEW: State for BibTeX
+  const [paperBibtex, setPaperBibtex] = useState('');
+
   // Refs for scrolling
   const topicsSectionRef = useRef(null);
   const detailsSectionRef = useRef(null);
@@ -121,6 +128,9 @@ const PaperDetails = () => {
             setKeywords(data.keywords);
             setKeywordsExtracted(true);
           }
+          
+          // Try to fetch BibTeX for the paper
+          fetchPaperBibtex(data.paperId || paperId);
         } else {
           const errorText = await response.text();
           console.error(`Error response (${response.status}):`, errorText);
@@ -136,6 +146,25 @@ const PaperDetails = () => {
 
     fetchPaperDetails();
   }, [paperId]);
+
+  // NEW: Function to fetch BibTeX for a paper
+  const fetchPaperBibtex = async (paperIdToFetch) => {
+    try {
+      console.log(`Fetching BibTeX for paper: ${paperIdToFetch}`);
+      const response = await fetch(`http://localhost:5000/api/citations/${paperIdToFetch}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
+        if (bibtexFormat && bibtexFormat.value) {
+          console.log("BibTeX fetched successfully");
+          setPaperBibtex(bibtexFormat.value);
+        }
+      }
+    } catch (error) {
+      console.warn("Could not fetch BibTeX:", error);
+    }
+  };
 
   // Check authentication and fetch user libraries
   useEffect(() => {
@@ -435,6 +464,7 @@ const PaperDetails = () => {
     setSelectedLibraries([]);
   };
 
+  // UPDATED FUNCTION: Save paper to libraries with BibTeX
   const handleSaveToLibraries = async () => {
     if (selectedLibraries.length === 0) {
       alert('Please select at least one library');
@@ -449,7 +479,28 @@ const PaperDetails = () => {
         return;
       }
 
-      // Prepare paper data
+      // Get current BibTeX or fetch it if not available
+      let bibtexData = paperBibtex;
+      if (!bibtexData && (paper.paperId || paper.id)) {
+        // Fetch BibTeX if not already fetched
+        try {
+          console.log(`Fetching BibTeX for saving paper: ${paper.paperId || paper.id}`);
+          const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId || paper.id}`);
+          
+          if (response.ok) {
+            const data = await response.json();
+            const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
+            if (bibtexFormat && bibtexFormat.value) {
+              bibtexData = bibtexFormat.value;
+              setPaperBibtex(bibtexData); // Store it for future use
+            }
+          }
+        } catch (bibtexError) {
+          console.warn("Could not fetch BibTeX:", bibtexError);
+        }
+      }
+
+      // Prepare paper data with BibTeX
       const paperData = {
         s2_paper_id: paper.paperId || paper.id || '',
         title: paper.title || '',
@@ -458,7 +509,7 @@ const PaperDetails = () => {
         citation_count: paper.citationCount || 0,
         fields_of_study: paper.fieldsOfStudy || [],
         abstract: paper.abstract || '',
-        bibtex: paper.bibtex || '',
+        bibtex: bibtexData || '', // Include BibTeX here
         authors: (paper.authors || []).map(a => ({ 
           name: a.name || a,
           affiliation: a.affiliation || ''
@@ -466,6 +517,12 @@ const PaperDetails = () => {
         reading_status: 'unread',
         user_note: ''
       };
+
+      console.log("Saving paper with data:", {
+        ...paperData,
+        bibtex_length: (bibtexData || '').length,
+        has_bibtex: !!(bibtexData && bibtexData.trim())
+      });
 
       // Save to each selected library
       let savedCount = 0;
@@ -485,12 +542,16 @@ const PaperDetails = () => {
 
           if (response.ok) {
             savedCount++;
+            const result = await response.json();
+            console.log(`Paper saved to library ${library.name}:`, result);
           } else {
             const errorData = await response.json();
+            console.error(`Failed to save to library ${library.name}:`, errorData);
             failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
             failedCount++;
           }
         } catch (error) {
+          console.error(`Error saving to library ${library.name}:`, error);
           failedLibraries.push(`${library.name}: ${error.message}`);
           failedCount++;
         }
@@ -567,7 +628,7 @@ const PaperDetails = () => {
     });
   };
 
-  // Citation modal functions
+  // UPDATED: Citation modal functions - Store BibTeX when fetched
   const openCite = async () => {
     if (!paper || !paper.paperId) return;
     
@@ -588,6 +649,12 @@ const PaperDetails = () => {
         // Set default format to first available or bibtex
         if (data.data && data.data.length > 0) {
           setCiteFormat(data.data[0].id || 'bibtex');
+          
+          // Find and store BibTeX
+          const bibtexFormat = data.data.find(f => f.id === 'bibtex');
+          if (bibtexFormat && bibtexFormat.value) {
+            setPaperBibtex(bibtexFormat.value);
+          }
         } else {
           setCiteFormat('bibtex');
         }
@@ -889,8 +956,28 @@ const PaperDetails = () => {
             </div>
 
             {/* Action Buttons - Ordered: PDF, Save, Cite */}
-            <div style={{ display: 'flex', gap: 8, marginBottom: 32, flexWrap: 'wrap', alignItems: 'center' }}>
-              
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+              {/* Citations Count with inverted commas icon */}
+              <span style={{ 
+                display: "inline-flex", 
+                alignItems: "center", 
+                gap: 6,
+                padding: "6px 10px",
+                background: "#f5f5f5",
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 12,
+                color: "#333",
+                fontWeight: 500
+              }}>
+                <img 
+                  src={invertedCommasIcon} 
+                  alt="Citations" 
+                  style={{ width: 12, height: 12, opacity: 0.8 }}
+                />
+                {paper.citationCount ? paper.citationCount.toLocaleString() : 0}
+              </span>
+
               {/* PDF Button */}
               {paper.openAccessPdf && paper.openAccessPdf.url ? (
                 <a 
@@ -898,19 +985,19 @@ const PaperDetails = () => {
                   target="_blank"
                   rel="noopener noreferrer"
                   style={{
-                    padding: '8px 12px',
-                    background: '#3E513E',
-                    color: '#fff',
-                    border: '1px solid #3E513E',
-                    borderRadius: 4,
-                    cursor: 'pointer',
-                    fontSize: 12,
-                    fontWeight: 500,
-                    textDecoration: 'none',
-                    display: 'inline-flex',
-                    alignItems: 'center',
+                    display: "inline-flex",
+                    alignItems: "center",
                     gap: 6,
-                    whiteSpace: 'nowrap'
+                    padding: "6px 10px",
+                    background: "#fff",
+                    border: "1px solid #e0e0e0",
+                    borderRadius: 4,
+                    fontSize: 12,
+                    color: "#333",
+                    textDecoration: "none",
+                    cursor: "pointer",
+                    fontWeight: 500,
+                    whiteSpace: "nowrap"
                   }}
                 >
                   [PDF] {(() => {
@@ -945,37 +1032,55 @@ const PaperDetails = () => {
                 </button>
               )}
               
-              {/* Save to Library Button */}
+              {/* Save Button with bookmark icon */}
               <button 
                 onClick={openSave}
                 style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#3E513E',
-                  border: '1px solid #3E513E',
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  background: "#fff",
+                  border: "1px solid #e0e0e0",
                   borderRadius: 4,
-                  cursor: 'pointer',
                   fontSize: 12,
-                  fontWeight: 500
+                  color: "#333",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap"
                 }}
               >
+                <img 
+                  src={bookmarkIcon} 
+                  alt="Save" 
+                  style={{ width: 12, height: 12 }}
+                />
                 Save to Library
               </button>
               
-              {/* Cite Button */}
+              {/* Cite Button with inverted commas icon */}
               <button 
                 onClick={openCite}
                 style={{
-                  padding: '8px 12px',
-                  background: 'transparent',
-                  color: '#3E513E',
-                  border: '1px solid #3E513E',
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  background: "#fff",
+                  border: "1px solid #e0e0e0",
                   borderRadius: 4,
-                  cursor: 'pointer',
                   fontSize: 12,
-                  fontWeight: 500
+                  color: "#333",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap"
                 }}
               >
+                <img 
+                  src={invertedCommasIcon} 
+                  alt="Cite" 
+                  style={{ width: 12, height: 12 }}
+                />
                 Cite
               </button>
             </div>
@@ -1217,7 +1322,7 @@ const PaperDetails = () => {
                             border: 'none',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease'
-                          }}
+                        }}
                           onMouseEnter={(e) => e.target.style.background = '#e1bee7'}
                           onMouseLeave={(e) => e.target.style.background = '#f3e5f5'}
                         >
@@ -1718,7 +1823,7 @@ const PaperDetails = () => {
             width: 120,
             height: 48,
             borderRadius: 8,
-            background: '#3187f1ff',
+            background: 'rgb(9, 75, 42)',
             color: '#fff',
             border: 'none',
             cursor: 'pointer',

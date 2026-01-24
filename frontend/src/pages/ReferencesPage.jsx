@@ -3,6 +3,10 @@ import { useParams, useNavigate } from "react-router-dom";
 import Navbar from "../components/Navbar";
 import { API_ENDPOINTS } from "../config/api";
 
+// Import the icons
+import bookmarkIcon from "../images/bookmark.png";
+import invertedCommasIcon from "../images/inverted-commas.png";
+
 const sanitizeFilename = (s = '') => {
   return s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
 };
@@ -17,6 +21,26 @@ const downloadFile = (filename, content, mime = 'text/plain') => {
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+};
+
+// Helper function to fetch BibTeX for a paper
+const fetchPaperBibtex = async (paperId) => {
+  try {
+    console.log(`Fetching BibTeX for paper: ${paperId}`);
+    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
+      if (bibtexFormat && bibtexFormat.value) {
+        console.log("BibTeX fetched successfully");
+        return bibtexFormat.value;
+      }
+    }
+  } catch (error) {
+    console.warn("Could not fetch BibTeX:", error);
+  }
+  return '';
 };
 
 const ReferencesPage = () => {
@@ -307,7 +331,7 @@ const ReferencesPage = () => {
     : [];
 
   // Save modal functions
-  const openSave = (item) => {
+  const openSave = async (item) => {
     if (!isAuthenticated) {
       alert('Please log in to save papers to libraries');
       navigate('/login');
@@ -324,6 +348,7 @@ const ReferencesPage = () => {
     setSelectedLibraries([]);
   };
 
+  // FIXED: Save paper to libraries with BibTeX
   const handleSaveToLibraries = async () => {
     if (selectedLibraries.length === 0) {
       alert('Please select at least one library');
@@ -338,23 +363,42 @@ const ReferencesPage = () => {
         return;
       }
 
-      // Prepare paper data
+      // Get BibTeX for the paper
+      const paperIdToFetch = saveItem.paperId || saveItem.id;
+      let bibtexData = '';
+      
+      if (paperIdToFetch) {
+        bibtexData = await fetchPaperBibtex(paperIdToFetch);
+      }
+
+      // Prepare paper data with BibTeX
       const paperData = {
-        s2_paper_id: saveItem.paperId || saveItem.id || '',
+        s2_paper_id: paperIdToFetch || '',
         title: saveItem.title || '',
         venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
         published_year: saveItem.year || new Date().getFullYear(),
         citation_count: saveItem.citationCount || 0,
         fields_of_study: saveItem.fieldsOfStudy || [],
         abstract: saveItem.abstract || '',
-        bibtex: saveItem.bibtex || '',
-        authors: (saveItem.authors || []).map(a => ({ 
-          name: a.name || a,
-          affiliation: a.affiliation || ''
-        })),
+        bibtex: bibtexData || '', // Include BibTeX here
+        authors: (Array.isArray(saveItem.authors) ? saveItem.authors : []).map(a => { 
+          if (typeof a === 'object') {
+            return { 
+              name: a.name || '',
+              affiliation: a.affiliation || ''
+            };
+          }
+          return { name: a || '', affiliation: '' };
+        }),
         reading_status: 'unread',
         user_note: ''
       };
+
+      console.log("Saving reference paper with data:", {
+        ...paperData,
+        bibtex_length: (bibtexData || '').length,
+        has_bibtex: !!(bibtexData && bibtexData.trim())
+      });
 
       // Save to each selected library
       let savedCount = 0;
@@ -374,12 +418,16 @@ const ReferencesPage = () => {
 
           if (response.ok) {
             savedCount++;
+            const result = await response.json();
+            console.log(`Paper saved to library ${library.name}:`, result);
           } else {
             const errorData = await response.json();
+            console.error(`Failed to save to library ${library.name}:`, errorData);
             failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
             failedCount++;
           }
         } catch (error) {
+          console.error(`Error saving to library ${library.name}:`, error);
           failedLibraries.push(`${library.name}: ${error.message}`);
           failedCount++;
         }
@@ -791,7 +839,7 @@ const ReferencesPage = () => {
                   </p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-                    {/* Citations Count */}
+                    {/* Citations Count with inverted commas icon */}
                     <span style={{ 
                       display: "inline-flex", 
                       alignItems: "center", 
@@ -804,6 +852,11 @@ const ReferencesPage = () => {
                       color: "#333",
                       fontWeight: 500
                     }}>
+                      <img 
+                        src={invertedCommasIcon} 
+                        alt="Citations" 
+                        style={{ width: 12, height: 12, opacity: 0.8 }}
+                      />
                       {r.citationCount ? r.citationCount.toLocaleString() : 0}
                     </span>
 
@@ -859,7 +912,7 @@ const ReferencesPage = () => {
                       </a>
                     ) : null}
 
-                    {/* Save Button */}
+                    {/* Save Button with bookmark icon */}
                     <button 
                       onClick={() => openSave(r)} 
                       style={{
@@ -877,10 +930,15 @@ const ReferencesPage = () => {
                         whiteSpace: "nowrap"
                       }}
                     >
+                      <img 
+                        src={bookmarkIcon} 
+                        alt="Save" 
+                        style={{ width: 12, height: 12 }}
+                      />
                       Save
                     </button>
 
-                    {/* Cite Button */}
+                    {/* Cite Button with inverted commas icon */}
                     <button 
                       onClick={() => openCite(r)} 
                       style={{
@@ -898,6 +956,11 @@ const ReferencesPage = () => {
                         whiteSpace: "nowrap"
                       }}
                     >
+                      <img 
+                        src={invertedCommasIcon} 
+                        alt="Cite" 
+                        style={{ width: 12, height: 12 }}
+                      />
                       Cite
                     </button>
                   </div>
@@ -1395,84 +1458,6 @@ const ReferencesPage = () => {
                   </button>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Create New Library Modal */}
-      {showNewLibraryModal && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 3000 
-        }}>
-          <div style={{
-            background: '#fff',
-            borderRadius: 8,
-            padding: '24px',
-            width: '90%',
-            maxWidth: '400px',
-            boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
-          }}>
-            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#333' }}>
-              Create New Library
-            </h3>
-            <input
-              type="text"
-              value={newLibraryName}
-              onChange={(e) => setNewLibraryName(e.target.value)}
-              placeholder="Library name"
-              autoFocus
-              onKeyPress={(e) => e.key === 'Enter' && handleCreateLibrary()}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                border: '1px solid #ddd',
-                borderRadius: 4,
-                fontSize: 14,
-                marginBottom: '16px',
-                boxSizing: 'border-box',
-                outline: 'none'
-              }}
-            />
-            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => {
-                  setShowNewLibraryModal(false);
-                  setNewLibraryName('');
-                }}
-                style={{
-                  padding: '8px 16px',
-                  background: '#f0f0f0',
-                  color: '#333',
-                  border: '1px solid #ddd',
-                  borderRadius: 4,
-                  cursor: 'pointer',
-                  fontSize: 12,
-                  fontWeight: 500
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateLibrary}
-                disabled={!newLibraryName.trim() || creatingLibrary}
-                style={{
-                  padding: '8px 16px',
-                  background: newLibraryName.trim() && !creatingLibrary ? '#3E513E' : '#ccc',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 4,
-                  cursor: newLibraryName.trim() && !creatingLibrary ? 'pointer' : 'not-allowed',
-                  fontSize: 12,
-                  fontWeight: 500
-                }}
-              >
-                {creatingLibrary ? 'Creating...' : 'Create'}
-              </button>
             </div>
           </div>
         </div>
