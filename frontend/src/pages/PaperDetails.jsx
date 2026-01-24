@@ -913,7 +913,19 @@ const PaperDetails = () => {
                     whiteSpace: 'nowrap'
                   }}
                 >
-                  [PDF] {paper.openAccessPdf.status || 'Open Access'}
+                  [PDF] {(() => {
+                    const status = paper.openAccessPdf.status;
+                    const statusMap = {
+                      'ARXIV': 'arXiv',
+                      'DOI': 'DOI',
+                      'PMC': 'PubMed Central',
+                      'ACL': 'ACL',
+                      'ACM': 'ACM',
+                      'BIORXIV': 'bioRxiv',
+                      'GREEN': 'Open Access'
+                    };
+                    return statusMap[status] || status || 'Open Access';
+                  })()}
                 </a>
               ) : (
                 <button 
