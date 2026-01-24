@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Copy, Download, ArrowLeft } from 'lucide-react';
+import { Copy, Download, ArrowLeft, Check } from 'lucide-react';
 import Navbar from "../components/Navbar";
 import axios from 'axios';
 
@@ -17,6 +17,7 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   const stateLibraries = location.state?.libraries || libraries;
   const stateSharedLibraries = location.state?.sharedLibraries || sharedLibraries;
   const statePapers = location.state?.papers || papers;
+  const [allCopied, setAllCopied] = useState(false);
   
   // Fetch BibTeX data from the backend
   useEffect(() => {
@@ -50,15 +51,17 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
     libraryName = (personalLib || sharedLib)?.name || 'Library';
   }
 
-  const copyAllBibtex = () => {
-    if (sortedPapers.length === 0) {
-      alert('No papers to copy in this library.');
-      return;
-    }
-    const allBibtex = sortedPapers.map(p => p.bibtex).join('\n\n');
-    navigator.clipboard.writeText(allBibtex);
-    alert('All BibTeX entries copied to clipboard!');
-  };
+const copyAllBibtex = () => {
+  if (sortedPapers.length === 0) {
+    alert('No papers to copy in this library.');
+    return;
+  }
+  const allBibtex = sortedPapers.map(p => p.bibtex).join('\n\n');
+  navigator.clipboard.writeText(allBibtex).then(() => {
+    setAllCopied(true);
+    setTimeout(() => setAllCopied(false), 2000); // Reset after 2 seconds
+  });
+};
 
   const downloadBibtex = () => {
     if (sortedPapers.length === 0) {
@@ -90,27 +93,26 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
               <p style={{ color: '#6b7280', margin: 0 }}>{sortedPapers.length} papers</p>
             </div>
             <div style={{ display: 'flex', gap: '12px' }}>
-              <button
-                onClick={copyAllBibtex}
-                disabled={sortedPapers.length === 0}
-                style={{
-                  padding: '10px 16px',
-                  color: sortedPapers.length === 0 ? '#9ca3af' : 'white',
-                  backgroundColor: sortedPapers.length === 0 ? '#f3f4f6' : '#3E513E',
-                  border: 'none',
-                  borderRadius: '8px',
-                  cursor: sortedPapers.length === 0 ? 'not-allowed' : 'pointer',
-                  fontWeight: 500,
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  opacity: sortedPapers.length === 0 ? '0.7' : '1'
-                }}
-                title="Copy all BibTeX"
-              >
-                <Copy size={18} />
-                {/* Copy All */}
-              </button>
+<button
+  onClick={copyAllBibtex}
+  disabled={sortedPapers.length === 0}
+  style={{
+    padding: '10px 16px',
+    color: sortedPapers.length === 0 ? '#9ca3af' : 'white',
+    backgroundColor: sortedPapers.length === 0 ? '#f3f4f6' : '#3E513E',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: sortedPapers.length === 0 ? 'not-allowed' : 'pointer',
+    fontWeight: 500,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    opacity: sortedPapers.length === 0 ? '0.7' : '1'
+  }}
+  title="Copy all BibTeX"
+>
+  {allCopied ? <Check size={18} /> : <Copy size={18} />}
+</button>
               <button
                 onClick={downloadBibtex}
                 disabled={sortedPapers.length === 0}

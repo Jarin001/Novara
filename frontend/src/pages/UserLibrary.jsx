@@ -143,17 +143,17 @@ const ResearchLibrary = () => {
       // Transform backend data to frontend format
       const transformedPapers = data.papers?.map(paper => ({
         id: paper.library_paper_id,
-        dbPaperId: paper.id, // This is the actual paper ID in database
+        dbPaperId: paper.id,
         title: paper.title,
-        authors: paper.fields_of_study ? [paper.fields_of_study] : [], // Backend doesn't provide authors array
+        authors: paper.fields_of_study ? [paper.fields_of_study] : [],
         venue: paper.venue || "Unknown Venue",
-        date: paper.published_date ? new Date(paper.published_date).toLocaleDateString() : "Unknown date",
+        date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
         citations: paper.citation_count || 0,
         source: "Database",
         abstract: paper.abstract || "No abstract available",
         libraryId: libraryId,
         readingStatus: paper.reading_status || "unread",
-        notes: "", // Backend doesn't have notes in this response
+        notes: paper.user_note || "",
         addedDate: new Date(paper.added_at || Date.now()),
         field: paper.fields_of_study || "Unknown Field",
         bibtex: paper.bibtex || ""
@@ -208,13 +208,13 @@ const ResearchLibrary = () => {
               title: paper.title,
               authors: paper.fields_of_study ? [paper.fields_of_study] : [],
               venue: paper.venue || "Unknown Venue",
-              date: paper.published_date ? new Date(paper.published_date).toLocaleDateString() : "Unknown date",
+              date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
               citations: paper.citation_count || 0,
               source: "Database",
               abstract: paper.abstract || "No abstract available",
               libraryId: lib.id,
               readingStatus: paper.reading_status || "unread",
-              notes: "",
+              notes: paper.user_note || "",
               addedDate: new Date(paper.added_at || Date.now()),
               field: paper.fields_of_study || "Unknown Field",
               bibtex: paper.bibtex || ""
@@ -425,15 +425,26 @@ const ResearchLibrary = () => {
         return;
       }
 
-      // Note: Backend doesn't have an endpoint for updating reading status
-      // You'll need to add this to your backend or handle it locally
-      
-      // For now, update locally
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${dbPaperId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reading_status: status })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update reading status');
+      }
+
       setPapers(prev =>
         prev.map(p =>
           p.id === paperId ? { ...p, readingStatus: status } : p
         )
       );
+      setError("");
 
     } catch (err) {
       console.error('Error updating reading status:', err);
@@ -442,29 +453,87 @@ const ResearchLibrary = () => {
   };
 
   // Save notes
-  const saveNotes = () => {
-    // Note: Backend doesn't have notes functionality yet
-    // For now, update locally
-    if (!notesModal.notes.trim()) {
-      deleteNotes();
-      return;
-    }
+  const saveNotes = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
-    setPapers(prev =>
-      prev.map(p =>
-        p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p
-      )
-    );
-    setNotesModal({ show: false, paperId: null, notes: "" });
+      if (!notesModal.notes.trim()) {
+        deleteNotes();
+        return;
+      }
+
+      const paper = papers.find(p => p.id === notesModal.paperId);
+      if (!paper) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${paper.dbPaperId}/note`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_note: notesModal.notes })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save note');
+      }
+
+      setPapers(prev =>
+        prev.map(p =>
+          p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p
+        )
+      );
+      setNotesModal({ show: false, paperId: null, notes: "" });
+      setError("");
+
+    } catch (err) {
+      console.error('Error saving note:', err);
+      setError('Failed to save note');
+    }
   };
 
-  const deleteNotes = () => {
-    setPapers(prev =>
-      prev.map(p =>
-        p.id === notesModal.paperId ? { ...p, notes: "" } : p
-      )
-    );
-    setNotesModal({ show: false, paperId: null, notes: "" });
+  const deleteNotes = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const paper = papers.find(p => p.id === notesModal.paperId);
+      if (!paper) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${selectedLibrary}/papers/${paper.dbPaperId}/note`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_note: "" })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete note');
+      }
+
+      setPapers(prev =>
+        prev.map(p =>
+          p.id === notesModal.paperId ? { ...p, notes: "" } : p
+        )
+      );
+      setNotesModal({ show: false, paperId: null, notes: "" });
+      setError("");
+
+    } catch (err) {
+      console.error('Error deleting note:', err);
+      setError('Failed to delete note');
+    }
   };
 
   // Load data on component mount
