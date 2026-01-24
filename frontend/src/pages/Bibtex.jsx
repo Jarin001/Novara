@@ -1,18 +1,38 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Copy, Download, ArrowLeft } from 'lucide-react';
 import Navbar from "../components/Navbar";
+import axios from 'axios';
 
 const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const [bibtexData, setBibtexData] = useState([]);
   
   // Get the selected library ID from location state or query params
   const searchParams = new URLSearchParams(location.search);
   const selectedLibrary = location.state?.selectedLibrary || searchParams.get('library') || 'all';
   
+  // Get libraries and papers from location state or props
+  const stateLibraries = location.state?.libraries || libraries;
+  const stateSharedLibraries = location.state?.sharedLibraries || sharedLibraries;
+  const statePapers = location.state?.papers || papers;
+  
+  // Fetch BibTeX data from the backend
+  useEffect(() => {
+    const fetchBibtex = async () => {
+      try {
+        const response = await axios.get(`/api/bibtex/all?library=${selectedLibrary}`);
+        setBibtexData(response.data.bibtex);
+      } catch (error) {
+        console.error('Error fetching BibTeX data:', error);
+      }
+    };
+    fetchBibtex();
+  }, [selectedLibrary]);
+
   // Get papers for the selected library
-  const filteredPapers = papers.filter(p => 
+  const filteredPapers = statePapers.filter(p => 
     selectedLibrary === 'all' ? true : 
     selectedLibrary.startsWith('s') ? p.libraryId === selectedLibrary : 
     !p.libraryId.startsWith('s') && p.libraryId === selectedLibrary
@@ -25,8 +45,8 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
   if (selectedLibrary === 'all') {
     libraryName = 'All Papers';
   } else {
-    const personalLib = libraries.find(l => l.id === selectedLibrary);
-    const sharedLib = sharedLibraries.find(l => l.id === selectedLibrary);
+    const personalLib = stateLibraries.find(l => l.id === selectedLibrary);
+    const sharedLib = stateSharedLibraries.find(l => l.id === selectedLibrary);
     libraryName = (personalLib || sharedLib)?.name || 'Library';
   }
 

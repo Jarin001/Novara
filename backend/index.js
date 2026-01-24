@@ -55,9 +55,6 @@ app.use('/api/papers', paperRoutes);
 app.use('/api/libraries', libraryRoutes);
 app.use('/api/user/papers', userPapersRoutes); // NEW: Get all user papers across libraries
 
-// ========================================
-// Additional Routes
-// ========================================
 
 //autocomplete route
 app.use("/api/autocomplete", autocompleteRoute);
@@ -84,10 +81,24 @@ app.use('/api/citations', citationRoutes);
 app.use("/api/paper-ai", paperAiRoutes);
 
 //library-bibtex route
-app.use('/api/libraries', libraryBibtexRoute);
+app.use('/api/library-bibtex', libraryBibtexRoute);
 
 //all-paper-bibtex route
-app.use('/api/libraries', allPaperBibtexRoute);
+app.use('/api/all-library-bibtex', allPaperBibtexRoute);
+
+// 404 handler - Must come AFTER all routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+
+
 
 // ========================================
 // Error Handlers (MUST be at the end)

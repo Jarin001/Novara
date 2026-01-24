@@ -6,6 +6,6 @@ const { authenticate } = require('../middlewares/authMiddleware');
 router.use(authenticate);
 
 
-router.get('/bibtex/all', allPaperBibtexController.getAllPaperBibtex);
+router.get('/all', allPaperBibtexController.getAllPaperBibtex);
 
 module.exports = router;
