@@ -31,6 +31,7 @@ const ResearchLibrary = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState(null);
   const [newLibraryName, setNewLibraryName] = useState("");
+  const [newLibraryDescription, setNewLibraryDescription] = useState("");
   const [notesModal, setNotesModal] = useState({
     show: false,
     paperId: null,
@@ -143,17 +144,17 @@ const ResearchLibrary = () => {
       // Transform backend data to frontend format
       const transformedPapers = data.papers?.map(paper => ({
         id: paper.library_paper_id,
-        dbPaperId: paper.id, // This is the actual paper ID in database
+        dbPaperId: paper.id,
         title: paper.title,
-        authors: paper.fields_of_study ? [paper.fields_of_study] : [], // Backend doesn't provide authors array
+        authors: paper.authors || [],
         venue: paper.venue || "Unknown Venue",
-        date: paper.published_date ? new Date(paper.published_date).toLocaleDateString() : "Unknown date",
+        date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
         citations: paper.citation_count || 0,
         source: "Database",
         abstract: paper.abstract || "No abstract available",
         libraryId: libraryId,
         readingStatus: paper.reading_status || "unread",
-        notes: "", // Backend doesn't have notes in this response
+        notes: paper.user_note || "",
         addedDate: new Date(paper.added_at || Date.now()),
         field: paper.fields_of_study || "Unknown Field",
         bibtex: paper.bibtex || ""
@@ -169,64 +170,47 @@ const ResearchLibrary = () => {
     }
   };
 
-  // Fetch all papers from all libraries
+  // Fetch all papers from all libraries (deduplicated from backend)
   const fetchAllPapers = async () => {
     try {
       const token = getAuthToken();
       if (!token) return;
 
-      // Get all libraries first
-      const libsResponse = await fetch(`${API_BASE_URL}/api/libraries`, {
+      // Fetch all unique papers across all libraries from backend
+      const response = await fetch(`${API_BASE_URL}/api/user/papers`, {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
-      if (!libsResponse.ok) return;
-
-      const libsData = await libsResponse.json();
-      const allLibs = [
-        ...(libsData.my_libraries || []),
-        ...(libsData.shared_with_me || [])
-      ];
-
-      // Fetch papers from each library
-      const allPapers = [];
-      for (const lib of allLibs) {
-        try {
-          const papersResponse = await fetch(`${API_BASE_URL}/api/libraries/${lib.id}/papers`, {
-            headers: {
-              'Authorization': `Bearer ${token}`
-            }
-          });
-
-          if (papersResponse.ok) {
-            const papersData = await papersResponse.json();
-            const transformed = papersData.papers?.map(paper => ({
-              id: paper.library_paper_id,
-              dbPaperId: paper.id,
-              title: paper.title,
-              authors: paper.fields_of_study ? [paper.fields_of_study] : [],
-              venue: paper.venue || "Unknown Venue",
-              date: paper.published_date ? new Date(paper.published_date).toLocaleDateString() : "Unknown date",
-              citations: paper.citation_count || 0,
-              source: "Database",
-              abstract: paper.abstract || "No abstract available",
-              libraryId: lib.id,
-              readingStatus: paper.reading_status || "unread",
-              notes: "",
-              addedDate: new Date(paper.added_at || Date.now()),
-              field: paper.fields_of_study || "Unknown Field",
-              bibtex: paper.bibtex || ""
-            })) || [];
-            allPapers.push(...transformed);
-          }
-        } catch (err) {
-          console.error(`Error fetching papers for library ${lib.id}:`, err);
-        }
+      if (!response.ok) {
+        throw new Error('Failed to fetch all papers');
       }
 
-      setPapers(allPapers);
+      const data = await response.json();
+
+      // Transform backend data to frontend format
+      const transformedPapers = data.papers?.map(paper => ({
+        id: paper.paper_id,
+        dbPaperId: paper.id,
+        title: paper.title,
+        authors: paper.authors || [],
+        venue: paper.venue || "Unknown Venue",
+        date: paper.year ? new Date(paper.year, 0, 1).toLocaleDateString() : "Unknown date",
+        citations: paper.citation_count || 0,
+        source: "Database",
+        abstract: paper.abstract || "No abstract available",
+        libraryId: paper.library_ids?.[0] || "all",
+        readingStatus: paper.reading_statuses?.[0] || "unread",
+        notes: paper.notes?.[0]?.user_note || "",
+        addedDate: new Date(paper.first_added_at || Date.now()),
+        field: paper.fields_of_study || "Unknown Field",
+        bibtex: paper.bibtex || ""
+      })) || [];
+
+      setPapers(transformedPapers);
     } catch (err) {
       console.error('Error fetching all papers:', err);
     }
@@ -251,7 +235,7 @@ const ResearchLibrary = () => {
         },
         body: JSON.stringify({
           name: newLibraryName.trim(),
-          description: "",
+          description: newLibraryDescription.trim(),
           is_public: false
         })
       });
@@ -281,6 +265,7 @@ const ResearchLibrary = () => {
       ]);
 
       setNewLibraryName("");
+      setNewLibraryDescription("");
       setShowNewLibraryModal(false);
       setError("");
 
@@ -309,7 +294,7 @@ const ResearchLibrary = () => {
         },
         body: JSON.stringify({
           name: newLibraryName.trim(),
-          description: editingLibrary.description || "",
+          description: newLibraryDescription.trim(),
           is_public: editingLibrary.is_public || false
         })
       });
@@ -331,6 +316,7 @@ const ResearchLibrary = () => {
       );
 
       setNewLibraryName("");
+      setNewLibraryDescription("");
       setEditingLibrary(null);
       setShowEditModal(false);
       setError("");
@@ -425,46 +411,139 @@ const ResearchLibrary = () => {
         return;
       }
 
-      // Note: Backend doesn't have an endpoint for updating reading status
-      // You'll need to add this to your backend or handle it locally
-      
-      // For now, update locally
+      // Find the paper to get its library ID
+      const paper = papers.find(p => p.id === paperId);
+      if (!paper) {
+        console.error('Paper not found with id:', paperId);
+        console.log('Available paper ids:', papers.map(p => p.id));
+        setError('Paper not found');
+        return;
+      }
+
+      console.log('Updating reading status for paper:', {
+        paperId,
+        dbPaperId,
+        libraryId: paper.libraryId,
+        status,
+        url: `${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${dbPaperId}/status`
+      });
+
+      // Revert back to using dbPaperId (paper_id from papers table)
+const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${dbPaperId}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ reading_status: status })
+      });
+
+      console.log('Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Backend error:', errorData);
+        throw new Error(errorData.message || `HTTP ${response.status}: Failed to update reading status`);
+      }
+
+      const responseData = await response.json();
+      console.log('Success response:', responseData);
+
       setPapers(prev =>
         prev.map(p =>
           p.id === paperId ? { ...p, readingStatus: status } : p
         )
       );
+      setError("");
 
     } catch (err) {
       console.error('Error updating reading status:', err);
-      setError('Failed to update reading status');
+      setError(err.message || 'Failed to update reading status');
     }
   };
 
   // Save notes
-  const saveNotes = () => {
-    // Note: Backend doesn't have notes functionality yet
-    // For now, update locally
-    if (!notesModal.notes.trim()) {
-      deleteNotes();
-      return;
-    }
+  const saveNotes = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate('/login');
+        return;
+      }
 
-    setPapers(prev =>
-      prev.map(p =>
-        p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p
-      )
-    );
-    setNotesModal({ show: false, paperId: null, notes: "" });
+      if (!notesModal.notes.trim()) {
+        deleteNotes();
+        return;
+      }
+
+      const paper = papers.find(p => p.id === notesModal.paperId);
+      if (!paper) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${paper.dbPaperId}/note`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_note: notesModal.notes })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to save note');
+      }
+
+      setPapers(prev =>
+        prev.map(p =>
+          p.id === notesModal.paperId ? { ...p, notes: notesModal.notes } : p
+        )
+      );
+      setNotesModal({ show: false, paperId: null, notes: "" });
+      setError("");
+
+    } catch (err) {
+      console.error('Error saving note:', err);
+      setError('Failed to save note');
+    }
   };
 
-  const deleteNotes = () => {
-    setPapers(prev =>
-      prev.map(p =>
-        p.id === notesModal.paperId ? { ...p, notes: "" } : p
-      )
-    );
-    setNotesModal({ show: false, paperId: null, notes: "" });
+  const deleteNotes = async () => {
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate('/login');
+        return;
+      }
+
+      const paper = papers.find(p => p.id === notesModal.paperId);
+      if (!paper) return;
+
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${paper.libraryId}/papers/${paper.dbPaperId}/note`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ user_note: "" })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to delete note');
+      }
+
+      setPapers(prev =>
+        prev.map(p =>
+          p.id === notesModal.paperId ? { ...p, notes: "" } : p
+        )
+      );
+      setNotesModal({ show: false, paperId: null, notes: "" });
+      setError("");
+
+    } catch (err) {
+      console.error('Error deleting note:', err);
+      setError('Failed to delete note');
+    }
   };
 
   // Load data on component mount
@@ -493,16 +572,7 @@ const ResearchLibrary = () => {
     if (!searchTerm.trim()) return libraryMatch;
 
     const searchLower = searchTerm.toLowerCase();
-    return (
-      libraryMatch &&
-      (p.title.toLowerCase().includes(searchLower) ||
-        p.authors.some((author) =>
-          author.toLowerCase().includes(searchLower),
-        ) ||
-        p.abstract.toLowerCase().includes(searchLower) ||
-        p.field.toLowerCase().includes(searchLower) ||
-        p.venue.toLowerCase().includes(searchLower))
-    );
+    return libraryMatch && p.title.toLowerCase().includes(searchLower);
   });
 
   const sortedPapers = [...filteredPapers].sort((a, b) => {
@@ -522,7 +592,7 @@ const ResearchLibrary = () => {
     switch (status) {
       case "read":
         return { backgroundColor: "#d1f4e0", color: "#166534" };
-      case "in-progress":
+      case "in_progress":
         return { backgroundColor: "#fef3c7", color: "#854d0e" };
       case "unread":
         return { backgroundColor: "#f3f4f6", color: "#1f2937" };
@@ -531,15 +601,15 @@ const ResearchLibrary = () => {
     }
   };
 
-  // Show loading state
-  if (loading.libraries) {
+  // Show loading state until libraries are loaded on initial page load, OR until initial papers load
+  if (loading.libraries || (papers.length === 0 && loading.papers)) {
     return (
       <div style={{ height: "100vh", display: "flex", flexDirection: "column", backgroundColor: "#ffffff" }}>
         <Navbar />
         <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", marginTop: "64px" }}>
           <div style={{ textAlign: "center" }}>
             <Loader2 size={48} className="spin" style={{ color: "#3E513E", marginBottom: "16px", animation: "spin 1s linear infinite" }} />
-            <p style={{ color: "#3E513E" }}>Loading libraries...</p>
+            <p style={{ color: "#3E513E" }}>{loading.libraries ? "Loading libraries..." : "Loading papers..."}</p>
           </div>
         </div>
         <style>{`
@@ -631,6 +701,7 @@ const ResearchLibrary = () => {
                         e.stopPropagation();
                         setEditingLibrary(library);
                         setNewLibraryName(library.name);
+                        setNewLibraryDescription(library.description || "");
                         setShowEditModal(true);
                       }}
                       style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer" }}
@@ -740,7 +811,6 @@ const ResearchLibrary = () => {
                       sharedLibraries.find((l) => l.id === selectedLibrary)?.name ||
                       "Library"}
                 </h2>
-                {loading.papers && <Loader2 size={20} className="spin" style={{ color: "#3E513E" }} />}
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
                 <button
@@ -830,20 +900,24 @@ const ResearchLibrary = () => {
                       >
                         {paper.title}
                       </h3>
-                      <button
-                        onClick={() => setNotesModal({ show: true, paperId: paper.id, notes: paper.notes || "" })}
-                        title="Add/Edit Notes"
-                        style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
-                        onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
-                        onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-                      >
-                        <StickyNote size={18} style={{ color: paper.notes ? "#ca8a04" : "#9ca3af" }} fill={paper.notes ? "#fef3c7" : "none"} />
-                      </button>
+                      {selectedLibrary !== "all" && (
+                        <button
+                          onClick={() => setNotesModal({ show: true, paperId: paper.id, notes: paper.notes || "" })}
+                          title="Add/Edit Notes"
+                          style={{ padding: "4px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                          onMouseOver={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f6")}
+                          onMouseOut={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+                        >
+                          <StickyNote size={18} style={{ color: paper.notes ? "#ca8a04" : "#9ca3af" }} fill={paper.notes ? "#fef3c7" : "none"} />
+                        </button>
+                      )}
                     </div>
 
                     {/* Authors */}
                     <div style={{ fontSize: "0.875rem", color: "#374151", marginBottom: "8px" }}>
-                      {paper.authors.join(", ")}
+                      {Array.isArray(paper.authors) && paper.authors.length > 0 
+                        ? paper.authors.map(a => a.name || a).join(", ")
+                        : "Unknown Authors"}
                     </div>
 
                     {/* Field */}
@@ -883,7 +957,7 @@ const ResearchLibrary = () => {
                           Cite
                         </button>
                         <button onClick={() => handleRemovePaper(paper.id, paper.dbPaperId)}
-                          style={{ color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                          style={{ color: "#dc2626", background: "none", border: "none", cursor: "pointer", padding: 0, display: selectedLibrary === "all" ? "none" : "block" }}
                           onMouseOver={(e) => (e.currentTarget.style.color = "#991b1b")}
                           onMouseOut={(e) => (e.currentTarget.style.color = "#dc2626")}
                         >
@@ -891,23 +965,25 @@ const ResearchLibrary = () => {
                         </button>
                       </div>
 
-                      <select
-                        value={paper.readingStatus}
-                        onChange={(e) => handleReadingStatusChange(paper.id, paper.dbPaperId, e.target.value)}
-                        style={{
-                          padding: "4px 12px",
-                          borderRadius: "9999px",
-                          fontSize: "0.75rem",
-                          fontWeight: 500,
-                          border: "none",
-                          cursor: "pointer",
-                          ...getStatusColor(paper.readingStatus),
-                        }}
-                      >
-                        <option value="unread">Unread</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="read">Read</option>
-                      </select>
+                      {selectedLibrary !== "all" && (
+                        <select
+                          value={paper.readingStatus}
+                          onChange={(e) => handleReadingStatusChange(paper.id, paper.dbPaperId, e.target.value)}
+                          style={{
+                            padding: "4px 12px",
+                            borderRadius: "9999px",
+                            fontSize: "0.75rem",
+                            fontWeight: 500,
+                            border: "none",
+                            cursor: "pointer",
+                            ...getStatusColor(paper.readingStatus),
+                          }}
+                        >
+                          <option value="unread">Unread</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="read">Read</option>
+                        </select>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1003,11 +1079,14 @@ const ResearchLibrary = () => {
               </button>
             </div>
             <input type="text" value={newLibraryName} onChange={(e) => setNewLibraryName(e.target.value)} placeholder="Enter library name"
-              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none" }}
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "12px", outline: "none" }}
               onKeyPress={(e) => e.key === "Enter" && handleCreateLibrary()}
             />
+            <textarea value={newLibraryDescription} onChange={(e) => setNewLibraryDescription(e.target.value)} placeholder="Enter optional description"
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none", resize: "vertical", minHeight: "80px" }}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button onClick={() => setShowNewLibraryModal(false)}
+              <button onClick={() => { setShowNewLibraryModal(false); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "10px 16px", color: "#6b7280", backgroundColor: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", fontWeight: 500, cursor: "pointer" }}
               >
                 Cancel
@@ -1028,18 +1107,21 @@ const ResearchLibrary = () => {
           <div style={{ backgroundColor: "white", borderRadius: "8px", padding: "20px", width: "90%", maxWidth: "500px", boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)" }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
               <h3 style={{ fontSize: "18px", fontWeight: 600, color: "#111827", margin: 0 }}>Edit Library</h3>
-              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); }}
+              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "8px", border: "none", background: "transparent", borderRadius: "4px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
               >
                 <X size={20} style={{ color: "#6b7280" }} />
               </button>
             </div>
             <input type="text" value={newLibraryName} onChange={(e) => setNewLibraryName(e.target.value)} placeholder="Enter library name"
-              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none" }}
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "12px", outline: "none" }}
               onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
             />
+            <textarea value={newLibraryDescription} onChange={(e) => setNewLibraryDescription(e.target.value)} placeholder="Enter optional description"
+              style={{ width: "100%", padding: "10px 12px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", marginBottom: "20px", outline: "none", resize: "vertical", minHeight: "80px" }}
+            />
             <div style={{ display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); }}
+              <button onClick={() => { setShowEditModal(false); setEditingLibrary(null); setNewLibraryName(""); setNewLibraryDescription(""); }}
                 style={{ padding: "10px 16px", color: "#6b7280", backgroundColor: "#f3f4f6", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "14px", fontWeight: 500, cursor: "pointer" }}
               >
                 Cancel

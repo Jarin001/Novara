@@ -7,14 +7,14 @@ const connectDB = require('./config/mongodb');
 const userRoutes = require('./routes/userRoutes');
 const paperRoutes = require('./routes/paperRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
-const userPapersRoutes = require('./routes/userPapersRoutes'); // NEW: User papers across all libraries
+const userPapersRoutes = require('./routes/userPapersRoutes');
 const authRoutes = require('./routes/authRoutes');
 
 const app = express();
 
 // Middleware
 app.use(cors());
-app.use(express.json({ limit: '10mb' })); // Increased limit for base64 images
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 connectDB();
 
@@ -22,15 +22,13 @@ const autocompleteRoute = require("./routes/autocompleteRoute");
 const paperSearchRoute = require("./routes/papersearch.route");
 const paperDetailsRoute = require("./routes/paperdetails.route");
 const paperCitationsRoute = require("./routes/paper-citations.route");
-const paperReferencesRoute= require("./routes/paper-references.route");
-const relatedPapersRoute= require("./routes/related-papers.route");
+const paperReferencesRoute = require("./routes/paper-references.route");
+const relatedPapersRoute = require("./routes/related-papers.route");
 const citationRoutes = require("./routes/citation.route");
 const libraryBibtexRoute = require('./routes/libraryBibtex.route');
 const allPaperBibtexRoute = require('./routes/all-paper-bibtex-route');
 const paperAiRoutes = require("./routes/paperAi.route");
-
-
-app.use(express.json());
+const authorAutocompleteRoute = require('./routes/authorAutocomplete.route');
 
 // Root route
 app.get("/", (req, res) => {
@@ -46,65 +44,35 @@ app.get("/", (req, res) => {
   });
 });
 
-// ========================================
-// Primary Routes
-// ========================================
+
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/papers', paperRoutes);
 app.use('/api/libraries', libraryRoutes);
-app.use('/api/user/papers', userPapersRoutes); // NEW: Get all user papers across libraries
+app.use('/api/user/papers', userPapersRoutes);
 
-
-//autocomplete route
+// Autocomplete routes
 app.use("/api/autocomplete", autocompleteRoute);
+app.use('/api/author-autocomplete', authorAutocompleteRoute);
 
-//paper-search route
-app.use("/api/papers", paperSearchRoute);
+// Paper routes 
+app.use("/api/papers", paperSearchRoute);           
+app.use("/api/papers", paperRoutes);                
+app.use("/api/papers", paperCitationsRoute);       
+app.use("/api/papers", paperReferencesRoute);       
+app.use("/api/papers", relatedPapersRoute);         
+app.use("/api/papers", paperDetailsRoute);          
 
-//paper-details route
-app.use("/api/papers", paperDetailsRoute);
-
-//route to get citations of a paper
-app.use("/api/papers", paperCitationsRoute);
-
-// route to get papers cited by a paper
-app.use("/api/papers", paperReferencesRoute);
-
-//route to get related papers of a paper
-app.use("/api/papers", relatedPapersRoute)
-
-//citation generation route
+// Citation generation
 app.use('/api/citations', citationRoutes);
 
-//paper-ai route
+// Paper AI
 app.use("/api/paper-ai", paperAiRoutes);
 
-//library-bibtex route
+// Bibtex routes
 app.use('/api/library-bibtex', libraryBibtexRoute);
-
-//all-paper-bibtex route
 app.use('/api/all-library-bibtex', allPaperBibtexRoute);
 
-// 404 handler - Must come AFTER all routes
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-
-
-
-// ========================================
-// Error Handlers (MUST be at the end)
-// ========================================
-
-// 404 handler - Must come AFTER all routes
+// 404 handler - must come after all routes
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
