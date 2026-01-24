@@ -74,12 +74,9 @@ const UserProfile = () => {
     researchInterests: [],
     joinedDate: "",
     totalPapers: 0,
-    papersRead: 0,
-    thisMonth: 0,
-    readingNow: 0,
-    toRead: 0,
-    inProgress: 0,
-    completed: 0,
+    unread: 0,
+    in_progress: 0,
+    read: 0,
     mostCitedPapers: [],
     publications: [],
     profile_picture_url: null
@@ -99,10 +96,66 @@ const UserProfile = () => {
         totalPapers: publications.length,
         mostCitedPapers: mostCited
       }));
-
-      console.log('📚 Fetched publications:', publications.length);
     } catch (error) {
       console.error('Failed to fetch publications:', error);
+    }
+  };
+
+  /**
+   * Fetch reading progress statistics
+   */
+  const fetchReadingProgress = async () => {
+    try {
+      const token = localStorage.getItem('access_token');
+      
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/user/papers`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', {
+          status: response.status,
+          statusText: response.statusText,
+          body: errorText
+        });
+        throw new Error(`Failed to fetch reading progress: ${response.status} ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      const papers = data.papers || [];
+
+      // Count papers by reading status
+      const statusCounts = papers.reduce((acc, paper) => {
+        // Get all reading statuses for this paper across libraries
+        const statuses = paper.reading_statuses || [];
+        
+        // If paper is in multiple libraries, prioritize the most advanced status
+        // Priority: read > in_progress > unread
+        let primaryStatus = 'unread';
+        if (statuses.includes('read')) {
+          primaryStatus = 'read';
+        } else if (statuses.includes('in_progress')) {
+          primaryStatus = 'in_progress';
+        }
+        
+        acc[primaryStatus] = (acc[primaryStatus] || 0) + 1;
+        return acc;
+      }, {});
+
+      setUserData(prev => ({
+        ...prev,
+        unread: statusCounts.unread || 0,
+        in_progress: statusCounts.in_progress || 0,
+        read: statusCounts.read || 0
+      }));
+    } catch (error) {
+      console.error('Failed to fetch reading progress:', error);
     }
   };
 
@@ -148,7 +201,6 @@ const UserProfile = () => {
       const token = localStorage.getItem('access_token');
 
       if (!token) {
-        console.log("No authentication token found");
         navigate('/login');
         return;
       }
@@ -196,6 +248,7 @@ const UserProfile = () => {
           }));
 
           await fetchPublications();
+          await fetchReadingProgress();
         }
 
       } catch (error) {
@@ -230,7 +283,6 @@ const UserProfile = () => {
         institution: updatedData.affiliation
       }));
 
-      console.log('✅ Profile updated successfully');
       alert('Profile updated successfully!');
 
     } catch (error) {
@@ -258,7 +310,6 @@ const UserProfile = () => {
         profile_picture_url: profilePictureUrl
       }));
 
-      console.log('✅ Profile picture updated successfully');
       alert('Profile picture updated successfully!');
 
     } catch (error) {
@@ -273,7 +324,6 @@ const UserProfile = () => {
     if (!isOwnProfile) return;
 
     try {
-      console.log('✅ Paper added successfully, refreshing publications...');
       await fetchPublications();
       alert('Paper added to your publications successfully!');
     } catch (error) {
@@ -569,45 +619,19 @@ const UserProfile = () => {
             {isOwnProfile && (
               <div className="card shadow-sm border-light mb-4">
                 <div className="card-body p-4">
-                  <h3 className="sidebar-title">Overview</h3>
-                  <div className="row g-3 text-center">
-                    <div className="col-3">
-                      <div className="stat-number">{userData.totalPapers}</div>
-                      <div className="stat-label">TOTAL<br />PAPERS</div>
-                    </div>
-                    <div className="col-3">
-                      <div className="stat-number">{userData.papersRead}</div>
-                      <div className="stat-label">PAPERS<br />READ</div>
-                    </div>
-                    <div className="col-3">
-                      <div className="stat-number">{userData.thisMonth}</div>
-                      <div className="stat-label">THIS<br />MONTH</div>
-                    </div>
-                    <div className="col-3">
-                      <div className="stat-number">{userData.readingNow}</div>
-                      <div className="stat-label">READING<br />NOW</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {isOwnProfile && (
-              <div className="card shadow-sm border-light mb-4">
-                <div className="card-body p-4">
                   <h3 className="sidebar-title">Reading Progress</h3>
                   <div className="row g-3 text-center">
                     <div className="col-4">
-                      <div className="stat-number">{userData.toRead}</div>
-                      <div className="stat-label">TO READ</div>
+                      <div className="stat-number">{userData.unread}</div>
+                      <div className="stat-label">UNREAD</div>
                     </div>
                     <div className="col-4">
-                      <div className="stat-number">{userData.inProgress}</div>
+                      <div className="stat-number">{userData.in_progress}</div>
                       <div className="stat-label">IN<br />PROGRESS</div>
                     </div>
                     <div className="col-4">
-                      <div className="stat-number">{userData.completed}</div>
-                      <div className="stat-label">COMPLETED</div>
+                      <div className="stat-number">{userData.read}</div>
+                      <div className="stat-label">READ</div>
                     </div>
                   </div>
                 </div>
