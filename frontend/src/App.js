@@ -25,6 +25,7 @@ import UserLibrary from "./pages/UserLibrary";
 import Bibtex from "./pages/Bibtex";
 import LoginRegister from "./pages/LoginRegister";
 import VerifyEmail from "./pages/VerifyEmail"; 
+import Authors from "./pages/authors";  
 
 // Search routing helper
 function SearchRouteSwitch() {
@@ -47,14 +48,15 @@ function App() {
           {/* Default landing page */}
           <Route path="/" element={<Home />} />
 
-          {/* Core routes */}
-          <Route path="/home" element={<Home />} />
-          <Route path="/search" element={<SearchRouteSwitch />} />
-          <Route path="/paper" element={<PaperDetails />} />
-          <Route path="/citations" element={<CitationsPage />} />
-          <Route path="/references" element={<ReferencesPage />} />
-          <Route path="/related" element={<RelatedPapersPage />} />
-          <Route path="/bibtex" element={<Bibtex />} />
+        {/* Core routes */}
+        <Route path="/home" element={<Home />} />
+        <Route path="/search" element={<SearchRouteSwitch />} />
+        <Route path="/authors" element={<Authors />} />
+        <Route path="/paper/:paperId" element={<PaperDetails />} />
+        <Route path="/citations/:paperId" element={<CitationsPage />} />
+        <Route path="/references/:paperId" element={<ReferencesPage />} />
+        <Route path="/related/:paperId" element={<RelatedPapersPage />} />
+        <Route path="/bibtex" element={<Bibtex />} />
 
           {/* User routes */}
           <Route path="/profile" element={<UserProfile />} />
