@@ -926,12 +926,33 @@ const RelatedPapersPage = () => {
               {/* Libraries list */}
               <div style={{ marginBottom: 20 }}>
                 <div style={{ 
-                  fontSize: 13,
-                  fontWeight: 600, 
-                  color: '#444', 
-                  marginBottom: 10 
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginBottom: 10
                 }}>
-                  Select libraries to save to:
+                  <div style={{ 
+                    fontSize: 13,
+                    fontWeight: 600, 
+                    color: '#444'
+                  }}>
+                    Select libraries to save to:
+                  </div>
+                  <button
+                    onClick={() => setShowNewLibraryModal(true)}
+                    style={{
+                      fontSize: 12,
+                      padding: '4px 8px',
+                      background: '#f0f0f0',
+                      color: '#333',
+                      border: '1px solid #ddd',
+                      borderRadius: 4,
+                      cursor: 'pointer',
+                      fontWeight: 500
+                    }}
+                  >
+                    + New
+                  </button>
                 </div>
                 
                 {availableLibraries.length === 0 ? (
@@ -947,10 +968,7 @@ const RelatedPapersPage = () => {
                       You haven't created any libraries yet.
                     </p>
                     <button
-                      onClick={() => {
-                        closeSave();
-                        navigate('/libraries');
-                      }}
+                      onClick={() => setShowNewLibraryModal(true)}
                       style={{
                         padding: '8px 16px',
                         background: '#3E513E',

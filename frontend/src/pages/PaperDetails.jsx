@@ -198,11 +198,18 @@ const PaperDetails = () => {
 
   // NEW FUNCTION: Get JWT token from localStorage
   const getAuthToken = () => {
+    // Try to get access_token directly from localStorage
+    const accessToken = localStorage.getItem('access_token');
+    if (accessToken) {
+      return accessToken;
+    }
+    
+    // Fallback: try to get from user object
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        return user.token || null;
+        return user.session?.access_token || user.token || null;
       } catch (error) {
         console.error('Error parsing user data:', error);
         return null;
@@ -231,18 +238,21 @@ const PaperDetails = () => {
       // Get auth token
       const token = getAuthToken();
       if (!token) {
+        console.error('No auth token found in localStorage');
         throw new Error('Please log in to use the AI chat feature');
       }
       
-      // Get PDF URL from paper data (assuming paper has pdfUrl property)
-      const pdfUrl = paper.pdfUrl || paper.url || '';
+      console.log("Token found, sending to AI backend:", token.substring(0, 20) + "...");
+      
+      // Get PDF URL from paper data - check multiple possible properties
+      const pdfUrl = paper.openAccessPdf?.url || paper.pdfUrl || paper.url || '';
       if (!pdfUrl) {
         throw new Error('PDF URL not available for this paper');
       }
       
       console.log("Sending question to AI backend:", { pdfUrl, question: userMessage });
       
-      const response = await fetch('http://localhost:5000/api/paperai/ask', {
+      const response = await fetch('http://localhost:5000/api/paper-ai/ask', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -256,6 +266,7 @@ const PaperDetails = () => {
       
       if (!response.ok) {
         const errorData = await response.json();
+        console.error("API Error response:", errorData, "Status:", response.status);
         throw new Error(errorData.error || `Request failed with status ${response.status}`);
       }
       
@@ -1685,7 +1696,7 @@ const PaperDetails = () => {
       )}
 
       {/* Floating Chat Button - RIGHT SIDE TOP */}
-      {!chatOpen && (
+      {!chatOpen && !paperLoading && !paperError && (
         <button
           onClick={() => setChatOpen(!chatOpen)}
           style={{
@@ -1716,6 +1727,7 @@ const PaperDetails = () => {
       )}
 
       {/* Chat Sidebar - RIGHT SIDE */}
+      {!paperLoading && !paperError && (
       <div style={{
         position: 'fixed',
         right: 0,
@@ -1919,6 +1931,7 @@ const PaperDetails = () => {
           </button>
         </div>
       </div>
+      )}
       
       {/* Add CSS for pulse animation */}
       <style>{`
