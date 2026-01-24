@@ -2,7 +2,14 @@
 .auth-container {
   position: relative;
   min-height: 100vh;
-  background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 50%, #a7f3d0 100%);
+  background: radial-gradient(
+  circle farthest-corner at center,
+  #ffffff 0%,           /* White center - matches auth card background */
+  #f2fbf6 25%,          /* Light mint tint - complements #3E513E green */
+  #e5f7ed 50%,          /* Soft mint - harmonious with your design */
+  #d8f3e4 75%,          /* Gentle mint - matches your color palette */
+  #cbeedb 100%          /* Soothing mint edges */
+);
   overflow: hidden;
 }
 
