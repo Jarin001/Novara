@@ -345,6 +345,25 @@ span.small {
   margin-top: 80px; /* Add space below navbar */
 }
 
+/* Loading and Error State Centering */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  margin-top: 80px;
+}
+
+.error-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: calc(100vh - 80px);
+  margin-top: 80px;
+  padding: 0 20px;
+}
+
 /* Alternative: If you want the navbar to not be fixed */
 body {
   padding-top: 0;

@@ -1,32 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useUser } from "../contexts/UserContext";
 
 const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState("User");
-
-  // Check authentication status on mount and when location changes
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('access_token');
-      setIsLoggedIn(!!token);
-      
-      // Optionally fetch user name from API or localStorage
-      // For now, we'll use a default or check if user data exists
-    };
-
-    checkAuth();
-    
-    // Listen for storage changes (useful for multi-tab scenarios)
-    window.addEventListener('storage', checkAuth);
-    
-    return () => {
-      window.removeEventListener('storage', checkAuth);
-    };
-  }, [location]); // Re-check when route changes
+  
+  // Get user data from context instead of fetching
+  const { userData, isLoggedIn, logout: contextLogout } = useUser();
 
   const handleAboutClick = () => {
     if (location.pathname === '/') {
@@ -56,12 +38,8 @@ const Navbar = () => {
   };
 
   const handleLogout = () => {
-    // Remove the token
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
-    
-    // Update state
-    setIsLoggedIn(false);
+    // Use context logout function
+    contextLogout();
     setDropdownOpen(false);
     
     // Navigate to home and reload
@@ -148,37 +126,55 @@ const Navbar = () => {
                 width: "40px",
                 height: "40px",
                 borderRadius: "50%",
-                backgroundColor: "#fff",
+                backgroundColor: userData.profile_picture_url ? "transparent" : "#fff",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 position: "relative",
+                overflow: "hidden",
+                border: userData.profile_picture_url ? "2px solid #fff" : "none",
               }}
               title="User Profile"
             >
-              {/* Simple user icon using SVG */}
-              <svg 
-                width="24" 
-                height="24" 
-                viewBox="0 0 24 24" 
-                fill="none" 
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path 
-                  d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" 
-                  stroke="#3E513E" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
+              {userData.profile_picture_url ? (
+                <img 
+                  src={userData.profile_picture_url} 
+                  alt={userData.name}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                  }}
+                  onError={(e) => {
+                    // Fallback to default icon if image fails to load
+                    e.target.style.display = 'none';
+                  }}
                 />
-                <path 
-                  d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" 
-                  stroke="#3E513E" 
-                  strokeWidth="2" 
-                  strokeLinecap="round" 
-                  strokeLinejoin="round"
-                />
-              </svg>
+              ) : (
+                /* Simple user icon using SVG */
+                <svg 
+                  width="24" 
+                  height="24" 
+                  viewBox="0 0 24 24" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path 
+                    d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" 
+                    stroke="#3E513E" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  />
+                  <path 
+                    d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" 
+                    stroke="#3E513E" 
+                    strokeWidth="2" 
+                    strokeLinecap="round" 
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              )}
             </div>
             
             {/* Dropdown menu - controlled by state */}
@@ -205,7 +201,7 @@ const Navbar = () => {
                   borderBottom: "1px solid #f0f0f0",
                   fontWeight: "600",
                 }}>
-                  {userName}
+                  {userData.name}
                 </div>
                 
                 <div 
