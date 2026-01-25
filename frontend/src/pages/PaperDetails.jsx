@@ -4106,7 +4106,7 @@ const PaperDetails = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     {/* Export / BibTeX on the left */}
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}></div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={downloadBibTeX}
