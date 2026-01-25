@@ -3353,35 +3353,177 @@ const PaperDetails = () => {
               id="details-section" 
               style={{ marginBottom: activeTab === 'topics' ? 40 : 0 }}
             >
-              <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Paper Details</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>DOI</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>
-                    <a href={`https://doi.org/${paper.doi}`} style={{ color: '#3E513E', textDecoration: 'none' }}>
-                      {paper.doi}
-                    </a>
-                  </p>
+              {/* Professional Table-like Layout - Compact */}
+              <div style={{ 
+                border: '1px solid #e0e0e0',
+                borderRadius: 4,
+                overflow: 'hidden',
+                maxWidth: 700
+              }}>
+                {/* DOI Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  borderBottom: '1px solid #e0e0e0',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    DOI
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {paper.doi ? (
+                      <a 
+                        href={`https://doi.org/${paper.doi}`} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#3E513E', textDecoration: 'none' }}
+                      >
+                        {paper.doi}
+                      </a>
+                    ) : (
+                      <span style={{ color: '#999' }}>—</span>
+                    )}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Corpus ID</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.corpusId}</p>
+
+                {/* Corpus ID Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  borderBottom: '1px solid #e0e0e0',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    Corpus ID
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {paper.corpusId || <span style={{ color: '#999' }}>—</span>}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Publication Venue</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.venue}</p>
+
+                {/* Publication Venue Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  borderBottom: '1px solid #e0e0e0',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    Publication Venue
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {paper.venue || <span style={{ color: '#999' }}>Unknown</span>}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Year</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.year || 'n.d.'}</p>
+
+                {/* Year Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  borderBottom: '1px solid #e0e0e0',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    Year
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {paper.year || 'n.d.'}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Authors</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{(paper.authors || []).length}</p>
+
+                {/* Authors Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  borderBottom: '1px solid #e0e0e0',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    Authors
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {(paper.authors || []).length}
+                  </div>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Citations</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.citationCount}</p>
+
+                {/* Citations Row */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '140px 1fr',
+                  background: '#fff'
+                }}>
+                  <div style={{
+                    padding: '10px 14px',
+                    background: '#fafafa',
+                    borderRight: '1px solid #e0e0e0',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    color: '#666'
+                  }}>
+                    Citations
+                  </div>
+                  <div style={{
+                    padding: '10px 14px',
+                    fontSize: 12,
+                    color: '#333'
+                  }}>
+                    {paper.citationCount?.toLocaleString() || 0}
+                  </div>
                 </div>
               </div>
             </div>
