@@ -263,6 +263,7 @@ const UserProfile = () => {
           }
 
           setIsOwnProfile(true);
+          setIsAuthenticated(true); // Set authentication status
           
           const profile = await getUserProfile();
           
@@ -299,6 +300,85 @@ const UserProfile = () => {
 
     initializeProfile();
   }, [navigate, userId]);
+
+  /**
+   * Fetch user libraries on mount (like PaperDetails)
+   */
+  useEffect(() => {
+    const fetchUserLibraries = async () => {
+      if (!isOwnProfile) {
+        console.log('⏭️ Skipping library fetch - not own profile');
+        return; // Only fetch for own profile
+      }
+      
+      const token = localStorage.getItem('access_token');
+      if (!token) {
+        console.log('⏭️ Skipping library fetch - no token');
+        setIsAuthenticated(false);
+        setUserLibraries([]);
+        return;
+      }
+
+      console.log('📚 Fetching user libraries...');
+      setLibrariesLoading(true);
+      try {
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('📚 User libraries fetched on mount:', data);
+          
+          // Handle both response formats - same as PaperDetails
+          let libraries = [];
+          if (data.my_libraries && Array.isArray(data.my_libraries)) {
+            libraries = data.my_libraries.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: lib.role, 
+              paper_count: lib.paper_count 
+            }));
+          }
+          if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: lib.role, 
+              paper_count: lib.paper_count 
+            }))];
+          }
+          // Fallback for old format
+          if (libraries.length === 0 && data.libraries && Array.isArray(data.libraries)) {
+            libraries = data.libraries;
+          }
+          
+          console.log('✅ Libraries loaded on mount:', libraries.length, libraries);
+          setUserLibraries(libraries);
+        } else if (response.status === 401) {
+          console.log('❌ Unauthorized - clearing auth');
+          setIsAuthenticated(false);
+          setUserLibraries([]);
+        } else {
+          console.error('❌ Failed to fetch libraries:', response.status);
+          setUserLibraries([]);
+        }
+      } catch (error) {
+        console.error('❌ Error fetching libraries:', error);
+        setUserLibraries([]);
+      } finally {
+        setLibrariesLoading(false);
+        console.log('✅ Library fetch complete');
+      }
+    };
+
+    // Only run if we're viewing own profile
+    if (isOwnProfile) {
+      fetchUserLibraries();
+    }
+  }, [isOwnProfile]);
 
   /**
    * Close dropdown menu when clicking outside
@@ -441,34 +521,45 @@ const UserProfile = () => {
     }
   };
 
-  // ==================== CITATION MODAL FUNCTIONS (from ResultsPage) ====================
+  // ==================== CITATION MODAL FUNCTIONS (from PaperDetails) ====================
   const openCite = async (paper) => {
+    if (!paper || (!paper.paperId && !paper.s2_paper_id && !paper.id)) return;
+    
+    const paperIdToUse = paper.paperId || paper.s2_paper_id || paper.id;
+    
     setCiteItem(paper);
     setCiteOpen(true);
-    setCitationLoading(true);
-    setCitationError(null);
+    setCitationLoading(true); // FIXED: Changed from setCiteLoading to setCitationLoading
+    setCitationFormats([]);
     setSelectedFormat('bibtex');
     setCopied(false);
-
+    
     try {
-      console.log(`Fetching citations for paper: ${paper.paperId || paper.id}`);
-      const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId || paper.id}`);
+      console.log(`Fetching citations for paper: ${paperIdToUse}`);
+      const response = await fetch(`http://localhost:5000/api/citations/${paperIdToUse}`);
       
       if (response.ok) {
         const data = await response.json();
-        console.log("Citations API response:", data);
+        console.log("Citations fetched:", data);
         setCitationFormats(data.data || []);
+        
+        // Set default format to first available or bibtex
+        if (data.data && data.data.length > 0) {
+          setSelectedFormat(data.data[0].id || 'bibtex');
+        } else {
+          setSelectedFormat('bibtex');
+        }
       } else {
-        console.error("Failed to fetch citations:", response.status);
-        setCitationError("Failed to load citation formats from API");
+        console.error("Failed to fetch citations");
         setCitationFormats([]);
+        setSelectedFormat('bibtex');
       }
     } catch (error) {
       console.error("Citation fetch error:", error);
-      setCitationError("Error loading citation formats");
       setCitationFormats([]);
+      setSelectedFormat('bibtex');
     } finally {
-      setCitationLoading(false);
+      setCitationLoading(false); // FIXED: Changed from setCiteLoading to setCitationLoading
     }
   };
 
@@ -479,66 +570,99 @@ const UserProfile = () => {
     setCopied(false);
   };
 
-  const getCurrentCitationText = () => {
-    if (!citeItem) return '';
-
-    if (citationFormats.length > 0) {
-      const format = citationFormats.find(f => f.id === selectedFormat);
-      if (format && format.value) {
-        return format.value;
+  const copyCitation = async () => {
+    let txt = '';
+    
+    // Try to get citation from backend format
+    if (citationFormats && citationFormats.length > 0) {
+      const selectedFormatObj = citationFormats.find(f => f.id === selectedFormat);
+      if (selectedFormatObj) {
+        // For BibTeX, use plain text. For HTML formats, extract text content
+        if (selectedFormatObj.id === 'bibtex') {
+          txt = selectedFormatObj.value || '';
+        } else {
+          // Create a temporary div to extract text from HTML
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = selectedFormatObj.value || '';
+          txt = tempDiv.textContent || tempDiv.innerText || '';
+        }
       }
     }
-
-    // Fallback basic citation
-    const authors = citeItem.authors || 'Unknown Authors';
-    const title = citeItem.title || 'Untitled';
-    const year = citeItem.year || 'n.d.';
     
-    if (selectedFormat === 'bibtex') {
-      const safeTitle = (citeItem.title || 'Untitled').replace(/[{}]/g, '');
-      return `@article{${citeItem.paperId || citeItem.id || 'unknown'},
+    // Fallback if not available
+    if (!txt && citeItem) {
+      const authors = citeItem.authors || 'Unknown Authors';
+      const title = citeItem.title || 'Untitled';
+      const year = citeItem.year || 'n.d.';
+      
+      if (selectedFormat === 'bibtex') {
+        const safeTitle = (citeItem.title || 'Untitled').replace(/[{}]/g, '');
+        txt = `@article{${citeItem.paperId || citeItem.id || 'unknown'},
   author = {${authors}},
   title = {${safeTitle}},
   year = {${year}}
 }`;
-    } else if (selectedFormat === 'mla') {
-      return `${authors}. "${title}." ${year}.`;
-    } else if (selectedFormat === 'apa') {
-      return `${authors} (${year}). ${title}.`;
-    } else if (selectedFormat === 'ieee') {
-      return `${authors}, "${title}," ${year}.`;
+      }
     }
-    return '';
-  };
-
-  const copyCitation = () => {
-    const text = getCurrentCitationText();
-    if (!text) return;
-
-    navigator.clipboard.writeText(text).then(() => {
+    
+    try {
+      await navigator.clipboard.writeText(txt);
       setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(err => {
-      console.error('Failed to copy:', err);
-      alert('Failed to copy citation');
-    });
+      setTimeout(() => setCopied(false), 1600);
+    } catch (e) {
+      const el = document.getElementById(selectedFormat === 'bibtex' ? 'cite-textarea' : 'cite-html');
+      if (el) {
+        // For textarea, use select(). For div, create range
+        if (selectedFormat === 'bibtex') {
+          el.select();
+        } else {
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        try { 
+          document.execCommand('copy'); 
+          setCopied(true); 
+          setTimeout(() => setCopied(false), 1600); 
+        } catch(_) {}
+      }
+    }
   };
 
   const downloadCitation = () => {
-    const text = getCurrentCitationText();
-    if (!text || !citeItem) return;
-
+    let content = '';
+    
+    // Try to get BibTeX from backend format
+    if (citationFormats && citationFormats.length > 0) {
+      const bibTexFormat = citationFormats.find(f => f.id === 'bibtex');
+      if (bibTexFormat) {
+        content = bibTexFormat.value || '';
+      }
+    }
+    
+    // Fallback if not available
+    if (!content && citeItem) {
+      const authors = citeItem.authors || 'Unknown Authors';
+      const title = citeItem.title || 'Untitled';
+      const year = citeItem.year || 'n.d.';
+      const safeTitle = (citeItem.title || 'Untitled').replace(/[{}]/g, '');
+      content = `@article{${citeItem.paperId || citeItem.id || 'unknown'},
+  author = {${authors}},
+  title = {${safeTitle}},
+  year = {${year}}
+}`;
+    }
+    
     const sanitizeFilename = (s = '') => s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
-    const safeTitle = sanitizeFilename(citeItem.title || 'citation');
-    const ext = selectedFormat === 'bibtex' ? 'bib' : 'txt';
-    const filename = `${safeTitle}.${ext}`;
-    const mime = selectedFormat === 'bibtex' ? 'application/x-bibtex' : 'text/plain';
-
-    const blob = new Blob([text], { type: mime });
+    const name = sanitizeFilename((citeItem && citeItem.title) || 'paper') + '.bib';
+    
+    const blob = new Blob([content], { type: 'application/x-bibtex' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = filename;
+    a.download = name;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -547,39 +671,14 @@ const UserProfile = () => {
 
   // ==================== SAVE MODAL FUNCTIONS (from ResultsPage) ====================
   const openSave = async (paper) => {
-    setSaveItem(paper);
-    setSaveOpen(true);
-    setSelectedLibraries([]);
-
-    const token = localStorage.getItem('access_token');
-    if (!token) {
-      console.log('Not authenticated');
+    if (!isAuthenticated) {
+      alert('Please log in to save papers');
+      navigate('/login');
       return;
     }
-
-    setLibrariesLoading(true);
-    try {
-      console.log('Fetching user libraries...');
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Libraries loaded:', data);
-        setUserLibraries(data.libraries || []);
-      } else {
-        console.error('Failed to fetch libraries:', response.status);
-        setUserLibraries([]);
-      }
-    } catch (error) {
-      console.error('Error fetching libraries:', error);
-      setUserLibraries([]);
-    } finally {
-      setLibrariesLoading(false);
-    }
+    setSaveItem(paper);
+    setSelectedLibraries([]);
+    setSaveOpen(true);
   };
 
   const closeSave = () => {
@@ -590,12 +689,14 @@ const UserProfile = () => {
     setNewLibraryName('');
   };
 
-  const toggleLibrarySelection = (libraryId) => {
+  const toggleLibrarySelection = (library) => {
     setSelectedLibraries(prev => {
-      if (prev.includes(libraryId)) {
-        return prev.filter(id => id !== libraryId);
+      const libraryId = library.id;
+      const isSelected = prev.some(l => l.id === libraryId);
+      if (isSelected) {
+        return prev.filter(l => l.id !== libraryId);
       } else {
-        return [...prev, libraryId];
+        return [...prev, library];
       }
     });
   };
@@ -668,38 +769,79 @@ const UserProfile = () => {
     }
 
     try {
-      const bibtex = await fetchPaperBibtex(saveItem.paperId || saveItem.id);
+      const bibtex = await fetchPaperBibtex(saveItem.paperId || saveItem.s2_paper_id || saveItem.id);
 
-      const savePromises = selectedLibraries.map(libraryId =>
-        fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${libraryId}/papers`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            paper_id: saveItem.paperId || saveItem.id,
-            title: saveItem.title,
-            authors: saveItem.authors,
-            year: saveItem.year,
-            abstract: saveItem.abstract || '',
-            citations: saveItem.citationCount || saveItem.citations || 0,
-            venue: saveItem.venue || '',
-            fields_of_study: saveItem.fieldsOfStudy || [],
-            bibtex: bibtex,
-            external_ids: saveItem.externalIds || {}
-          })
-        })
-      );
+      // Prepare paper data in the correct format (same as PaperDetails)
+      const paperData = {
+        s2_paper_id: saveItem.paperId || saveItem.s2_paper_id || saveItem.id,
+        title: saveItem.title || '',
+        venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
+        published_year: saveItem.year || new Date().getFullYear(),
+        citation_count: saveItem.citationCount || saveItem.citations || saveItem.citation_count || 0,
+        fields_of_study: saveItem.fieldsOfStudy || saveItem.fields_of_study || [],
+        abstract: saveItem.abstract || '',
+        bibtex: bibtex || '',
+        authors: (() => {
+          // Handle different author formats
+          if (Array.isArray(saveItem.authors)) {
+            return saveItem.authors.map(a => ({
+              name: typeof a === 'object' ? (a.name || '') : a,
+              affiliation: typeof a === 'object' ? (a.affiliation || '') : ''
+            }));
+          } else if (typeof saveItem.authors === 'string') {
+            // If authors is a comma-separated string, split it
+            return saveItem.authors.split(',').map(name => ({
+              name: name.trim(),
+              affiliation: ''
+            }));
+          }
+          return [];
+        })(),
+        reading_status: 'unread',
+        user_note: '',
+        external_ids: saveItem.externalIds || {}
+      };
 
-      const results = await Promise.all(savePromises);
-      const allSuccessful = results.every(r => r.ok);
+      console.log('💾 Saving paper with data:', paperData);
 
-      if (allSuccessful) {
-        alert(`Paper saved to ${selectedLibraries.length} library${selectedLibraries.length > 1 ? 'ies' : ''}!`);
+      // Save to each selected library (using library objects now)
+      let savedCount = 0;
+      let failedCount = 0;
+      const failedLibraries = [];
+
+      for (const library of selectedLibraries) {
+        try {
+          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${library.id}/papers`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(paperData)
+          });
+
+          if (response.ok) {
+            savedCount++;
+            const result = await response.json();
+            console.log(`Paper saved to library ${library.name}:`, result);
+          } else {
+            const errorData = await response.json();
+            console.error(`Failed to save to library ${library.name}:`, errorData);
+            failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+            failedCount++;
+          }
+        } catch (error) {
+          console.error(`Error saving to library ${library.name}:`, error);
+          failedLibraries.push(`${library.name}: ${error.message}`);
+          failedCount++;
+        }
+      }
+
+      if (savedCount > 0) {
+        alert(`Paper saved to ${savedCount} librar${savedCount === 1 ? 'y' : 'ies'}!${failedCount > 0 ? `\n\nFailed to save to ${failedCount} librar${failedCount === 1 ? 'y' : 'ies'}:\n${failedLibraries.join('\n')}` : ''}`);
         closeSave();
       } else {
-        alert('Some libraries failed to save. Please try again.');
+        alert(`Failed to save paper:\n${failedLibraries.join('\n')}`);
       }
     } catch (error) {
       console.error('Error saving paper:', error);
@@ -709,7 +851,15 @@ const UserProfile = () => {
 
   // Navigation function for paper clicks
   const handlePaperClick = (paper) => {
-    navigate(`/paper/${paper.paperId || paper.id}`);
+    console.log('📍 Navigating to paper:', {
+      paperId: paper.paperId,
+      s2_paper_id: paper.s2_paper_id,
+      id: paper.id,
+      title: paper.title
+    });
+    const routePaperId = paper.paperId || paper.s2_paper_id || paper.id;
+    console.log('🔗 Using paperId for route:', routePaperId);
+    navigate(`/paper/${routePaperId}`);
   };
 
   // Loading state
@@ -1379,7 +1529,7 @@ const UserProfile = () => {
                     {userLibraries.map(lib => (
                       <div
                         key={lib.id}
-                        onClick={() => toggleLibrarySelection(lib.id)}
+                        onClick={() => toggleLibrarySelection(lib)}
                         style={{
                           padding: '12px 16px',
                           cursor: 'pointer',
@@ -1387,22 +1537,22 @@ const UserProfile = () => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: 12,
-                          background: selectedLibraries.includes(lib.id) ? '#f0f7f0' : 'white'
+                          background: selectedLibraries.some(l => l.id === lib.id) ? '#f0f7f0' : 'white'
                         }}
                         onMouseEnter={(e) => {
-                          if (!selectedLibraries.includes(lib.id)) {
+                          if (!selectedLibraries.some(l => l.id === lib.id)) {
                             e.currentTarget.style.background = '#f8f9fa';
                           }
                         }}
                         onMouseLeave={(e) => {
-                          if (!selectedLibraries.includes(lib.id)) {
+                          if (!selectedLibraries.some(l => l.id === lib.id)) {
                             e.currentTarget.style.background = 'white';
                           }
                         }}
                       >
                         <input
                           type="checkbox"
-                          checked={selectedLibraries.includes(lib.id)}
+                          checked={selectedLibraries.some(l => l.id === lib.id)}
                           onChange={() => {}}
                           style={{ cursor: 'pointer' }}
                         />
@@ -1509,8 +1659,8 @@ const UserProfile = () => {
         </div>
       )}
 
-      {/* Citation Modal - Same as ResultsPage */}
-      {citeOpen && citeItem && (
+      {/* Citation Modal - Same as PaperDetails */}
+      {citeOpen && (
         <div style={{ 
           position: 'fixed', 
           top: 0, left: 0, right: 0, bottom: 0, 
@@ -1519,6 +1669,7 @@ const UserProfile = () => {
           zIndex: 2000 
         }}>
           <div 
+            className="cite-modal"
             style={{ 
               width: '580px', 
               maxWidth: '90vw', 
@@ -1527,6 +1678,7 @@ const UserProfile = () => {
               boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
               overflow: 'hidden' 
             }}>
+            {/* Header */}
             <div style={{ 
               display: 'flex', 
               justifyContent: 'space-between', 
@@ -1555,130 +1707,143 @@ const UserProfile = () => {
               </button>
             </div>
 
+            {/* Content */}
             <div style={{ padding: '24px' }}>
-              {citationLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                  <div style={{ fontSize: 16, color: '#666' }}>Loading citation formats...</div>
+              {citationLoading && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#666' }}>
+                  Loading citation formats...
                 </div>
-              ) : citationError ? (
-                <div style={{ marginBottom: 20 }}>
-                  <div style={{ color: '#d32f2f', fontSize: 14, marginBottom: 16 }}>
-                    {citationError}
+              )}
+              
+              {!citationLoading && citationFormats.length > 0 && (
+                <>
+                  {/* Format tabs */}
+                  <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20, overflowX: 'auto' }}>
+                    {citationFormats.map(fmt => (
+                      <button
+                        key={fmt.id}
+                        onClick={() => setSelectedFormat(fmt.id)}
+                        style={{
+                          padding: '12px 16px',
+                          background: 'transparent',
+                          border: 'none',
+                          borderBottom: selectedFormat === fmt.id ? '3px solid #3E513E' : '3px solid transparent',
+                          cursor: 'pointer',
+                          fontSize: 14,
+                          fontWeight: selectedFormat === fmt.id ? 600 : 500,
+                          color: selectedFormat === fmt.id ? '#3E513E' : '#666',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {fmt.label}
+                      </button>
+                    ))}
                   </div>
-                  <div style={{ color: '#666', fontSize: 13, marginBottom: 20 }}>
-                    Using basic citation format instead...
-                  </div>
-                </div>
-              ) : null}
 
-              <div style={{ display: 'flex', gap: 0, borderBottom: '1px solid #e0e0e0', marginBottom: 20 }}>
-                {citationFormats.length > 0 ? (
-                  citationFormats.map(format => (
+                  {/* Citation display area */}
+                  <div style={{ marginBottom: 20 }}>
+                    {selectedFormat === 'bibtex' ? (
+                      <textarea
+                        id="cite-textarea"
+                        readOnly
+                        value={(() => {
+                          const selected = citationFormats.find(f => f.id === selectedFormat);
+                          return selected ? selected.value : '';
+                        })()}
+                        style={{
+                          width: '100%',
+                          height: 200,
+                          padding: 12,
+                          fontFamily: 'monospace',
+                          fontSize: 12,
+                          border: '1px solid #d0d0d0',
+                          borderRadius: 4,
+                          resize: 'none',
+                          background: '#fafafa'
+                        }}
+                      />
+                    ) : (
+                      <div
+                        id="cite-html"
+                        style={{
+                          width: '100%',
+                          height: 200,
+                          padding: 12,
+                          fontSize: 12,
+                          border: '1px solid #d0d0d0',
+                          borderRadius: 4,
+                          background: '#fafafa',
+                          overflowY: 'auto'
+                        }}
+                        dangerouslySetInnerHTML={{
+                          __html: (() => {
+                            const selected = citationFormats.find(f => f.id === selectedFormat);
+                            return selected ? selected.value : '';
+                          })()
+                        }}
+                      />
+                    )}
+                  </div>
+
+                  {/* Divider */}
+                  <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
+
+                  {/* Copy and Export */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    {/* Export / BibTeX on the left */}
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <button
+                          onClick={downloadCitation}
+                          style={{
+                            padding: '8px 16px',
+                            background: '#3E513E',
+                            color: '#fff',
+                            border: 'none',
+                            borderRadius: 4,
+                            cursor: 'pointer',
+                            fontSize: 13,
+                            fontWeight: 500
+                          }}
+                        >
+                          BibTeX
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Copy button on the right */}
                     <button
-                      key={format.id}
-                      onClick={() => setSelectedFormat(format.id)}
+                      onClick={copyCitation}
                       style={{
-                        padding: '12px 16px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 6,
                         background: 'transparent',
                         border: 'none',
-                        borderBottom: selectedFormat === format.id ? '3px solid #3E513E' : '3px solid transparent',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        fontWeight: selectedFormat === format.id ? 600 : 500,
-                        color: selectedFormat === format.id ? '#3E513E' : '#666'
-                      }}
-                    >
-                      {format.label}
-                    </button>
-                  ))
-                ) : (
-                  ['bibtex', 'mla', 'apa', 'ieee'].map(fmt => (
-                    <button
-                      key={fmt}
-                      onClick={() => setSelectedFormat(fmt)}
-                      style={{
-                        padding: '12px 16px',
-                        background: 'transparent',
-                        border: 'none',
-                        borderBottom: selectedFormat === fmt ? '3px solid #3E513E' : '3px solid transparent',
-                        cursor: 'pointer',
-                        fontSize: 14,
-                        fontWeight: selectedFormat === fmt ? 600 : 500,
-                        color: selectedFormat === fmt ? '#3E513E' : '#666'
-                      }}
-                    >
-                      {fmt.toUpperCase()}
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <div style={{ marginBottom: 20 }}>
-                <textarea
-                  readOnly
-                  value={getCurrentCitationText()}
-                  style={{
-                    width: '100%',
-                    height: 200,
-                    padding: 12,
-                    fontFamily: selectedFormat === 'bibtex' ? 'monospace' : 'inherit',
-                    fontSize: selectedFormat === 'bibtex' ? 12 : 14,
-                    border: '1px solid #d0d0d0',
-                    borderRadius: 4,
-                    resize: 'none',
-                    background: '#fafafa'
-                  }}
-                />
-              </div>
-
-              <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 20 }} />
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      onClick={downloadCitation}
-                      style={{
-                        padding: '8px 16px',
-                        background: '#3E513E',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 4,
+                        color: '#3E513E',
                         cursor: 'pointer',
                         fontSize: 13,
-                        fontWeight: 500
+                        fontWeight: 500,
                       }}
                     >
-                      Download {selectedFormat === 'bibtex' ? 'BibTeX' : 'Text'}
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Copy
                     </button>
                   </div>
-                </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13 }}>Copied!</span>}
-                  <button
-                    onClick={copyCitation}
-                    style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: 6,
-                      background: 'transparent',
-                      border: 'none',
-                      color: '#3E513E',
-                      cursor: 'pointer',
-                      fontSize: 13,
-                      fontWeight: 500,
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <path d="M16 1H4a2 2 0 00-2 2v12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                      <rect x="8" y="5" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                    Copy
-                  </button>
+                  {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
+                </>
+              )}
+              
+              {!citationLoading && citationFormats.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
+                  No citation formats available
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
