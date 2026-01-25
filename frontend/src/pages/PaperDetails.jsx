@@ -3641,7 +3641,7 @@ const PaperDetails = () => {
                           gap: 6
                         }}
                       >
-                        <span>🔍</span>
+                        <span></span>
                         Extract Keywords
                       </button>
                     )}
