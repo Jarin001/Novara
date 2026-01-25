@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import invertedCommasIcon from "../images/inverted-commas.png";
 import {
   FolderOpen,
   Plus,
@@ -151,6 +152,7 @@ const ResearchLibrary = () => {
         data.papers?.map((paper) => ({
           id: paper.library_paper_id,
           dbPaperId: paper.id,
+          s2PaperId: paper.s2_paper_id,
           title: paper.title,
           authors: paper.authors || [],
           venue: paper.venue || "",
@@ -203,6 +205,7 @@ const ResearchLibrary = () => {
         data.papers?.map((paper) => ({
           id: paper.paper_id,
           dbPaperId: paper.id,
+          s2PaperId: paper.s2_paper_id,
           title: paper.title,
           authors: paper.authors || [],
           venue: paper.venue || "",
@@ -1200,10 +1203,12 @@ const ResearchLibrary = () => {
                   <div
                     key={paper.id}
                     style={{
-                      borderBottom: "1px solid #e5e7eb",
+                      borderBottom: "1px solid #eee", // Changed from #e5e7eb to #eee
                       paddingBottom: "24px",
+                      padding: "18px 0", // Added padding top/bottom like ResultsPage
                     }}
                   >
+                    {/* Title with Note Icon */}
                     {/* Title with Note Icon */}
                     <div
                       style={{
@@ -1213,24 +1218,29 @@ const ResearchLibrary = () => {
                         marginBottom: "8px",
                       }}
                     >
-                      <h3
+                      <button
+                        onClick={() => navigate(`/paper/${paper.s2PaperId}`)} // Navigate using semantic scholar ID
                         style={{
-                          fontSize: "1.125rem",
-                          fontWeight: 400,
+                          fontSize: "20px", // Changed from 1.125rem to 20px
+                          fontWeight: 600, // Changed from 400 to 600
                           color: "#3E513E",
                           cursor: "pointer",
                           flex: 1,
                           margin: 0,
+                          textAlign: "left",
+                          background: "transparent",
+                          border: "none",
+                          padding: 0,
                         }}
                         onMouseOver={(e) =>
-                          (e.currentTarget.style.textDecoration = "underline")
+                          (e.currentTarget.style.opacity = "0.8")
                         }
                         onMouseOut={(e) =>
-                          (e.currentTarget.style.textDecoration = "none")
+                          (e.currentTarget.style.opacity = "1")
                         }
                       >
                         {paper.title}
-                      </h3>
+                      </button>
                       {selectedLibrary !== "all" && (
                         <button
                           onClick={() =>
@@ -1269,56 +1279,89 @@ const ResearchLibrary = () => {
                     </div>
 
                     {/* Authors */}
+                    {/* Authors - Updated to match ResultsPage */}
+                    {/* Authors and Fields of Study - UPDATED */}
                     <div
                       style={{
-                        fontSize: "0.875rem",
-                        color: "#374151",
+                        marginTop: "8px",
+                        display: "flex",
+                        gap: "8px",
+                        flexWrap: "wrap",
+                        alignItems: "center",
                         marginBottom: "8px",
                       }}
                     >
+                      {/* Authors - CHANGED COLOR to #f2f2f2 (was #f2f6f8) */}
                       {Array.isArray(paper.authors) && paper.authors.length > 0
-                        ? paper.authors.map((a) => a.name || a).join(", ")
+                        ? paper.authors.map((a, idx) => (
+                            <span
+                              key={idx}
+                              style={{
+                                background: "#f2f2f2", // CHANGED COLOR
+                                padding: "4px 8px",
+                                borderRadius: "4px",
+                                fontSize: "12px",
+                              }}
+                            >
+                              {typeof a === "object" ? a.name || "" : a || ""}
+                            </span>
+                          ))
                         : ""}
+
+                      {/* Field of Study - CHANGED COLOR to #f2f6f8 (was #f2f2f2) and moved beside authors */}
+                      {paper.field && (
+                        <>
+                          {(Array.isArray(paper.field) ? paper.field : []).map(
+                            (f, idx) => (
+                              <span
+                                key={idx}
+                                style={{
+                                  background: "#f2f6f8", // CHANGED COLOR
+                                  padding: "4px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                {typeof f === "object" ? f.name || "" : f || ""}
+                              </span>
+                            ),
+                          )}
+                        </>
+                      )}
                     </div>
 
-                    {/* Field */}
+                    {/* Venue and Date - Updated styling */}
                     <div
                       style={{
-                        fontSize: "0.875rem",
-                        color: "#6b7280",
-                        marginBottom: "8px",
-                      }}
-                    >
-                      {Array.isArray(paper.field) && paper.field.length > 0
-                        ? paper.field.map((a) => a.name || a).join(", ")
-                        : ""}
-                    </div>
-
-                    {/* Venue and Date */}
-                    <div
-                      style={{
-                        fontSize: "0.875rem",
-                        color: "#6b7280",
-                        marginBottom: "12px",
+                        fontSize: "13px", // Changed from 0.875rem to 13px
+                        color: "#888", // Changed from #6b7280 to #888
+                        marginBottom: "10px",
                       }}
                     >
                       {paper.venue} · {paper.date}
                     </div>
 
                     {/* Abstract */}
+                    {/* Abstract - Updated colors */}
                     <p
                       style={{
                         fontSize: "0.875rem",
-                        color: "#374151",
+                        color: "#444", // Changed from #374151 to #444
                         marginBottom: "12px",
+                        lineHeight: "1.5",
                       }}
                     >
-                      {paper.abstract.length > 200
-                        ? `${paper.abstract.substring(0, 200)}... `
+                      {paper.abstract && paper.abstract.length > 300
+                        ? `${paper.abstract.substring(0, 300)}... `
                         : paper.abstract}
-                      {paper.abstract.length > 200 && (
-                        <span
-                          style={{ color: "#3E513E", cursor: "pointer" }}
+                      {paper.abstract && paper.abstract.length > 300 && (
+                        <a
+                          href="#"
+                          style={{
+                            color: "#3E513E",
+                            textDecoration: "none",
+                            cursor: "pointer",
+                          }}
                           onMouseOver={(e) =>
                             (e.currentTarget.style.textDecoration = "underline")
                           }
@@ -1327,55 +1370,89 @@ const ResearchLibrary = () => {
                           }
                         >
                           Expand
-                        </span>
+                        </a>
                       )}
                     </p>
 
                     {/* Bottom Actions */}
+                    {/* Bottom Actions - Updated citation styling */}
+                    {/* Bottom Actions - Fixed layout with status on right */}
                     <div
                       style={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
+                        marginTop: "12px",
                       }}
                     >
+                      {/* Left side: Citations, Cite, Remove buttons */}
                       <div
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "16px",
-                          fontSize: "0.875rem",
+                          gap: "12px", // Changed from 16px to 12px for better spacing
                         }}
                       >
-                        <div
+                        {/* Citations Count with ResultsPage badge styling */}
+                        {/* Citations Count with ResultsPage badge styling - ADDED INVERTED COMMA ICON */}
+                        <span
                           style={{
-                            display: "flex",
+                            display: "inline-flex",
                             alignItems: "center",
-                            gap: "4px",
+                            gap: "6px",
+                            padding: "6px 10px",
+                            background: "#f5f5f5",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            color: "#333",
+                            fontWeight: 500,
                           }}
                         >
-                          <TrendingUp size={16} style={{ color: "#6b7280" }} />
-                          <span style={{ fontWeight: 600, color: "#374151" }}>
-                            {paper.citations}
-                          </span>
-                        </div>
+                          <img
+                            src={invertedCommasIcon}
+                            alt="Citations"
+                            style={{
+                              width: "12px",
+                              height: "12px",
+                              opacity: 0.8,
+                            }}
+                          />
+                          {paper.citations}
+                        </span>
+
+                        {/* Cite Button with ResultsPage styling */}
                         <button
                           style={{
-                            color: "#6b7280",
-                            background: "none",
-                            border: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "6px 10px",
+                            background: "#fff",
+                            border: "1px solid #e0e0e0",
+                            borderRadius: "4px",
+                            fontSize: "12px",
+                            color: "#333",
                             cursor: "pointer",
-                            padding: 0,
+                            fontWeight: 500,
+                            whiteSpace: "nowrap",
                           }}
                           onMouseOver={(e) =>
-                            (e.currentTarget.style.color = "#111827")
+                            (e.currentTarget.style.opacity = "0.8")
                           }
                           onMouseOut={(e) =>
-                            (e.currentTarget.style.color = "#6b7280")
+                            (e.currentTarget.style.opacity = "1")
                           }
                         >
+                          <img
+                            src={invertedCommasIcon}
+                            alt="Cite"
+                            style={{ width: "12px", height: "12px" }}
+                          />
                           Cite
                         </button>
+
+                        {/* Remove button - Keep original style */}
                         <button
                           onClick={() =>
                             handleRemovePaper(paper.id, paper.dbPaperId)
@@ -1388,6 +1465,7 @@ const ResearchLibrary = () => {
                             padding: 0,
                             display:
                               selectedLibrary === "all" ? "none" : "block",
+                            fontSize: "0.875rem",
                           }}
                           onMouseOver={(e) =>
                             (e.currentTarget.style.color = "#991b1b")
@@ -1400,6 +1478,7 @@ const ResearchLibrary = () => {
                         </button>
                       </div>
 
+                      {/* Right side: Reading Status */}
                       {selectedLibrary !== "all" && (
                         <select
                           value={paper.readingStatus}
