@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import Navbar from "../components/Navbar";
+import CitationModal from "../components/CitationModal";
 import { useNavigate } from "react-router-dom";
 
 // API Base URL
@@ -39,6 +40,10 @@ const ResearchLibrary = () => {
     show: false,
     paperId: null,
     notes: "",
+  });
+  const [citationModal, setCitationModal] = useState({
+    isOpen: false,
+    paper: null,
   });
   const [loading, setLoading] = useState({
     libraries: false,
@@ -1475,6 +1480,12 @@ const ResearchLibrary = () => {
 
                         {/* Cite Button with ResultsPage styling */}
                         <button
+                          onClick={() =>
+                            setCitationModal({
+                              isOpen: true,
+                              paper,
+                            })
+                          }
                           style={{
                             display: "inline-flex",
                             alignItems: "center",
@@ -2080,6 +2091,19 @@ const ResearchLibrary = () => {
           </div>
         </div>
       )}
+
+      {/* Citation Modal */}
+      <CitationModal
+        isOpen={citationModal.isOpen}
+        onClose={() =>
+          setCitationModal({
+            isOpen: false,
+            paper: null,
+          })
+        }
+        paper={citationModal.paper}
+        API_BASE_URL={API_BASE_URL}
+      />
     </div>
   );
 };
