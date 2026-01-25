@@ -19,7 +19,7 @@ const authorAutocomplete = async (req, res) => {
     // Fetch matching authors
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, profile_picture_url')
+      .select('id, name, affiliation,profile_picture_url')
       .ilike('name', `%${query}%`)
       .order('name', { ascending: true })
       .limit(10); 
