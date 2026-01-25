@@ -828,14 +828,15 @@ const ReferencesPage = () => {
                       </span>
                     )}
                     <span style={{ color: "#888", fontSize: 13 }}>
-                      {r.venue || 'Unknown'} · {r.year || 'n.d.'}
+                      {r.venue || ''} · {r.year || r.date || 'n.d.'}
+                      {/* {r.venue || 'Unknown'} · {r.year || 'n.d.'} */}
                     </span>
                   </div>
 
                   <p style={{ marginTop: 10, color: "#444" }}>
                     {r.abstract ? 
                       (r.abstract.length > 200 ? r.abstract.substring(0, 200) + '...' : r.abstract) : 
-                      'No abstract available'}
+                      ''}
                   </p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>

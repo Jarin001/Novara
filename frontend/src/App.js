@@ -25,7 +25,7 @@ import UserLibrary from "./pages/UserLibrary";
 import Bibtex from "./pages/Bibtex";
 import LoginRegister from "./pages/LoginRegister";
 import VerifyEmail from "./pages/VerifyEmail"; 
-import Authors from "./pages/authors";  
+import Authors from "./pages/Authors";  
 
 // Search routing helper
 function SearchRouteSwitch() {

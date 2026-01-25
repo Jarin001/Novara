@@ -114,8 +114,11 @@ const SearchResults = () => {
   };
 
   const handleSuggestionClick = (suggestion) => {
-    setQ(suggestion.title);
+    const searchQuery = suggestion.title;
+    setQ(searchQuery);
     setShowSuggestions(false);
+    // Navigate directly to results page with the selected suggestion
+    navigate(`/search?q=${encodeURIComponent(searchQuery)}&type=${encodeURIComponent(searchType)}`);
   };
 
   return (
@@ -420,4 +423,3 @@ const SearchResults = () => {
 };
 
 export default SearchResults;
-
