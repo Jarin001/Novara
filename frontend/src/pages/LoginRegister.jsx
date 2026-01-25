@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../config/supabase';
+import { useUser } from '../contexts/UserContext';
 import './LoginRegister.css';
 
 export default function LoginRegister() {
@@ -10,6 +10,7 @@ export default function LoginRegister() {
   const [error, setError] = useState('');
   const navigate = useNavigate();
   const location = useLocation();
+  const { refreshUserData } = useUser();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -28,91 +29,105 @@ export default function LoginRegister() {
     }
   }, [location.pathname]);
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError('');
-  setLoading(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-  try {
-    if (isLogin) {
-      // LOGIN - Call YOUR backend
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
-
-      // Store the token from YOUR backend
-      localStorage.setItem('access_token', data.session.access_token);
-      console.log('Login successful, token stored');
-      navigate('/search');
-      
-    } else {
-      // REGISTER - Call YOUR backend
-      if (formData.password !== formData.confirmPassword) {
-        throw new Error('Passwords do not match!');
-      }
-
-      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          password: formData.password,
-          affiliation: formData.affiliation || '',
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (!response.ok) {
-        // Check if there are detailed password validation errors
-        if (data.details && Array.isArray(data.details)) {
-          throw new Error(data.error + ':\n• ' + data.details.join('\n• '));
-        }
-        throw new Error(data.error || 'Registration failed');
-      }
-
-      if (data.requiresEmailVerification) {
-        alert('Registration successful! Please check your email to verify your account.');
-        setIsLogin(true); // Switch to login mode
-        setFormData({
-          name: '',
-          email: formData.email, // Keep email for convenience
-          password: '',
-          confirmPassword: '',
-          affiliation: ''
+    try {
+      if (isLogin) {
+        // LOGIN - Call YOUR backend
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: formData.email,
+            password: formData.password,
+          }),
         });
-      } else {
-        // Auto-confirmed (rare)
-        if (data.session?.access_token) {
-          localStorage.setItem('access_token', data.session.access_token);
-        }
-        navigate('/search');
-      }
-    }
-  } catch (error) {
-    setError(error.message);
-    console.error('Auth error:', error);
-  } finally {
-    setLoading(false);
-  }
-};
 
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Login failed');
+        }
+
+        // Store BOTH tokens from YOUR backend
+        localStorage.setItem('access_token', data.session.access_token);
+        if (data.session.refresh_token) {
+          localStorage.setItem('refresh_token', data.session.refresh_token);
+        }
+        
+        console.log('Login successful, tokens stored');
+        
+        // Refresh user data in context
+        await refreshUserData();
+        
+        // Navigate to search
+        navigate('/search');
+        
+      } else {
+        // REGISTER - Call YOUR backend
+        if (formData.password !== formData.confirmPassword) {
+          throw new Error('Passwords do not match!');
+        }
+
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/auth/register`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            password: formData.password,
+            affiliation: formData.affiliation || '',
+          }),
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          // Check if there are detailed password validation errors
+          if (data.details && Array.isArray(data.details)) {
+            throw new Error(data.error + ':\n• ' + data.details.join('\n• '));
+          }
+          throw new Error(data.error || 'Registration failed');
+        }
+
+        if (data.requiresEmailVerification) {
+          alert('Registration successful! Please check your email to verify your account.');
+          setIsLogin(true); // Switch to login mode
+          setFormData({
+            name: '',
+            email: formData.email, // Keep email for convenience
+            password: '',
+            confirmPassword: '',
+            affiliation: ''
+          });
+        } else {
+          // Auto-confirmed (rare)
+          if (data.session?.access_token) {
+            localStorage.setItem('access_token', data.session.access_token);
+            if (data.session.refresh_token) {
+              localStorage.setItem('refresh_token', data.session.refresh_token);
+            }
+            
+            // Refresh user data in context
+            await refreshUserData();
+          }
+          navigate('/search');
+        }
+      }
+    } catch (error) {
+      setError(error.message);
+      console.error('Auth error:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });

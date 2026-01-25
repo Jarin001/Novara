@@ -4,12 +4,14 @@ import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
 import Navbar from "../components/Navbar";
+import { useUser } from '../contexts/UserContext';
 
 // Import services
 import {
   getUserProfile,
   updateUserProfile,
   uploadProfilePicture,
+  removeProfilePicture,
   clearAuth
 } from '../services/userService';
 import {
@@ -19,11 +21,7 @@ import {
 } from '../services/paperService';
 
 // Import icons (using react-icons - install with: npm install react-icons)
-import { FiCamera, FiEdit2 } from 'react-icons/fi'; // Feather Icons
-// Alternative icon libraries you can use:
-// import { MdEdit, MdPhotoCamera } from 'react-icons/md'; // Material Design
-// import { BiCamera, BiEdit } from 'react-icons/bi'; // BoxIcons
-// import { AiOutlineCamera, AiOutlineEdit } from 'react-icons/ai'; // Ant Design
+import { FiCamera, FiEdit2 } from 'react-icons/fi'; 
 
 // Add this CSS for the abstract display
 const additionalStyles = `
@@ -51,8 +49,12 @@ const UserProfile = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
   
+  // Get refreshUserData from context to update navbar
+  const { refreshUserData } = useUser();
+  
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [showProfilePictureMenu, setShowProfilePictureMenu] = useState(false);
 
   // Loading and error states
   const [loading, setLoading] = useState(true);
@@ -267,6 +269,22 @@ const UserProfile = () => {
     initializeProfile();
   }, [navigate, userId]);
 
+  /**
+   * Close dropdown menu when clicking outside
+   */
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProfilePictureMenu && !event.target.closest('.profile-picture-container')) {
+        setShowProfilePictureMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfilePictureMenu]);
+
   const handleSaveProfile = async (updatedData) => {
     if (!isOwnProfile) return;
 
@@ -302,6 +320,7 @@ const UserProfile = () => {
 
     try {
       setUploadingPicture(true);
+      setShowProfilePictureMenu(false);
 
       const profilePictureUrl = await uploadProfilePicture(file);
 
@@ -310,11 +329,44 @@ const UserProfile = () => {
         profile_picture_url: profilePictureUrl
       }));
 
+      // Refresh navbar to show new profile picture
+      refreshUserData();
+
       alert('Profile picture updated successfully!');
 
     } catch (error) {
       console.error('Error uploading profile picture:', error);
       alert(`Failed to upload profile picture: ${error.message}`);
+    } finally {
+      setUploadingPicture(false);
+    }
+  };
+
+  const handleRemoveProfilePicture = async () => {
+    if (!isOwnProfile) return;
+
+    const confirmed = window.confirm('Are you sure you want to remove your profile picture?');
+    if (!confirmed) return;
+
+    try {
+      setUploadingPicture(true);
+      setShowProfilePictureMenu(false);
+
+      await removeProfilePicture();
+
+      setUserData(prev => ({
+        ...prev,
+        profile_picture_url: null
+      }));
+
+      // Refresh navbar to remove profile picture
+      refreshUserData();
+
+      alert('Profile picture removed successfully!');
+
+    } catch (error) {
+      console.error('Error removing profile picture:', error);
+      alert(`Failed to remove profile picture: ${error.message}`);
     } finally {
       setUploadingPicture(false);
     }
@@ -441,27 +493,86 @@ const UserProfile = () => {
                         </div>
                       )}
                       
-                      {/* Camera icon with proper React icon */}
+                      {/* Camera icon with dropdown menu */}
                       {isOwnProfile && (
                         <>
-                          <div
-                            className="avatar-edit-btn"
-                            onClick={() => document.getElementById('profilePictureInput').click()}
-                            style={{ 
-                              cursor: 'pointer', 
-                              opacity: uploadingPicture ? 0.5 : 1,
-                              pointerEvents: uploadingPicture ? 'none' : 'auto'
-                            }}
-                            title="Upload profile picture"
-                          >
-                            {uploadingPicture ? (
-                              <div className="spinner-border spinner-border-sm" role="status">
-                                <span className="visually-hidden">Uploading...</span>
+                          <div className="profile-picture-container position-relative">
+                            <div
+                              className="avatar-edit-btn"
+                              onClick={() => {
+                                // If no profile picture, directly open file picker
+                                if (!userData.profile_picture_url) {
+                                  document.getElementById('profilePictureInput').click();
+                                } else {
+                                  // If profile picture exists, show dropdown menu
+                                  setShowProfilePictureMenu(!showProfilePictureMenu);
+                                }
+                              }}
+                              style={{ 
+                                cursor: 'pointer', 
+                                opacity: uploadingPicture ? 0.5 : 1,
+                                pointerEvents: uploadingPicture ? 'none' : 'auto'
+                              }}
+                              title={userData.profile_picture_url ? "Manage profile picture" : "Upload profile picture"}
+                            >
+                              {uploadingPicture ? (
+                                <div className="spinner-border spinner-border-sm" role="status">
+                                  <span className="visually-hidden">Uploading...</span>
+                                </div>
+                              ) : (
+                                <FiCamera size={18} />
+                              )}
+                            </div>
+                            
+                            {/* Dropdown menu - only show if profile picture exists */}
+                            {showProfilePictureMenu && !uploadingPicture && userData.profile_picture_url && (
+                              <div 
+                                className="position-absolute bg-white rounded shadow-sm"
+                                style={{
+                                  top: '50%',
+                                  left: 'calc(100% + 8px)',
+                                  transform: 'translateY(-50%)',
+                                  zIndex: 1000,
+                                  border: '1px solid #e0e0e0',
+                                  minWidth: '120px',
+                                  overflow: 'hidden'
+                                }}
+                              >
+                                <button
+                                  className="w-100 text-start border-0 bg-white"
+                                  onClick={() => {
+                                    document.getElementById('profilePictureInput').click();
+                                  }}
+                                  style={{ 
+                                    cursor: 'pointer',
+                                    padding: '6px 10px',
+                                    fontSize: '13px',
+                                    transition: 'background-color 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+                                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                                >
+                                  Upload Picture
+                                </button>
+                                <button
+                                  className="w-100 text-start border-0 bg-white text-danger"
+                                  onClick={handleRemoveProfilePicture}
+                                  style={{ 
+                                    cursor: 'pointer',
+                                    padding: '6px 10px',
+                                    fontSize: '13px',
+                                    borderTop: '1px solid #f0f0f0',
+                                    transition: 'background-color 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => e.target.style.backgroundColor = '#fff5f5'}
+                                  onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                                >
+                                  Remove Picture
+                                </button>
                               </div>
-                            ) : (
-                              <FiCamera size={18} />
                             )}
                           </div>
+                          
                           <input
                             type="file"
                             id="profilePictureInput"

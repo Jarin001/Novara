@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect } from 'react';
+import React, { createContext, useState, useContext, useEffect, useRef } from 'react';
 
 const UserContext = createContext();
 
@@ -11,9 +11,15 @@ export const UserProvider = ({ children }) => {
   });
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const isFetchingRef = useRef(false);
 
   // Function to fetch user data
   const fetchUserData = async () => {
+    // Prevent multiple simultaneous fetches
+    if (isFetchingRef.current) {
+      return;
+    }
+
     const token = localStorage.getItem('access_token');
     
     if (!token) {
@@ -28,6 +34,8 @@ export const UserProvider = ({ children }) => {
       localStorage.removeItem('user_data');
       return;
     }
+
+    isFetchingRef.current = true;
 
     // Check if we have cached user data for instant display
     const cachedUserData = localStorage.getItem('user_data');
@@ -63,6 +71,10 @@ export const UserProvider = ({ children }) => {
         
         // Cache the user data
         localStorage.setItem('user_data', JSON.stringify(user));
+      } else if (response.status === 401) {
+        // Token is invalid or expired
+        console.error('Token invalid or expired');
+        logout();
       } else {
         console.error('Failed to fetch user profile');
         setIsLoggedIn(false);
@@ -72,6 +84,7 @@ export const UserProvider = ({ children }) => {
       setIsLoggedIn(false);
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -80,29 +93,27 @@ export const UserProvider = ({ children }) => {
     fetchUserData();
   }, []);
 
-  // Watch for token changes to detect login/logout
+  // Listen for storage events from other tabs (multi-tab sync)
   useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem('access_token');
-      const hasToken = !!token;
-      
-      // If login state changed, refetch
-      if (hasToken !== isLoggedIn) {
-        fetchUserData();
+    const handleStorageChange = (e) => {
+      // Only respond to access_token changes
+      if (e.key === 'access_token') {
+        if (e.newValue && !e.oldValue) {
+          // User logged in from another tab
+          fetchUserData();
+        } else if (!e.newValue && e.oldValue) {
+          // User logged out from another tab
+          logout();
+        }
       }
     };
 
-    // Check every 500ms for token changes (catches same-tab login)
-    const interval = setInterval(checkAuth, 500);
-    
-    // Also listen for storage events (multi-tab)
-    window.addEventListener('storage', checkAuth);
+    window.addEventListener('storage', handleStorageChange);
     
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('storage', handleStorageChange);
     };
-  }, [isLoggedIn]);
+  }, []);
 
   // Function to refresh user data
   const refreshUserData = () => {

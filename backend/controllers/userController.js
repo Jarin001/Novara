@@ -128,6 +128,31 @@ const uploadProfilePicture = async (req, res) => {
   }
 };
 
+// Remove profile picture
+const removeProfilePicture = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabase = req.supabase;
+
+    // Update user profile to remove profile picture URL
+    const { data: userData, error: updateError } = await supabase
+      .from('users')
+      .update({ profile_picture_url: null })
+      .eq('auth_id', authId)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.status(200).json({
+      message: 'Profile picture removed successfully',
+      user: userData
+    });
+  } catch (error) {
+    errorHandler(res, error, 'Failed to remove profile picture');
+  }
+};
+
 // ========================================
 // NEW FUNCTION (single route with everything)
 // ========================================
@@ -250,5 +275,6 @@ module.exports = {
   getUserProfile,
   updateUserProfile,
   uploadProfilePicture,
+  removeProfilePicture,
   getPublicUserProfile    
 };
