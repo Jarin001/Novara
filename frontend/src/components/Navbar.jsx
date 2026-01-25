@@ -26,7 +26,7 @@ const Navbar = () => {
   };
 
   const handleSignUp = () => {
-    navigate('/register'); // Navigate to register page
+    navigate('/register');
   };
 
   const toggleDropdown = () => {
@@ -42,9 +42,8 @@ const Navbar = () => {
     contextLogout();
     setDropdownOpen(false);
     
-    // Navigate to home and reload
+    // Navigate to home WITHOUT reload - this prevents glitching
     navigate('/');
-    window.location.reload();
   };
 
   const handleLibraryClick = () => {

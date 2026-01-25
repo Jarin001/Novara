@@ -28,6 +28,7 @@ const {
   getUserProfile,
   updateUserProfile,
   uploadProfilePicture,
+  removeProfilePicture,
   getPublicUserProfile
 } = require('../controllers/userController');
 
@@ -45,5 +46,6 @@ router.get('/profile/:user_id', getPublicUserProfile);
 router.get('/profile', authenticate, getUserProfile);
 router.put('/profile', authenticate, updateUserProfile);
 router.post('/profile-picture', authenticate, uploadProfilePicture);
+router.delete('/profile-picture', authenticate, removeProfilePicture);
 
 module.exports = router;

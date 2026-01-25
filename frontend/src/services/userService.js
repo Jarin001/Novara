@@ -110,6 +110,25 @@ export const uploadProfilePicture = async (file) => {
 };
 
 /**
+ * Remove profile picture
+ * @returns {Promise<Object>} Response data
+ */
+export const removeProfilePicture = async () => {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/users/profile-picture`, {
+      method: 'DELETE',
+      headers: createHeaders()
+    });
+    
+    const data = await handleResponse(response);
+    return data;
+  } catch (error) {
+    console.error('Error removing profile picture:', error);
+    throw error;
+  }
+};
+
+/**
  * Convert file to base64 string
  * @param {File} file - File to convert
  * @returns {Promise<string>} Base64 encoded string
