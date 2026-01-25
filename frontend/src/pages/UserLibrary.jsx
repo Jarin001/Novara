@@ -25,6 +25,7 @@ const ResearchLibrary = () => {
   const [libraries, setLibraries] = useState([]);
   const [sharedLibraries, setSharedLibraries] = useState([]);
   const [isSharedExpanded, setIsSharedExpanded] = useState(true);
+  const [expandedAbstracts, setExpandedAbstracts] = useState({});
   const [papers, setPapers] = useState([]);
   const [selectedLibrary, setSelectedLibrary] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
@@ -634,6 +635,13 @@ const ResearchLibrary = () => {
       default:
         return { backgroundColor: "#f3f4f6", color: "#1f2937" };
     }
+  };
+
+  const toggleAbstract = (paperId) => {
+    setExpandedAbstracts((prev) => ({
+      ...prev,
+      [paperId]: !prev[paperId],
+    }));
   };
 
   // Show loading state until libraries are loaded on initial page load, OR until initial papers load
@@ -1343,6 +1351,8 @@ const ResearchLibrary = () => {
 
                     {/* Abstract */}
                     {/* Abstract - Updated colors */}
+                    {/* Abstract */}
+                    {/* Abstract - Updated colors */}
                     <p
                       style={{
                         fontSize: "0.875rem",
@@ -1351,27 +1361,69 @@ const ResearchLibrary = () => {
                         lineHeight: "1.5",
                       }}
                     >
-                      {paper.abstract && paper.abstract.length > 300
-                        ? `${paper.abstract.substring(0, 300)}... `
-                        : paper.abstract}
-                      {paper.abstract && paper.abstract.length > 300 && (
-                        <a
-                          href="#"
-                          style={{
-                            color: "#3E513E",
-                            textDecoration: "none",
-                            cursor: "pointer",
-                          }}
-                          onMouseOver={(e) =>
-                            (e.currentTarget.style.textDecoration = "underline")
-                          }
-                          onMouseOut={(e) =>
-                            (e.currentTarget.style.textDecoration = "none")
-                          }
-                        >
-                          Expand
-                        </a>
+                      {paper.abstract ? (
+                        expandedAbstracts[paper.id] ? (
+                          paper.abstract
+                        ) : (
+                          <>
+                            {paper.abstract.length > 300
+                              ? `${paper.abstract.substring(0, 300)}... `
+                              : paper.abstract}
+                            {paper.abstract.length > 300 && (
+                              <a
+                                href="#"
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  toggleAbstract(paper.id);
+                                }}
+                                style={{
+                                  color: "#3E513E",
+                                  textDecoration: "none",
+                                  cursor: "pointer",
+                                }}
+                                onMouseOver={(e) =>
+                                  (e.currentTarget.style.textDecoration =
+                                    "underline")
+                                }
+                                onMouseOut={(e) =>
+                                  (e.currentTarget.style.textDecoration =
+                                    "none")
+                                }
+                              >
+                                Expand
+                              </a>
+                            )}
+                          </>
+                        )
+                      ) : (
+                        "No abstract available"
                       )}
+                      {expandedAbstracts[paper.id] &&
+                        paper.abstract &&
+                        paper.abstract.length > 300 && (
+                          <a
+                            href="#"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleAbstract(paper.id);
+                            }}
+                            style={{
+                              color: "#3E513E",
+                              textDecoration: "none",
+                              cursor: "pointer",
+                              marginLeft: "8px",
+                            }}
+                            onMouseOver={(e) =>
+                              (e.currentTarget.style.textDecoration =
+                                "underline")
+                            }
+                            onMouseOut={(e) =>
+                              (e.currentTarget.style.textDecoration = "none")
+                            }
+                          >
+                            Show less
+                          </a>
+                        )}
                     </p>
 
                     {/* Bottom Actions */}
