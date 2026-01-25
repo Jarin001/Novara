@@ -4,6 +4,7 @@ import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
 import UploadPaperModal from './UploadPaperModal';
 import Navbar from "../components/Navbar";
+import { useUser } from '../contexts/UserContext';
 
 // Import services
 import {
@@ -50,6 +51,9 @@ if (typeof document !== 'undefined') {
 const UserProfile = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
+  
+  // Get user data from context
+  const { userData: contextUserData, isLoggedIn, refreshUserData } = useUser();
   
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -198,9 +202,8 @@ const UserProfile = () => {
    */
   useEffect(() => {
     const initializeProfile = async () => {
-      const token = localStorage.getItem('access_token');
-
-      if (!token) {
+      // Check login status from context
+      if (!isLoggedIn) {
         navigate('/login');
         return;
       }
@@ -229,24 +232,20 @@ const UserProfile = () => {
           }));
           
         } else {
-          // VIEWING OWN PROFILE
+          // VIEWING OWN PROFILE - USE DATA FROM CONTEXT
           setIsOwnProfile(true);
           
-          const profile = await getUserProfile();
-          
+          // Use data from UserContext (already fetched!)
           setUserData(prev => ({
             ...prev,
-            name: profile.name || "",
-            email: profile.email || "",
-            affiliation: profile.affiliation || "",
-            institution: profile.affiliation || "",
-            researchInterests: profile.research_interests || [],
-            joinedDate: profile.created_at 
-              ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
-              : "",
-            profile_picture_url: profile.profile_picture_url || null
+            name: contextUserData.name || "",
+            email: contextUserData.email || "",
+            affiliation: contextUserData.affiliation || "",
+            institution: contextUserData.affiliation || "",
+            profile_picture_url: contextUserData.profile_picture_url || null
           }));
 
+          // Only fetch profile-specific data (publications, reading stats)
           await fetchPublications();
           await fetchReadingProgress();
         }
@@ -265,7 +264,7 @@ const UserProfile = () => {
     };
 
     initializeProfile();
-  }, [navigate, userId]);
+  }, [navigate, userId, isLoggedIn, contextUserData]);
 
   const handleSaveProfile = async (updatedData) => {
     if (!isOwnProfile) return;
@@ -282,6 +281,9 @@ const UserProfile = () => {
         researchInterests: updatedData.researchInterests,
         institution: updatedData.affiliation
       }));
+
+      // Refresh UserContext so Navbar and other components get updated data
+      refreshUserData();
 
       alert('Profile updated successfully!');
 
@@ -309,6 +311,9 @@ const UserProfile = () => {
         ...prev,
         profile_picture_url: profilePictureUrl
       }));
+
+      // Refresh UserContext so Navbar gets updated profile picture
+      refreshUserData();
 
       alert('Profile picture updated successfully!');
 

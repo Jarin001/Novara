@@ -282,9 +282,53 @@ const verifyEmail = async (req, res) => {
   }
 };
 
+// Refresh access token using refresh token
+const refreshToken = async (req, res) => {
+  try {
+    const { refresh_token } = req.body;
+
+    if (!refresh_token) {
+      return res.status(400).json({
+        error: 'Refresh token is required'
+      });
+    }
+
+    // Use Supabase's refreshSession method
+    const { data, error } = await supabase.auth.refreshSession({
+      refresh_token
+    });
+
+    if (error) {
+      console.error('Token refresh error:', error);
+      return res.status(401).json({
+        error: 'Invalid or expired refresh token'
+      });
+    }
+
+    // Return new tokens
+    res.status(200).json({
+      message: 'Token refreshed successfully',
+      session: {
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
+        expires_at: data.session.expires_at,
+        expires_in: data.session.expires_in
+      },
+      user: {
+        id: data.user.id,
+        email: data.user.email,
+        email_confirmed: !!data.user.email_confirmed_at
+      }
+    });
+  } catch (error) {
+    errorHandler(res, error, 'Token refresh failed');
+  }
+};
+
 module.exports = {
   register,
   login,
   resendVerificationEmail,
-  verifyEmail
+  verifyEmail,
+  refreshToken 
 };

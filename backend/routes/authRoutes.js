@@ -4,7 +4,8 @@ const {
   register,
   login,
   resendVerificationEmail,
-  verifyEmail
+  verifyEmail,
+  refreshToken
 } = require('../controllers/authController');
 
 // Public routes
@@ -12,5 +13,6 @@ router.post('/register', register);
 router.post('/login', login);
 router.post('/resend-verification', resendVerificationEmail);
 router.get('/verify-email', verifyEmail);
+router.post('/refresh', refreshToken);
 
 module.exports = router;
