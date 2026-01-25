@@ -42,14 +42,27 @@ export const getUserPublications = async () => {
     
     const data = await handleResponse(response);
     
-    // Transform publications to match UI format
+    // Transform publications to match UI format - NOW INCLUDING ALL FIELDS
     const transformedPublications = data.publications.map(pub => ({
       id: pub.id,
+      paperId: pub.s2_paper_id,  // Add paperId for routing
       title: pub.title,
       authors: pub.authors && pub.authors.length > 0 ? pub.authors.join(', ') : 'Unknown Authors',
       abstract: pub.abstract || 'No abstract available',
       citations: pub.citation_count || 0,
-      year: pub.year || (pub.published_date ? new Date(pub.published_date).getFullYear() : 'N/A')
+      citationCount: pub.citation_count || 0,  // Add both for compatibility
+      year: pub.year || (pub.published_date ? new Date(pub.published_date).getFullYear() : 'N/A'),
+      
+      // NEW: Include fields_of_study from backend
+      fieldsOfStudy: pub.fields_of_study || [],
+      
+      // NEW: Include venue (if available in future)
+      venue: pub.venue || null,
+      
+      // Keep other useful fields
+      published_date: pub.published_date,
+      paper_id: pub.paper_id,
+      s2_paper_id: pub.s2_paper_id
     }));
     
     return transformedPublications;

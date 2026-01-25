@@ -1,5 +1,3 @@
-
-
 const paperDetailsService = require('../services/paperdetails.service');
 
 /**
@@ -133,7 +131,7 @@ exports.addUserPublication = async (req, res) => {
     // Check if paper already exists in database
     let { data: existingPaper } = await supabase
       .from('papers')
-      .select('id, s2_paper_id, title')
+      .select('id, s2_paper_id, title, venue')
       .eq('s2_paper_id', s2PaperId)
       .maybeSingle();
 
@@ -145,7 +143,7 @@ exports.addUserPublication = async (req, res) => {
     } else {
       console.log('📝 Creating new paper in database...');
       
-      // Save paper to PostgreSQL
+      // Save paper to PostgreSQL - NOW INCLUDING VENUE
       const { data: newPaper, error: paperError } = await supabase
         .from('papers')
         .insert({
@@ -154,7 +152,8 @@ exports.addUserPublication = async (req, res) => {
           year: paperData.year || paperData.published_year || null,
           published_date: paperData.publicationDate || paperData.publication_date || (paperData.year ? `${paperData.year}-01-01` : null),
           citation_count: paperData.citationCount || paperData.citation_count || 0,
-          fields_of_study: paperData.fieldsOfStudy || paperData.fields_of_study || []
+          fields_of_study: paperData.fieldsOfStudy || paperData.fields_of_study || [],
+          venue: paperData.venue || null  // NEW: Include venue
         })
         .select()
         .single();
@@ -268,9 +267,7 @@ exports.addUserPublication = async (req, res) => {
       });
     }
 
-    // Link paper to user's publications
-    console.log('🔗 Linking paper to user...');
-    
+    // Add to user's publications
     const { data: userPaper, error: linkError } = await supabase
       .from('user_papers')
       .insert({
@@ -310,6 +307,7 @@ exports.addUserPublication = async (req, res) => {
 
 /**
  * Get user's publications with authors and abstract from MongoDB
+ * UPDATED: Now includes venue in the response
  */
 exports.getUserPublications = async (req, res) => {
   try {
@@ -327,6 +325,7 @@ exports.getUserPublications = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    // UPDATED: Now selecting venue from papers table
     const { data: publications, error: pubError } = await supabase
       .from('user_papers')
       .select(`
@@ -339,7 +338,8 @@ exports.getUserPublications = async (req, res) => {
           year,
           published_date,
           citation_count,
-          fields_of_study
+          fields_of_study,
+          venue
         )
       `)
       .eq('user_id', userData.id)
@@ -388,7 +388,7 @@ exports.getUserPublications = async (req, res) => {
         const paperContent = contentMap.get(pub.papers.id.toString());
         const abstract = paperContent?.abstract || '';
 
-        // CRITICAL FIX: Don't spread pub.papers as it overwrites the id
+        // UPDATED: Now including venue in the response
         return {
           id: pub.id,                           // ← user_papers.id (for DELETE)
           uploaded_at: pub.uploaded_at,
@@ -399,6 +399,7 @@ exports.getUserPublications = async (req, res) => {
           published_date: pub.papers.published_date,
           citation_count: pub.papers.citation_count,
           fields_of_study: pub.papers.fields_of_study,
+          venue: pub.papers.venue,              // NEW: Include venue
           authors: authors,
           abstract: abstract
         };

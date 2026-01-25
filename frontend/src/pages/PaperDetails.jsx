@@ -1145,34 +1145,164 @@ const PaperDetails = () => {
               style={{ marginBottom: activeTab === 'topics' ? 40 : 0 }}
             >
               <h3 style={{ fontSize: 16, fontWeight: 600, color: '#222', marginBottom: 20 }}>Paper Details</h3>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>DOI</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>
-                    <a href={`https://doi.org/${paper.doi}`} style={{ color: '#3E513E', textDecoration: 'none' }}>
-                      {paper.doi}
-                    </a>
+              
+              {/* Compact Card-Based Layout */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', 
+                gap: 12,
+                background: '#f8f9fa',
+                padding: 20,
+                borderRadius: 8,
+                border: '1px solid #e0e0e0'
+              }}>
+                {/* DOI */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    DOI
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {paper.doi ? (
+                      <a 
+                        href={`https://doi.org/${paper.doi}`} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: '#3E513E', textDecoration: 'none' }}
+                      >
+                        {paper.doi}
+                      </a>
+                    ) : (
+                      <span style={{ color: '#999' }}>—</span>
+                    )}
                   </p>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Corpus ID</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.corpusId}</p>
+
+                {/* Corpus ID */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    Corpus ID
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {paper.corpusId || <span style={{ color: '#999' }}>—</span>}
+                  </p>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Publication Venue</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.venue}</p>
+
+                {/* Publication Venue */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    Publication Venue
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {paper.venue || <span style={{ color: '#999' }}>Unknown</span>}
+                  </p>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Year</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.year || 'n.d.'}</p>
+
+                {/* Year */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    Year
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {paper.year || 'n.d.'}
+                  </p>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Authors</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{(paper.authors || []).length}</p>
+
+                {/* Authors Count */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    Authors
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {(paper.authors || []).length}
+                  </p>
                 </div>
-                <div>
-                  <p style={{ fontSize: 12, fontWeight: 600, color: '#999', textTransform: 'uppercase', marginBottom: 8 }}>Citations</p>
-                  <p style={{ fontSize: 14, color: '#333', margin: 0 }}>{paper.citationCount}</p>
+
+                {/* Citations */}
+                <div style={{
+                  background: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: 6,
+                  borderLeft: '3px solid #3E513E',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+                }}>
+                  <p style={{ 
+                    fontSize: 11, 
+                    fontWeight: 700, 
+                    color: '#999', 
+                    textTransform: 'uppercase', 
+                    marginBottom: 6,
+                    letterSpacing: '0.5px'
+                  }}>
+                    Citations
+                  </p>
+                  <p style={{ fontSize: 13, color: '#333', margin: 0, fontWeight: 500 }}>
+                    {paper.citationCount?.toLocaleString() || 0}
+                  </p>
                 </div>
               </div>
             </div>
