@@ -44,8 +44,9 @@ export const getUserPublications = async () => {
     
     // Transform publications to match UI format - NOW INCLUDING ALL FIELDS
     const transformedPublications = data.publications.map(pub => ({
-      id: pub.id,
-      paperId: pub.s2_paper_id,  // Add paperId for routing
+      id: pub.id,  // Keep this as the user_papers.id for deletion
+      paperId: pub.s2_paper_id,  // CRITICAL: Use s2_paper_id for routing to paper details
+      s2_paper_id: pub.s2_paper_id,
       title: pub.title,
       authors: pub.authors && pub.authors.length > 0 ? pub.authors.join(', ') : 'Unknown Authors',
       abstract: pub.abstract || 'No abstract available',
@@ -56,14 +57,15 @@ export const getUserPublications = async () => {
       // NEW: Include fields_of_study from backend
       fieldsOfStudy: pub.fields_of_study || [],
       
-      // NEW: Include venue (if available in future)
+      // NEW: Include venue
       venue: pub.venue || null,
       
       // Keep other useful fields
       published_date: pub.published_date,
-      paper_id: pub.paper_id,
-      s2_paper_id: pub.s2_paper_id
+      paper_id: pub.paper_id
     }));
+    
+    console.log('📄 Sample transformed publication:', transformedPublications[0]);
     
     return transformedPublications;
   } catch (error) {
