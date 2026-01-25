@@ -2076,6 +2076,67 @@ import { API_ENDPOINTS } from '../config/api';
 import bookmarkIcon from "../images/bookmark.png";
 import invertedCommasIcon from "../images/inverted-commas.png";
 
+// Global cache for citation data (shared across components)
+const citationCache = new Map();
+
+// Load cache from localStorage on initial load
+const loadCitationCacheFromStorage = () => {
+  try {
+    const stored = localStorage.getItem('citationCache');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      Object.entries(parsed).forEach(([key, value]) => {
+        citationCache.set(key, value);
+      });
+    }
+  } catch (error) {
+    console.warn('Failed to load citation cache from storage:', error);
+  }
+};
+
+// Save cache to localStorage
+const saveCitationCacheToStorage = () => {
+  try {
+    const cacheObj = Object.fromEntries(citationCache);
+    localStorage.setItem('citationCache', JSON.stringify(cacheObj));
+  } catch (error) {
+    console.warn('Failed to save citation cache to storage:', error);
+  }
+};
+
+// Helper function to fetch citations with caching
+const fetchPaperCitationsWithCache = async (paperId) => {
+  // Return from cache if available
+  if (citationCache.has(paperId)) {
+    console.log(`Using cached citations for paper: ${paperId}`);
+    return citationCache.get(paperId);
+  }
+
+  try {
+    console.log(`Fetching citations for paper: ${paperId}`);
+    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      const citations = data.data || [];
+      citationCache.set(paperId, citations);
+      saveCitationCacheToStorage(); // Save to localStorage
+      return citations;
+    }
+  } catch (error) {
+    console.warn("Could not fetch citations:", error);
+  }
+  
+  return [];
+};
+
+// Helper function to fetch BibTeX with caching
+const fetchPaperBibtexWithCache = async (paperId) => {
+  const citations = await fetchPaperCitationsWithCache(paperId);
+  const bibtexFormat = citations.find(f => f.id === 'bibtex');
+  return bibtexFormat ? bibtexFormat.value : '';
+};
+
 // Helper functions for citation formatting
 const getCitationText = (item, format) => {
   if (!item) return '';
@@ -2159,10 +2220,10 @@ const PaperDetails = () => {
   const [keywordsExtracted, setKeywordsExtracted] = useState(false);
   const [usingFallback, setUsingFallback] = useState(false);
 
-  // NEW: State for BibTeX
+  // State for BibTeX
   const [paperBibtex, setPaperBibtex] = useState('');
 
-  // UPDATED: State to check if PDF is available
+  // State to check if PDF is available
   const [pdfAvailable, setPdfAvailable] = useState(false);
   const [pdfChecking, setPdfChecking] = useState(false);
   const [pdfUrl, setPdfUrl] = useState('');
@@ -2172,7 +2233,12 @@ const PaperDetails = () => {
   const detailsSectionRef = useRef(null);
   const messagesEndRef = useRef(null);
 
-  // NEW: Improved PDF validation function - More lenient for arXiv
+  // Load citation cache from localStorage on mount
+  useEffect(() => {
+    loadCitationCacheFromStorage();
+  }, []);
+
+  // Improved PDF validation function - More lenient for arXiv
   const validatePdfUrl = async (url) => {
     if (!url) return false;
     
@@ -2313,8 +2379,13 @@ const PaperDetails = () => {
             setKeywordsExtracted(true);
           }
           
-          // Try to fetch BibTeX for the paper
-          fetchPaperBibtex(data.paperId || paperId);
+          // Try to fetch BibTeX for the paper using cache
+          if (data.paperId || paperId) {
+            const bibtex = await fetchPaperBibtexWithCache(data.paperId || paperId);
+            if (bibtex) {
+              setPaperBibtex(bibtex);
+            }
+          }
         } else {
           const errorText = await response.text();
           console.error(`Error response (${response.status}):`, errorText);
@@ -2331,25 +2402,6 @@ const PaperDetails = () => {
 
     fetchPaperDetails();
   }, [paperId]);
-
-  // NEW: Function to fetch BibTeX for a paper
-  const fetchPaperBibtex = async (paperIdToFetch) => {
-    try {
-      console.log(`Fetching BibTeX for paper: ${paperIdToFetch}`);
-      const response = await fetch(`http://localhost:5000/api/citations/${paperIdToFetch}`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
-        if (bibtexFormat && bibtexFormat.value) {
-          console.log("BibTeX fetched successfully");
-          setPaperBibtex(bibtexFormat.value);
-        }
-      }
-    } catch (error) {
-      console.warn("Could not fetch BibTeX:", error);
-    }
-  };
 
   // Check authentication and fetch user libraries
   useEffect(() => {
@@ -2403,14 +2455,14 @@ const PaperDetails = () => {
     checkAuthAndFetchLibraries();
   }, []);
 
-  // NEW: Auto-scroll to bottom of chat when new messages are added
+  // Auto-scroll to bottom of chat when new messages are added
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [messages]);
 
-  // NEW FUNCTION: Get JWT token from localStorage
+  // Get JWT token from localStorage
   const getAuthToken = () => {
     // Try to get access_token directly from localStorage
     const accessToken = localStorage.getItem('access_token');
@@ -2643,7 +2695,7 @@ const PaperDetails = () => {
     setSelectedLibraries([]);
   };
 
-  // UPDATED FUNCTION: Save paper to libraries with BibTeX
+  // UPDATED FUNCTION: Save paper to libraries with cached BibTeX
   const handleSaveToLibraries = async () => {
     if (selectedLibraries.length === 0) {
       alert('Please select at least one library');
@@ -2661,21 +2713,10 @@ const PaperDetails = () => {
       // Get current BibTeX or fetch it if not available
       let bibtexData = paperBibtex;
       if (!bibtexData && (paper.paperId || paper.id)) {
-        // Fetch BibTeX if not already fetched
-        try {
-          console.log(`Fetching BibTeX for saving paper: ${paper.paperId || paper.id}`);
-          const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId || paper.id}`);
-          
-          if (response.ok) {
-            const data = await response.json();
-            const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
-            if (bibtexFormat && bibtexFormat.value) {
-              bibtexData = bibtexFormat.value;
-              setPaperBibtex(bibtexData); // Store it for future use
-            }
-          }
-        } catch (bibtexError) {
-          console.warn("Could not fetch BibTeX:", bibtexError);
+        // Fetch BibTeX using cache
+        bibtexData = await fetchPaperBibtexWithCache(paper.paperId || paper.id);
+        if (bibtexData) {
+          setPaperBibtex(bibtexData); // Store it for future use
         }
       }
 
@@ -2807,7 +2848,7 @@ const PaperDetails = () => {
     });
   };
 
-  // UPDATED: Citation modal functions - Store BibTeX when fetched
+  // UPDATED: Citation modal functions with caching
   const openCite = async () => {
     if (!paper || !paper.paperId) return;
     
@@ -2817,29 +2858,21 @@ const PaperDetails = () => {
     setCopied(false);
     
     try {
-      console.log(`Fetching citations for paper: ${paper.paperId}`);
-      const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId}`);
+      // Use cached citations
+      const citations = await fetchPaperCitationsWithCache(paper.paperId);
+      console.log("Citations (cached/fetched):", citations);
+      setCiteFormats(citations);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Citations fetched:", data);
-        setCiteFormats(data.data || []);
+      // Set default format to first available or bibtex
+      if (citations && citations.length > 0) {
+        setCiteFormat(citations[0].id || 'bibtex');
         
-        // Set default format to first available or bibtex
-        if (data.data && data.data.length > 0) {
-          setCiteFormat(data.data[0].id || 'bibtex');
-          
-          // Find and store BibTeX
-          const bibtexFormat = data.data.find(f => f.id === 'bibtex');
-          if (bibtexFormat && bibtexFormat.value) {
-            setPaperBibtex(bibtexFormat.value);
-          }
-        } else {
-          setCiteFormat('bibtex');
+        // Find and store BibTeX
+        const bibtexFormat = citations.find(f => f.id === 'bibtex');
+        if (bibtexFormat && bibtexFormat.value) {
+          setPaperBibtex(bibtexFormat.value);
         }
       } else {
-        console.error("Failed to fetch citations");
-        setCiteFormats([]);
         setCiteFormat('bibtex');
       }
     } catch (error) {
@@ -2859,7 +2892,7 @@ const PaperDetails = () => {
   const copyCitation = async () => {
     let txt = '';
     
-    // Try to get citation from backend format
+    // Try to get citation from cached format
     if (citeFormats && citeFormats.length > 0) {
       const selectedFormat = citeFormats.find(f => f.id === citeFormat);
       if (selectedFormat) {
@@ -2905,7 +2938,7 @@ const PaperDetails = () => {
   const downloadBibTeX = () => {
     let content = '';
     
-    // Try to get BibTeX from backend format
+    // Try to get BibTeX from cached format
     if (citeFormats && citeFormats.length > 0) {
       const bibTexFormat = citeFormats.find(f => f.id === 'bibtex');
       if (bibTexFormat) {

@@ -43,6 +43,25 @@ const fetchPaperBibtex = async (paperId) => {
   return '';
 };
 
+// Helper function to fetch citation formats EXCLUDING BibTeX
+const fetchCitationFormatsWithoutBibtex = async (paperId) => {
+  try {
+    console.log(`Fetching citation formats (excluding BibTeX) for paper: ${paperId}`);
+    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    
+    if (response.ok) {
+      const data = await response.json();
+      // Filter out BibTeX since we already have it or will get it separately
+      const formatsWithoutBibtex = (data.data || []).filter(f => f.id !== 'bibtex');
+      console.log("Citation formats (excluding BibTeX) fetched:", formatsWithoutBibtex);
+      return formatsWithoutBibtex;
+    }
+  } catch (error) {
+    console.warn("Could not fetch citation formats:", error);
+  }
+  return [];
+};
+
 const CitationsPage = () => {
   const { paperId } = useParams();
   const navigate = useNavigate();
@@ -71,13 +90,16 @@ const CitationsPage = () => {
   const [newLibraryName, setNewLibraryName] = useState('');
   const [creatingLibrary, setCreatingLibrary] = useState(false);
   
-  // Citation modal state - UPDATED TO MATCH PAPERDETAILS
+  // Citation modal state - OPTIMIZED VERSION
   const [citeOpen, setCiteOpen] = useState(false);
   const [citeItem, setCiteItem] = useState(null);
   const [citeFormats, setCiteFormats] = useState([]);
   const [citeFormat, setCiteFormat] = useState('bibtex');
   const [copied, setCopied] = useState(false);
   const [citeLoading, setCiteLoading] = useState(false);
+  
+  // Cache for BibTeX to avoid repeated fetching
+  const [bibtexCache, setBibtexCache] = useState(new Map());
   
   const containerRef = useRef(null);
 
@@ -246,7 +268,7 @@ const CitationsPage = () => {
     };
   }, [saveOpen, citeOpen]);
 
-  // UPDATED: Citation modal functions - MATCHING PAPERDETAILS.JSX
+  // OPTIMIZED: Citation modal functions - Using cached BibTeX
   const openCite = async (item) => {
     if (!item || !item.paperId) return;
     
@@ -257,29 +279,74 @@ const CitationsPage = () => {
     setCiteItem(item);
     
     try {
-      console.log(`Fetching citations for paper: ${item.paperId}`);
-      const response = await fetch(`http://localhost:5000/api/citations/${item.paperId}`);
+      const paperId = item.paperId;
+      console.log(`Opening citation modal for paper: ${paperId}`);
       
-      if (response.ok) {
-        const data = await response.json();
-        console.log("Citations fetched:", data);
-        setCiteFormats(data.data || []);
-        
-        // Set default format to first available or bibtex
-        if (data.data && data.data.length > 0) {
-          setCiteFormat(data.data[0].id || 'bibtex');
-        } else {
-          setCiteFormat('bibtex');
-        }
+      // Create initial formats array with BibTeX placeholder
+      const initialFormats = [{
+        id: 'bibtex',
+        label: 'BibTeX',
+        value: '' // Will be filled from cache or fetched
+      }];
+      
+      setCiteFormats(initialFormats);
+      setCiteFormat('bibtex');
+      
+      // Check if we have BibTeX in cache
+      let bibtexValue = bibtexCache.get(paperId);
+      let needToFetchBibtex = false;
+      
+      if (bibtexValue) {
+        console.log("Using cached BibTeX");
+        // Update BibTeX in the formats array
+        initialFormats[0].value = bibtexValue;
+        setCiteFormats([...initialFormats]);
       } else {
-        console.error("Failed to fetch citations");
-        setCiteFormats([]);
-        setCiteFormat('bibtex');
+        console.log("No cached BibTeX, will fetch it");
+        needToFetchBibtex = true;
       }
+      
+      // Fetch non-BibTeX formats (APA, MLA, IEEE) in parallel
+      const otherFormatsPromise = fetchCitationFormatsWithoutBibtex(paperId);
+      
+      // If we need BibTeX, fetch it too
+      let bibtexPromise = null;
+      if (needToFetchBibtex) {
+        bibtexPromise = fetchPaperBibtex(paperId);
+      }
+      
+      // Wait for all fetches to complete
+      const [otherFormats, fetchedBibtex] = await Promise.all([
+        otherFormatsPromise,
+        bibtexPromise
+      ]);
+      
+      // Update BibTeX if it was fetched
+      if (fetchedBibtex) {
+        console.log("BibTeX fetched successfully");
+        bibtexValue = fetchedBibtex;
+        // Cache it for future use
+        setBibtexCache(prev => new Map(prev).set(paperId, fetchedBibtex));
+        initialFormats[0].value = fetchedBibtex;
+      }
+      
+      // Combine all formats: BibTeX (from cache or fresh) + other formats
+      const allFormats = [
+        ...initialFormats,
+        ...otherFormats
+      ];
+      
+      console.log("All citation formats loaded:", allFormats);
+      setCiteFormats(allFormats);
+      
     } catch (error) {
       console.error("Citation fetch error:", error);
-      setCiteFormats([]);
-      setCiteFormat('bibtex');
+      // Even if there's an error, show at least BibTeX (which might be empty)
+      setCiteFormats([{
+        id: 'bibtex',
+        label: 'BibTeX',
+        value: ''
+      }]);
     } finally {
       setCiteLoading(false);
     }
@@ -295,7 +362,7 @@ const CitationsPage = () => {
   const copyCitation = async () => {
     let txt = '';
     
-    // Try to get citation from backend format
+    // Try to get citation from the selected format
     if (citeFormats && citeFormats.length > 0) {
       const selectedFormat = citeFormats.find(f => f.id === citeFormat);
       if (selectedFormat) {
@@ -322,19 +389,13 @@ const CitationsPage = () => {
           (typeof citeItem.authors[0] === 'object' ? citeItem.authors[0].name : citeItem.authors[0]) : 
           'author';
         const key = `${authorName.replace(/\s+/g,'')}${year}`;
-        return `@inproceedings{${key},\n  title={${citeItem.title}},\n  author={${authors}},\n  booktitle=${citeItem.venue || 'Unknown'},\n  year={${year}},\n}`;
-      }
-
-      if (citeFormat === 'MLA') {
-        return `${authors}. "${citeItem.title}." ${citeItem.venue || 'Unknown'}, ${year}.`;
-      }
-
-      if (citeFormat === 'APA') {
-        return `${authors} (${year}). ${citeItem.title}. ${citeItem.venue || 'Unknown'}.`;
-      }
-
-      if (citeFormat === 'IEEE') {
-        return `[1] ${authors}, "${citeItem.title}", ${citeItem.venue || 'Unknown'}, ${year}.`;
+        txt = `@inproceedings{${key},\n  title={${citeItem.title}},\n  author={${authors}},\n  booktitle=${citeItem.venue || 'Unknown'},\n  year={${year}},\n}`;
+      } else if (citeFormat === 'MLA') {
+        txt = `${authors}. "${citeItem.title}." ${citeItem.venue || 'Unknown'}, ${year}.`;
+      } else if (citeFormat === 'APA') {
+        txt = `${authors} (${year}). ${citeItem.title}. ${citeItem.venue || 'Unknown'}.`;
+      } else if (citeFormat === 'IEEE') {
+        txt = `[1] ${authors}, "${citeItem.title}", ${citeItem.venue || 'Unknown'}, ${year}.`;
       }
     }
     
@@ -363,7 +424,7 @@ const CitationsPage = () => {
   const downloadBibTeX = () => {
     let content = '';
     
-    // Try to get BibTeX from backend format
+    // Try to get BibTeX from the formats
     if (citeFormats && citeFormats.length > 0) {
       const bibTexFormat = citeFormats.find(f => f.id === 'bibtex');
       if (bibTexFormat) {
@@ -442,7 +503,7 @@ const CitationsPage = () => {
     ? userLibraries 
     : [];
 
-  // Save modal functions
+  // Save modal functions - UPDATED to cache BibTeX
   const openSave = async (item) => {
     if (!isAuthenticated) {
       alert('Please log in to save papers to libraries');
@@ -452,6 +513,21 @@ const CitationsPage = () => {
     setSaveItem(item);
     setSelectedLibraries([]);
     setSaveOpen(true);
+    
+    // Pre-fetch BibTeX when opening save modal and cache it
+    const paperIdToFetch = item.paperId || item.id;
+    if (paperIdToFetch && !bibtexCache.has(paperIdToFetch)) {
+      try {
+        console.log(`Pre-fetching BibTeX for paper: ${paperIdToFetch}`);
+        const bibtexData = await fetchPaperBibtex(paperIdToFetch);
+        if (bibtexData) {
+          setBibtexCache(prev => new Map(prev).set(paperIdToFetch, bibtexData));
+          console.log("BibTeX cached for future use");
+        }
+      } catch (error) {
+        console.warn("Could not pre-fetch BibTeX:", error);
+      }
+    }
   };
 
   const closeSave = () => {
@@ -460,7 +536,7 @@ const CitationsPage = () => {
     setSelectedLibraries([]);
   };
 
-  // FIXED: Save paper to libraries with BibTeX
+  // FIXED: Save paper to libraries with BibTeX - UPDATED to use cache
   const handleSaveToLibraries = async () => {
     if (selectedLibraries.length === 0) {
       alert('Please select at least one library');
@@ -479,8 +555,17 @@ const CitationsPage = () => {
       const paperIdToFetch = saveItem.paperId || saveItem.id;
       let bibtexData = '';
       
-      if (paperIdToFetch) {
+      // Check cache first
+      if (bibtexCache.has(paperIdToFetch)) {
+        bibtexData = bibtexCache.get(paperIdToFetch);
+        console.log("Using cached BibTeX for saving");
+      } else if (paperIdToFetch) {
+        // Fetch if not in cache
         bibtexData = await fetchPaperBibtex(paperIdToFetch);
+        // Cache it for future use
+        if (bibtexData) {
+          setBibtexCache(prev => new Map(prev).set(paperIdToFetch, bibtexData));
+        }
       }
 
       // Prepare paper data with BibTeX
@@ -1285,7 +1370,7 @@ const CitationsPage = () => {
         </div>
       )}
 
-      {/* UPDATED: Citation Modal - EXACTLY LIKE PAPERDETAILS.JSX */}
+      {/* OPTIMIZED: Citation Modal */}
       {citeOpen && (
         <div style={{ 
           position: 'fixed', 
@@ -1418,7 +1503,7 @@ const CitationsPage = () => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     {/* Export / BibTeX on the left */}
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}></div>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#444', marginBottom: 8 }}>Export</div>
                       <div style={{ display: 'flex', gap: 8 }}>
                         <button
                           onClick={downloadBibTeX}
