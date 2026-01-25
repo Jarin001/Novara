@@ -1814,6 +1814,9 @@ const ResultsPage = () => {
   const [newLibraryName, setNewLibraryName] = useState('');
   const [creatingLibrary, setCreatingLibrary] = useState(false);
 
+  // NEW: Track expanded abstracts for each paper
+  const [expandedAbstracts, setExpandedAbstracts] = useState({});
+
   const containerRef = useRef(null);
   const searchFormRef = useRef(null);
 
@@ -1845,6 +1848,8 @@ const ResultsPage = () => {
       setResults([]);
       setTotalResults(0);
       setCurrentPage(1);
+      // Reset expanded abstracts when results change
+      setExpandedAbstracts({});
       return;
     }
 
@@ -1891,16 +1896,20 @@ const ResultsPage = () => {
           setResults(processedResults);
           setTotalResults(data.total || processedResults.length || 0);
           setCurrentPage(1);
+          // Reset expanded abstracts when results change
+          setExpandedAbstracts({});
         } else {
           setResultsError("Failed to load results");
           setResults([]);
           setTotalResults(0);
+          setExpandedAbstracts({});
         }
       } catch (error) {
         console.error("Results fetch error:", error);
         setResultsError("Error loading results");
         setResults([]);
         setTotalResults(0);
+        setExpandedAbstracts({});
       } finally {
         setResultsLoading(false);
       }
@@ -2079,6 +2088,14 @@ const ResultsPage = () => {
     if (suggestion.title.trim()) {
       navigate(`/search?q=${encodeURIComponent(suggestion.title)}&type=${encodeURIComponent(type)}`);
     }
+  };
+
+  // NEW: Toggle abstract expansion for a specific paper
+  const toggleAbstract = (paperId) => {
+    setExpandedAbstracts(prev => ({
+      ...prev,
+      [paperId]: !prev[paperId]
+    }));
   };
 
   // Pagination functions
@@ -2705,11 +2722,38 @@ const ResultsPage = () => {
                     )}
                   </div>
 
+                  {/* ABSTRACT WITH EXPAND/COLLAPSE FUNCTIONALITY */}
                   {r.abstract && (
-                    <p style={{ marginTop: 10, color: "#444" }}>
-                      {r.abstract.length > 300 ? `${r.abstract.substring(0, 300)}...` : r.abstract} 
-                      {r.abstract.length > 300 && <a href="#" style={{ color: "#3E513E" }}>Expand</a>}
-                    </p>
+                    <div style={{ marginTop: 10 }}>
+                      <p style={{ 
+                        margin: 0, 
+                        color: "#444", 
+                        lineHeight: 1.6,
+                        fontSize: 14
+                      }}>
+                        {expandedAbstracts[r.paperId] ? r.abstract : (
+                          r.abstract.length > 300 ? `${r.abstract.substring(0, 300)}...` : r.abstract
+                        )}
+                      </p>
+                      {r.abstract.length > 300 && (
+                        <button 
+                          onClick={() => toggleAbstract(r.paperId)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#3E513E",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            padding: "4px 0 0 0",
+                            margin: 0,
+                            textDecoration: "underline",
+                            fontWeight: 500
+                          }}
+                        >
+                          {expandedAbstracts[r.paperId] ? 'Collapse' : 'Expand'}
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
