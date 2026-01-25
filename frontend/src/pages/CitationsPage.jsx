@@ -101,6 +101,9 @@ const CitationsPage = () => {
   // Cache for BibTeX to avoid repeated fetching
   const [bibtexCache, setBibtexCache] = useState(new Map());
   
+  // NEW: Track expanded abstracts for each paper
+  const [expandedAbstracts, setExpandedAbstracts] = useState({});
+
   const containerRef = useRef(null);
 
   // First fetch paper details to get citationCount, then fetch citations
@@ -267,6 +270,14 @@ const CitationsPage = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [saveOpen, citeOpen]);
+
+  // NEW: Toggle abstract expansion for a specific paper
+  const toggleAbstract = (paperId) => {
+    setExpandedAbstracts(prev => ({
+      ...prev,
+      [paperId]: !prev[paperId]
+    }));
+  };
 
   // OPTIMIZED: Citation modal functions - Using cached BibTeX
   const openCite = async (item) => {
@@ -906,11 +917,39 @@ const CitationsPage = () => {
                     </span>
                   </div>
 
-                  <p style={{ marginTop: 10, color: "#444" }}>
-                    {r.abstract ? 
-                      (r.abstract.length > 200 ? r.abstract.substring(0, 200) + '...' : r.abstract) : 
-                      ''}
-                  </p>
+                  {/* ABSTRACT WITH EXPAND/COLLAPSE FUNCTIONALITY - ADDED */}
+                  {r.abstract && (
+                    <div style={{ marginTop: 10 }}>
+                      <p style={{ 
+                        margin: 0, 
+                        color: "#444", 
+                        lineHeight: 1.6,
+                        fontSize: 14
+                      }}>
+                        {expandedAbstracts[r.paperId || r.id] ? r.abstract : (
+                          r.abstract.length > 200 ? `${r.abstract.substring(0, 200)}...` : r.abstract
+                        )}
+                      </p>
+                      {r.abstract.length > 200 && (
+                        <button 
+                          onClick={() => toggleAbstract(r.paperId || r.id)}
+                          style={{
+                            background: "transparent",
+                            border: "none",
+                            color: "#3E513E",
+                            cursor: "pointer",
+                            fontSize: 14,
+                            padding: "4px 0 0 0",
+                            margin: 0,
+                            textDecoration: "underline",
+                            fontWeight: 500
+                          }}
+                        >
+                          {expandedAbstracts[r.paperId || r.id] ? 'Collapse' : 'Expand'}
+                        </button>
+                      )}
+                    </div>
+                  )}
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
                     {/* Citations Count with inverted commas icon */}

@@ -78,6 +78,9 @@ const ReferencesPage = () => {
   const [citeLoading, setCiteLoading] = useState(false);
   const [copied, setCopied] = useState(false);
   
+  // NEW: Track expanded abstracts for each reference
+  const [expandedAbstracts, setExpandedAbstracts] = useState({});
+  
   const containerRef = useRef(null);
 
   // Fetch references from backend
@@ -169,18 +172,22 @@ const ReferencesPage = () => {
           console.log("Formatted references:", formattedReferences);
           setReferences(formattedReferences);
           setTotalResults(formattedReferences.length);
+          // Reset expanded abstracts when references change
+          setExpandedAbstracts({});
         } else {
           const errorText = await response.text();
           console.error(`Error (${response.status}):`, errorText);
           setReferencesError(`Failed to load references (${response.status}): ${errorText}`);
           setReferences([]);
           setTotalResults(0);
+          setExpandedAbstracts({});
         }
       } catch (error) {
         console.error("References fetch error:", error);
         setReferencesError(`Error loading references: ${error.message}`);
         setReferences([]);
         setTotalResults(0);
+        setExpandedAbstracts({});
       } finally {
         setReferencesLoading(false);
       }
@@ -550,6 +557,14 @@ const ReferencesPage = () => {
     setCopied(false);
   };
 
+  // NEW: Toggle abstract expansion for a specific reference
+  const toggleAbstract = (paperId) => {
+    setExpandedAbstracts(prev => ({
+      ...prev,
+      [paperId]: !prev[paperId]
+    }));
+  };
+
   // Helper function for citation copying
   const copyCitation = async () => {
     let txt = '';
@@ -874,11 +889,39 @@ const ReferencesPage = () => {
                   )}
                 </div>
 
-                <p style={{ marginTop: 10, color: "#444" }}>
-                  {r.abstract ? 
-                    (r.abstract.length > 200 ? r.abstract.substring(0, 200) + '...' : r.abstract) : 
-                    ''}
-                </p>
+                {/* ABSTRACT WITH EXPAND/COLLAPSE FUNCTIONALITY */}
+                {r.abstract && r.abstract !== 'No abstract available' && (
+                  <div style={{ marginTop: 10 }}>
+                    <p style={{ 
+                      margin: 0, 
+                      color: "#444", 
+                      lineHeight: 1.6,
+                      fontSize: 14
+                    }}>
+                      {expandedAbstracts[r.paperId] ? r.abstract : (
+                        r.abstract.length > 200 ? `${r.abstract.substring(0, 200)}...` : r.abstract
+                      )}
+                    </p>
+                    {r.abstract.length > 200 && (
+                      <button 
+                        onClick={() => toggleAbstract(r.paperId)}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#3E513E",
+                          cursor: "pointer",
+                          fontSize: 14,
+                          padding: "4px 0 0 0",
+                          margin: 0,
+                          textDecoration: "underline",
+                          fontWeight: 500
+                        }}
+                      >
+                        {expandedAbstracts[r.paperId] ? 'Collapse' : 'Expand'}
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
                   {/* Citations Count with inverted commas icon */}
