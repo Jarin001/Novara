@@ -161,10 +161,8 @@ const ResearchLibrary = () => {
           s2PaperId: paper.s2_paper_id,
           title: paper.title,
           authors: paper.authors || [],
-          venue: paper.venue || "",
-          date: paper.year
-            ? new Date(paper.year, 0, 1).toLocaleDateString()
-            : "",
+          venue: paper.venue || "Unknown Venue",
+date: paper.year ? String(paper.year) : "",
           citations: paper.citation_count || 0,
           source: "Database",
           abstract: paper.abstract || "",
@@ -214,10 +212,8 @@ const ResearchLibrary = () => {
           s2PaperId: paper.s2_paper_id,
           title: paper.title,
           authors: paper.authors || [],
-          venue: paper.venue || "",
-          date: paper.year
-            ? new Date(paper.year, 0, 1).toLocaleDateString()
-            : "",
+          venue: paper.venue || "Unknown Venue",
+      date: paper.year ? String(paper.year) : "",
           citations: paper.citation_count || 0,
           source: "Database",
           abstract: paper.abstract || "",
