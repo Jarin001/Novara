@@ -808,8 +808,8 @@ const SearchResults = () => {
           {/* Initial state - no search yet */}
           {!initial && (
             <div style={{ marginTop: 48, textAlign: "center", padding: "40px 20px", color: "#666" }}>
-              <div style={{ fontSize: 18, marginBottom: 16 }}>Start searching</div>
-              <div>Enter a search term above and click "Search" to find {searchType === "authors" ? "authors" : "publications"}.</div>
+              <div style={{ fontSize: 18, marginBottom: 16 }}></div>
+              
             </div>
           )}
         </div>
