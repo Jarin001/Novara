@@ -154,23 +154,45 @@ const removeProfilePicture = async (req, res) => {
 };
 
 // ========================================
-// NEW FUNCTION (single route with everything)
+// PUBLIC PROFILE FUNCTION (SIMPLIFIED)
 // ========================================
 
 /**
  * Get public profile of any user with publications
- * ONE ROUTE - RETURNS EVERYTHING
+ * COMPLETELY PUBLIC - no authentication required
+ * But if user IS logged in (from frontend sending token), we can detect if viewing own profile
  */
 const getPublicUserProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const requestingUserId = req.user?.id;
-    const supabase = req.supabase;
-
-    // Fetch user's basic info
+    
+    // Check if there's an auth token (frontend can optionally send it)
+    let requestingAuthId = null;
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        // Try to verify the token
+        const { createClient } = require('@supabase/supabase-js');
+        const supabaseClient = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_ANON_KEY
+        );
+        const { data: { user } } = await supabaseClient.auth.getUser(token);
+        if (user) {
+          requestingAuthId = user.id;
+        }
+      } catch (error) {
+        // Invalid token? No problem, just treat as unauthenticated
+        console.log('Invalid auth token in public route, continuing as unauthenticated');
+      }
+    }
+    
+    // Use the imported supabase instance (always available)
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, name, profile_picture_url, affiliation, research_interests, created_at')
+      .select('id, auth_id, name, profile_picture_url, affiliation, research_interests, created_at')
       .eq('id', user_id)
       .single();
 
@@ -252,8 +274,8 @@ const getPublicUserProfile = async (req, res) => {
       mostCitedPapers: mostCitedPapers
     };
 
-    // Check if viewing own profile
-    if (requestingUserId && userData.id === requestingUserId) {
+    // Check if viewing own profile (only if user sent a valid token)
+    if (requestingAuthId && userData.auth_id === requestingAuthId) {
       publicProfile.isOwnProfile = true;
       return res.status(200).json({
         message: 'This is your own profile. Use /api/users/profile for full data including email and stats.',
