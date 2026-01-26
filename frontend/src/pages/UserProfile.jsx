@@ -1084,7 +1084,6 @@ const UserProfile = () => {
                       <h2 className="profile-name mb-0">
                         {userData.name || 'User'}
                       </h2>
-                      {userData.id && <span className="profile-id">{userData.id}</span>}
                     </div>
 
                     {userData.institution && (

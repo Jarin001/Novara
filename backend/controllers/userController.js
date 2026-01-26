@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { errorHandler } = require('../utils/errorHandler');
+const PaperContent = require('../models/PaperContent'); 
 
 // ========================================
 // EXISTING FUNCTIONS (for own profile)
@@ -154,13 +155,13 @@ const removeProfilePicture = async (req, res) => {
 };
 
 // ========================================
-// PUBLIC PROFILE FUNCTION (SIMPLIFIED)
+// PUBLIC PROFILE FUNCTION (WITH MONGODB ABSTRACT)
 // ========================================
 
 /**
  * Get public profile of any user with publications
  * COMPLETELY PUBLIC - no authentication required
- * But if user IS logged in (from frontend sending token), we can detect if viewing own profile
+ * Fetches abstracts from MongoDB using s2_paper_id
  */
 const getPublicUserProfile = async (req, res) => {
   try {
@@ -203,7 +204,7 @@ const getPublicUserProfile = async (req, res) => {
       throw userError;
     }
 
-    // Fetch user's publications
+    // Fetch user's publications (without abstract - we'll get it from MongoDB)
     const { data: publications, error: pubError } = await supabase
       .from('user_papers')
       .select(`
@@ -225,9 +226,10 @@ const getPublicUserProfile = async (req, res) => {
 
     if (pubError) throw pubError;
 
-    // Get authors for each paper and transform data
+    // Get authors for each paper and fetch abstract from MongoDB
     const papersWithAuthors = await Promise.all(
       (publications || []).map(async (pub) => {
+        // Fetch authors from Supabase
         const { data: authorData } = await supabase
           .from('author_papers')
           .select(`authors (name)`)
@@ -235,10 +237,25 @@ const getPublicUserProfile = async (req, res) => {
 
         const authors = authorData?.map(a => a.authors.name) || [];
 
+        // Fetch abstract from MongoDB using s2_paper_id
+        let abstract = 'No abstract available';
+        try {
+          const paperContent = await PaperContent.findOne({ 
+            s2PaperId: pub.papers.s2_paper_id 
+          });
+          if (paperContent && paperContent.abstract) {
+            abstract = paperContent.abstract;
+          }
+        } catch (error) {
+          console.error(`Error fetching abstract for paper ${pub.papers.s2_paper_id}:`, error);
+        }
+
         return {
           id: pub.id,
+          s2_paper_id: pub.papers.s2_paper_id,
           title: pub.papers.title,
           authors: authors,
+          abstract: abstract,  // ✅ FROM MONGODB
           citation_count: pub.papers.citation_count || 0,
           year: pub.papers.published_date 
             ? new Date(pub.papers.published_date).getFullYear() 
