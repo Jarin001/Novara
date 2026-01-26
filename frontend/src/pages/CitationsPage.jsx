@@ -101,7 +101,7 @@ const CitationsPage = () => {
   const [openFields, setOpenFields] = useState(false);
   const [openDate, setOpenDate] = useState(false);
   
-  // Save modal state
+  // Save modal state - UPDATED to match ResultsPage
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveItem, setSaveItem] = useState(null);
   const [selectedLibraries, setSelectedLibraries] = useState([]);
@@ -111,6 +111,9 @@ const CitationsPage = () => {
   const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState('');
   const [creatingLibrary, setCreatingLibrary] = useState(false);
+  // NEW: Track which libraries the paper is already saved in (from ResultsPage)
+  const [paperInLibraries, setPaperInLibraries] = useState([]);
+  const [checkingPaperInLibraries, setCheckingPaperInLibraries] = useState(false);
   
   // Citation modal state - OPTIMIZED with caching
   const [citeOpen, setCiteOpen] = useState(false);
@@ -122,6 +125,9 @@ const CitationsPage = () => {
   
   // NEW: Track expanded abstracts for each paper
   const [expandedAbstracts, setExpandedAbstracts] = useState({});
+
+  // NEW: Cache for paper-in-library checks (from ResultsPage)
+  const paperInLibraryCache = useRef(new Map());
 
   const containerRef = useRef(null);
 
@@ -169,19 +175,27 @@ const CitationsPage = () => {
             console.log("Citations loaded:", data);
             
             // Handle different response formats
+            let citationsArray = [];
             if (data.data && Array.isArray(data.data)) {
-              setCitations(data.data);
-              setTotalResults(data.data.length);
+              citationsArray = data.data;
             } else if (Array.isArray(data)) {
-              setCitations(data);
-              setTotalResults(data.length);
+              citationsArray = data;
             } else if (data.citations) {
-              setCitations(data.citations);
-              setTotalResults(data.citations.length);
-            } else {
-              setCitations([]);
-              setTotalResults(0);
+              citationsArray = data.citations;
             }
+            
+            // Process the citations to ensure consistent ID format
+            const processedCitations = citationsArray.map(citation => ({
+              ...citation,
+              // Ensure paperId is the main ID (matching ResultsPage format)
+              paperId: citation.paperId || citation.id || citation.paper_id,
+              // Ensure fieldsOfStudy is an array
+              fieldsOfStudy: Array.isArray(citation.fieldsOfStudy) ? citation.fieldsOfStudy : 
+                            citation.fields ? (Array.isArray(citation.fields) ? citation.fields : []) : []
+            }));
+            
+            setCitations(processedCitations);
+            setTotalResults(processedCitations.length);
           } else {
             const errorText = await response.text();
             console.error(`Error (${response.status}):`, errorText);
@@ -215,7 +229,7 @@ const CitationsPage = () => {
       // Pre-fetch citations for the first few papers
       const papersToPrefetch = citations.slice(0, 5);
       papersToPrefetch.forEach(async (paper) => {
-        const paperId = paper.paperId || paper.id;
+        const paperId = paper.paperId;
         if (paperId && !citationCache.has(paperId)) {
           try {
             const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
@@ -471,9 +485,8 @@ const CitationsPage = () => {
     // Filter by fields of study
     if (selectedFields.length > 0) {
       list = list.filter((r) => {
-        if (!r.fieldsOfStudy && !r.fields) return false;
-        const fields = r.fieldsOfStudy || r.fields || [];
-        return Array.isArray(fields) && fields.some(f => selectedFields.includes(f));
+        if (!r.fieldsOfStudy) return false;
+        return Array.isArray(r.fieldsOfStudy) && r.fieldsOfStudy.some(f => selectedFields.includes(f));
       });
     }
 
@@ -507,8 +520,6 @@ const CitationsPage = () => {
     citations.forEach(r => {
       if (r.fieldsOfStudy && Array.isArray(r.fieldsOfStudy)) {
         r.fieldsOfStudy.forEach(f => fields.add(f));
-      } else if (r.fields && Array.isArray(r.fields)) {
-        r.fields.forEach(f => fields.add(f));
       }
     });
     return Array.from(fields).sort().slice(0, 10);
@@ -519,29 +530,187 @@ const CitationsPage = () => {
     ? userLibraries 
     : [];
 
-  // Save modal functions - UPDATED to use cache like ResultsPage
-  const openSave = (item) => {
+  // FIXED: Check if paper is already saved in libraries - FROM RESULTS PAGE
+  const checkIfPaperInLibraries = async (s2PaperId) => {
+    if (!isAuthenticated || !s2PaperId) return { libraries: [], internalPaperId: null };
+    
+    // Check cache first
+    const cacheKey = `${s2PaperId}_${userLibraries.length}`;
+    if (paperInLibraryCache.current.has(cacheKey)) {
+      console.log('Using cached paper-in-library result');
+      return paperInLibraryCache.current.get(cacheKey);
+    }
+    
+    try {
+      setCheckingPaperInLibraries(true);
+      const token = localStorage.getItem('access_token');
+      
+      console.log('Checking if paper is in libraries for s2PaperId:', s2PaperId);
+      
+      // OPTION 1: Use the getAllUserPapers endpoint from your backend
+      try {
+        const response = await fetch(`${API_ENDPOINTS.ALL_USER_PAPERS}`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const papers = data.papers || [];
+          
+          // Find the specific paper by s2_paper_id
+          const foundPaper = papers.find(p => p.s2_paper_id === s2PaperId);
+          
+          if (foundPaper && foundPaper.library_ids && foundPaper.library_ids.length > 0) {
+            // Map library_ids to actual library objects
+            const foundLibraries = availableLibraries.filter(lib => 
+              foundPaper.library_ids.includes(lib.id)
+            );
+            
+            console.log('Paper is in libraries (from getAllUserPapers):', foundLibraries);
+            paperInLibraryCache.current.set(cacheKey, {
+              libraries: foundLibraries,
+              internalPaperId: foundPaper.paper_id || foundPaper.id // Store the internal ID
+            });
+            return {
+              libraries: foundLibraries,
+              internalPaperId: foundPaper.paper_id || foundPaper.id
+            };
+          }
+        }
+      } catch (endpointError) {
+        console.log('getAllUserPapers endpoint not available, using library-by-library check');
+      }
+      
+      // OPTION 2: Fallback - check each library individually using getLibraryPapers
+      const librariesWithPaper = [];
+      let internalPaperId = null;
+      
+      // Use Promise.all to check libraries in parallel
+      const libraryChecks = availableLibraries.map(async (library) => {
+        try {
+          // Use the getLibraryPapers endpoint to check if paper exists in this library
+          const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+          
+          if (response.ok) {
+            const data = await response.json();
+            const papers = data.papers || [];
+            
+            // Check if paper exists in this library's papers by s2_paper_id
+            const foundPaper = papers.find(p => p.s2_paper_id === s2PaperId);
+            
+            if (foundPaper) {
+              // Store the internal paper ID from the first found paper
+              if (!internalPaperId) {
+                internalPaperId = foundPaper.id; // This is the internal paper_id
+              }
+              return library;
+            }
+          }
+          
+          return null;
+        } catch (error) {
+          console.error(`Error checking library ${library.name}:`, error);
+          return null;
+        }
+      });
+      
+      // Wait for all checks to complete
+      const results = await Promise.all(libraryChecks);
+      const foundLibraries = results.filter(lib => lib !== null);
+      
+      console.log('Paper found in libraries (fallback):', foundLibraries);
+      const result = {
+        libraries: foundLibraries,
+        internalPaperId: internalPaperId
+      };
+      paperInLibraryCache.current.set(cacheKey, result);
+      return result;
+      
+    } catch (error) {
+      console.error('Error checking if paper is in libraries:', error);
+      return { libraries: [], internalPaperId: null };
+    } finally {
+      setCheckingPaperInLibraries(false);
+    }
+  };
+
+  // UPDATED Save modal functions to match ResultsPage
+  const openSave = async (item) => {
     if (!isAuthenticated) {
       alert('Please log in to save papers to libraries');
       navigate('/login');
       return;
     }
+    
     setSaveItem(item);
     setSelectedLibraries([]);
+    setPaperInLibraries([]);
     setSaveOpen(true);
+    
+    // Check which libraries this paper is already in
+    const paperId = item.paperId; // Use paperId field (should be consistent now)
+    if (paperId) {
+      console.log('Opening save modal for paper:', item.title);
+      console.log('Paper ID (s2_paper_id):', paperId);
+      
+      // Show modal immediately, then check libraries in background
+      setCheckingPaperInLibraries(true);
+      
+      const result = await checkIfPaperInLibraries(paperId);
+      console.log('Paper check result:', result);
+      setPaperInLibraries(result.libraries);
+      
+      // Store the internal paper ID in saveItem for later use
+      const enhancedSaveItem = {
+        ...item,
+        internalPaperId: result.internalPaperId // Add internal ID to saveItem
+      };
+      setSaveItem(enhancedSaveItem);
+      
+      // Pre-select libraries where paper is already saved
+      const alreadySavedLibraries = availableLibraries.filter(lib => 
+        result.libraries.some(savedLib => savedLib.id === lib.id)
+      );
+      console.log('Pre-selecting libraries:', alreadySavedLibraries);
+      setSelectedLibraries(alreadySavedLibraries);
+      
+      setCheckingPaperInLibraries(false);
+    }
   };
 
   const closeSave = () => {
     setSaveOpen(false);
     setSaveItem(null);
     setSelectedLibraries([]);
+    setPaperInLibraries([]);
+    setCheckingPaperInLibraries(false);
   };
 
-  // SAVE PAPER TO LIBRARIES - Using cache like ResultsPage
+  // UPDATED SAVE PAPER TO LIBRARIES - FIXED DATA STRUCTURE
   const handleSaveToLibraries = async () => {
-    if (selectedLibraries.length === 0) {
-      alert('Please select at least one library');
+    // If no libraries selected and paper wasn't in any libraries, do nothing
+    if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
+      alert('Please select at least one library to save the paper to');
       return;
+    }
+
+    // If user has deselected all libraries (including previously saved ones)
+    if (selectedLibraries.length === 0 && paperInLibraries.length > 0) {
+      const confirmRemove = window.confirm(
+        'You have deselected all libraries. This will remove the paper from all ' + 
+        paperInLibraries.length + ' libraries it was saved in. Continue?'
+      );
+      if (!confirmRemove) return;
     }
 
     try {
@@ -552,24 +721,26 @@ const CitationsPage = () => {
         return;
       }
 
-      // Get BibTeX for the paper - USING CACHE (same as ResultsPage)
-      const paperIdToFetch = saveItem.paperId || saveItem.id;
+      // Get BibTeX for the paper - USING CACHE
+      const s2PaperId = saveItem.paperId; // This is the s2_paper_id
+      const internalPaperId = saveItem.internalPaperId; // This is the internal DB paper_id
       let bibtexData = '';
       
-      if (paperIdToFetch) {
-        bibtexData = await fetchPaperBibtexWithCache(paperIdToFetch);
+      if (s2PaperId) {
+        bibtexData = await fetchPaperBibtexWithCache(s2PaperId);
       }
 
-      // Prepare paper data with BibTeX
+      // Prepare paper data according to your backend's savePaperToLibrary endpoint
+      // FIXED: Using the exact same structure as ResultsPage
       const paperData = {
-        s2_paper_id: paperIdToFetch || '',
+        s2_paper_id: s2PaperId || '',
         title: saveItem.title || '',
         venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
         published_year: saveItem.year || saveItem.date || new Date().getFullYear(),
         citation_count: saveItem.citationCount || 0,
-        fields_of_study: saveItem.fieldsOfStudy || saveItem.fields || [],
+        fields_of_study: saveItem.fieldsOfStudy || [],
         abstract: saveItem.abstract || '',
-        bibtex: bibtexData || '', // Include BibTeX here
+        bibtex: bibtexData || '',
         authors: (saveItem.authors || []).map(a => { 
           if (typeof a === 'object') {
             return { 
@@ -583,54 +754,162 @@ const CitationsPage = () => {
         user_note: ''
       };
 
-      console.log("Saving citation paper with data:", {
-        ...paperData,
-        bibtex_length: (bibtexData || '').length,
-        has_bibtex: !!(bibtexData && bibtexData.trim())
-      });
+      console.log("Updating paper in libraries");
+      console.log("s2PaperId:", s2PaperId);
+      console.log("internalPaperId:", internalPaperId);
+      console.log("Paper data being sent:", paperData);
 
-      // Save to each selected library
-      let savedCount = 0;
-      let failedCount = 0;
-      const failedLibraries = [];
+      // Determine which libraries to add to and which to remove from
+      const librariesToAdd = selectedLibraries.filter(lib => 
+        !paperInLibraries.some(savedLib => savedLib.id === lib.id)
+      );
+      
+      const librariesToRemove = paperInLibraries.filter(savedLib => 
+        !selectedLibraries.some(lib => lib.id === savedLib.id)
+      );
 
-      for (const library of selectedLibraries) {
-        try {
-          const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
-            body: JSON.stringify(paperData)
-          });
+      console.log('Libraries to add to:', librariesToAdd.map(l => l.name));
+      console.log('Libraries to remove from:', librariesToRemove.map(l => l.name));
 
-          if (response.ok) {
-            savedCount++;
-            const result = await response.json();
-            console.log(`Paper saved to library ${library.name}:`, result);
-          } else {
-            const errorData = await response.json();
-            console.error(`Failed to save to library ${library.name}:`, errorData);
-            failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
-            failedCount++;
-          }
-        } catch (error) {
-          console.error(`Error saving to library ${library.name}:`, error);
-          failedLibraries.push(`${library.name}: ${error.message}`);
-          failedCount++;
+      let addedCount = 0;
+      let removedCount = 0;
+      let failedAdditions = [];
+      let failedRemovals = [];
+
+      // Process additions and removals in parallel
+      const operations = [];
+
+      // Add paper to new libraries using POST /api/libraries/:library_id/papers
+      for (const library of librariesToAdd) {
+        operations.push(
+          (async () => {
+            try {
+              console.log(`Adding paper to library: ${library.name}`);
+              const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(paperData)
+              });
+
+              if (response.ok) {
+                addedCount++;
+                console.log(`✓ Paper added to library ${library.name}`);
+              } else {
+                let errorData = { message: 'Unknown error' };
+                try {
+                  errorData = await response.json();
+                } catch (e) {
+                  console.error('Response is not JSON:', e);
+                }
+                console.error(`Failed to add to library ${library.name}:`, errorData, 'Status:', response.status);
+                failedAdditions.push(`${library.name}: ${errorData.message || `HTTP ${response.status}`}`);
+              }
+            } catch (error) {
+              console.error(`Error adding to library ${library.name}:`, error);
+              failedAdditions.push(`${library.name}: ${error.message}`);
+            }
+          })()
+        );
+      }
+
+      // Remove paper from deselected libraries using DELETE /api/libraries/:library_id/papers/:paper_id
+      // IMPORTANT: Use internalPaperId for deletion, not s2PaperId
+      for (const library of librariesToRemove) {
+        operations.push(
+          (async () => {
+            try {
+              // Use internalPaperId for the DELETE request
+              const paperIdToDelete = internalPaperId || s2PaperId;
+              console.log(`Removing paper from library ${library.name}, using paper ID: ${paperIdToDelete}`);
+              
+              const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers/${paperIdToDelete}`, {
+                method: 'DELETE',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${token}`
+                }
+              });
+
+              if (response.ok) {
+                removedCount++;
+                console.log(`✓ Paper removed from library ${library.name}`);
+              } else if (response.status === 404) {
+                // Paper not found in library (might have been removed already)
+                console.log(`Paper not found in library ${library.name}, skipping removal`);
+                
+                // Try fallback: Maybe we need to use s2_paper_id instead?
+                if (paperIdToDelete !== s2PaperId) {
+                  console.log(`Trying fallback with s2_paper_id: ${s2PaperId}`);
+                  const fallbackResponse = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers/${s2PaperId}`, {
+                    method: 'DELETE',
+                    headers: {
+                      'Content-Type': 'application/json',
+                      'Authorization': `Bearer ${token}`
+                    }
+                  });
+                  
+                  if (fallbackResponse.ok) {
+                    removedCount++;
+                    console.log(`✓ Paper removed from library ${library.name} (using s2_paper_id)`);
+                  }
+                }
+              } else {
+                let errorData = { message: 'Unknown error' };
+                try {
+                  errorData = await response.json();
+                } catch (e) {
+                  console.error('Response is not JSON:', e);
+                }
+                console.error(`Failed to remove from library ${library.name}:`, errorData, 'Status:', response.status);
+                failedRemovals.push(`${library.name}: ${errorData.message || `HTTP ${response.status}`}`);
+              }
+            } catch (error) {
+              console.error(`Error removing from library ${library.name}:`, error);
+              failedRemovals.push(`${library.name}: ${error.message}`);
+            }
+          })()
+        );
+      }
+
+      // Wait for all operations to complete
+      await Promise.all(operations);
+
+      // Clear cache since library state has changed
+      paperInLibraryCache.current.clear();
+
+      // Show success/error message
+      let message = '';
+      if (addedCount > 0 || removedCount > 0) {
+        message = '✓ Library updates completed!\n';
+        if (addedCount > 0) {
+          message += `• Added to ${addedCount} librar${addedCount === 1 ? 'y' : 'ies'}\n`;
+        }
+        if (removedCount > 0) {
+          message += `• Removed from ${removedCount} librar${removedCount === 1 ? 'y' : 'ies'}\n`;
+        }
+      } else {
+        message = 'No changes were made.\n';
+      }
+
+      if (failedAdditions.length > 0 || failedRemovals.length > 0) {
+        message += '\nSome operations failed:\n';
+        if (failedAdditions.length > 0) {
+          message += `Failed to add: ${failedAdditions.join(', ')}\n`;
+        }
+        if (failedRemovals.length > 0) {
+          message += `Failed to remove: ${failedRemovals.join(', ')}\n`;
         }
       }
 
-      if (savedCount > 0) {
-        alert(`Paper saved to ${savedCount} librar${savedCount === 1 ? 'y' : 'ies'}!${failedCount > 0 ? `\n\nFailed to save to ${failedCount} librar${failedCount === 1 ? 'y' : 'ies'}:\n${failedLibraries.join('\n')}` : ''}`);
-        closeSave();
-      } else {
-        alert(`Failed to save paper:\n${failedLibraries.join('\n')}`);
-      }
+      alert(message.trim());
+      closeSave();
+      
     } catch (error) {
       console.error('Error saving paper:', error);
-      alert('Error saving paper: ' + error.message);
+      alert('Error updating libraries: ' + error.message);
     }
   };
 
@@ -656,11 +935,16 @@ const CitationsPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        // Backend returns { message, library }
         const newLibrary = data.library;
-        setUserLibraries([...userLibraries, { id: newLibrary.id, name: newLibrary.name, role: 'creator' }]);
+        const newLibObj = { id: newLibrary.id, name: newLibrary.name, role: 'creator' };
+        setUserLibraries([...userLibraries, newLibObj]);
+        // Auto-select the newly created library
+        setSelectedLibraries([...selectedLibraries, newLibObj]);
         setNewLibraryName('');
         setShowNewLibraryModal(false);
+        
+        // Clear cache since libraries changed
+        paperInLibraryCache.current.clear();
       } else {
         let errorMsg = 'Failed to create library';
         try {
@@ -850,7 +1134,7 @@ const CitationsPage = () => {
               {visible.map((r, i) => (
                 <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
                   <button 
-                    onClick={() => navigate(`/paper/${r.paperId || r.id}`)}
+                    onClick={() => navigate(`/paper/${r.paperId}`)}
                     style={{ 
                       color: "#3E513E", 
                       fontSize: 20, 
@@ -935,13 +1219,13 @@ const CitationsPage = () => {
                         lineHeight: 1.6,
                         fontSize: 14
                       }}>
-                        {expandedAbstracts[r.paperId || r.id] ? r.abstract : (
+                        {expandedAbstracts[r.paperId] ? r.abstract : (
                           r.abstract.length > 300 ? `${r.abstract.substring(0, 300)}...` : r.abstract
                         )}
                       </p>
                       {r.abstract.length > 300 && (
                         <button 
-                          onClick={() => toggleAbstract(r.paperId || r.id)}
+                          onClick={() => toggleAbstract(r.paperId)}
                           style={{
                             background: "transparent",
                             border: "none",
@@ -954,7 +1238,7 @@ const CitationsPage = () => {
                             fontWeight: 500
                           }}
                         >
-                          {expandedAbstracts[r.paperId || r.id] ? 'Collapse' : 'Expand'}
+                          {expandedAbstracts[r.paperId] ? 'Collapse' : 'Expand'}
                         </button>
                       )}
                     </div>
@@ -1216,7 +1500,7 @@ const CitationsPage = () => {
         </div>
       )}
 
-      {/* Save Modal */}
+      {/* UPDATED Save Modal - MATCHING RESULTS PAGE */}
       {saveOpen && saveItem && (
         <div style={{ 
           position: 'fixed', 
@@ -1337,6 +1621,16 @@ const CitationsPage = () => {
                     color: '#444'
                   }}>
                     Select libraries to save to:
+                    {paperInLibraries.length > 0 && (
+                      <span style={{ 
+                        fontSize: 12, 
+                        color: '#3E513E',
+                        fontWeight: 500,
+                        marginLeft: 8
+                      }}>
+                        ({paperInLibraries.length} already saved)
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setShowNewLibraryModal(true)}
@@ -1355,7 +1649,20 @@ const CitationsPage = () => {
                   </button>
                 </div>
                 
-                {availableLibraries.length === 0 ? (
+                {checkingPaperInLibraries ? (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: '#666',
+                    background: '#f9f9f9',
+                    borderRadius: 4,
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    <p style={{ margin: 0, fontSize: 13 }}>
+                      Please Wait...
+                    </p>
+                  </div>
+                ) : availableLibraries.length === 0 ? (
                   <div style={{
                     padding: '20px',
                     textAlign: 'center',
@@ -1390,28 +1697,65 @@ const CitationsPage = () => {
                     border: '1px solid #e0e0e0', 
                     borderRadius: 4 
                   }}>
-                  {availableLibraries.map((library, index) => (
-                    <label
-                      key={library.id}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '10px 14px',
-                        borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
-                        cursor: 'pointer',
-                        backgroundColor: selectedLibraries.some(l => l.id === library.id) ? '#f0f7f0' : 'transparent',
-                        transition: 'background-color 0.2s',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={selectedLibraries.some(l => l.id === library.id)}
-                        onChange={() => toggleLibrarySelection(library)}
-                        style={{ marginRight: 10 }}
-                      />
-                      <span style={{ fontSize: 13, color: '#333' }}>{library.name}</span>
-                    </label>
-                  ))}
+                  {availableLibraries.map((library, index) => {
+                    const isAlreadySaved = paperInLibraries.some(l => l.id === library.id);
+                    const isSelected = selectedLibraries.some(l => l.id === library.id);
+                    
+                    return (
+                      <label
+                        key={library.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '10px 14px',
+                          borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
+                          cursor: 'pointer',
+                          backgroundColor: isSelected ? '#f0f7f0' : 'transparent',
+                          transition: 'background-color 0.2s',
+                          position: 'relative'
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleLibrarySelection(library)}
+                          style={{ marginRight: 10 }}
+                        />
+                        <span style={{ 
+                          fontSize: 13, 
+                          color: isAlreadySaved ? '#3E513E' : '#333',
+                          fontWeight: isAlreadySaved ? 600 : 400
+                        }}>
+                          {library.name}
+                          {isAlreadySaved && (
+                            <span style={{ 
+                              fontSize: 11, 
+                              color: '#666',
+                              fontWeight: 400,
+                              marginLeft: 8,
+                              fontStyle: 'italic'
+                            }}>
+                              (already saved)
+                            </span>
+                          )}
+                        </span>
+                        {isAlreadySaved && !isSelected && (
+                          <span style={{
+                            position: 'absolute',
+                            right: '14px',
+                            fontSize: 11,
+                            color: '#d32f2f',
+                            fontWeight: 500,
+                            backgroundColor: '#ffebee',
+                            padding: '2px 6px',
+                            borderRadius: 3
+                          }}>
+                            Will be removed
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
                   </div>
                 )}
               </div>
@@ -1423,26 +1767,26 @@ const CitationsPage = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 {/* Selected count */}
                 <div style={{ fontSize: 12, color: '#666' }}>
-                  {selectedLibraries.length} {selectedLibraries.length === 1 ? 'library' : 'libraries'} selected
+                  {selectedLibraries.length} of {availableLibraries.length} {selectedLibraries.length === 1 ? 'library' : 'libraries'} selected
                 </div>
 
                 {/* Save button */}
                 <button
                   onClick={handleSaveToLibraries}
-                  disabled={selectedLibraries.length === 0}
+                  disabled={selectedLibraries.length === 0 && paperInLibraries.length === 0}
                   style={{
                     padding: '8px 20px',
-                    background: selectedLibraries.length === 0 ? '#cccccc' : '#3E513E',
+                    background: (selectedLibraries.length === 0 && paperInLibraries.length === 0) ? '#cccccc' : '#3E513E',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 4,
-                    cursor: selectedLibraries.length === 0 ? 'not-allowed' : 'pointer',
+                    cursor: (selectedLibraries.length === 0 && paperInLibraries.length === 0) ? 'not-allowed' : 'pointer',
                     fontSize: 13,
                     fontWeight: 500,
                     transition: 'background-color 0.2s',
                   }}
                 >
-                  Save to {selectedLibraries.length > 0 ? `${selectedLibraries.length} ` : ''}Library{selectedLibraries.length !== 1 ? 'ies' : ''}
+                  {selectedLibraries.length === 0 && paperInLibraries.length > 0 ? 'Remove from All Libraries' : 'Save Changes'}
                 </button>
               </div>
             </div>
