@@ -56,11 +56,6 @@ const Navbar = () => {
     setDropdownOpen(false);
   };
 
-  const handleSettingsClick = () => {
-    console.log("Settings clicked");
-    setDropdownOpen(false);
-  };
-
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -232,21 +227,6 @@ const Navbar = () => {
                   onClick={handleLibraryClick}
                 >
                   My Library
-                </div>
-                
-                <div 
-                  style={{
-                    padding: "8px 16px",
-                    color: "#666",
-                    fontSize: "13px",
-                    cursor: "pointer",
-                    transition: "background-color 0.2s",
-                  }}
-                  onMouseEnter={(e) => e.target.style.backgroundColor = "#f5f5f5"}
-                  onMouseLeave={(e) => e.target.style.backgroundColor = "transparent"}
-                  onClick={handleSettingsClick}
-                >
-                  Settings
                 </div>
                 
                 <div 
