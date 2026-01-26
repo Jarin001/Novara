@@ -67,7 +67,7 @@ const UserProfile = () => {
   const [uploadingPicture, setUploadingPicture] = useState(false);
 
   // Determine if viewing own profile
-  const [isOwnProfile, setIsOwnProfile] = useState(true);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   // Citation modal state (from ResultsPage)
   const [citeOpen, setCiteOpen] = useState(false);
@@ -192,12 +192,22 @@ const UserProfile = () => {
   };
 
   /**
-   * Fetch public user profile (for viewing others) - NO AUTH REQUIRED
+   * Fetch public user profile (for viewing others)
+   * Optionally sends auth token if user is logged in (backend uses it to detect own profile)
    */
   const fetchPublicProfile = async (targetUserId) => {
     try {
+      const token = localStorage.getItem('access_token');
+      const headers = {};
+      
+      // Include auth token if available (backend will use it to detect if viewing own profile)
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(
-        `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`,
+        { headers }
       );
 
       if (!response.ok) {
@@ -208,14 +218,7 @@ const UserProfile = () => {
       }
 
       const data = await response.json();
-      
-      // If the backend indicates this is the user's own profile, redirect
-      if (data.user.isOwnProfile) {
-        navigate('/profile');
-        return;
-      }
-
-      return data.user;
+      return data;  // Return full response (includes message, redirectTo if own profile)
     } catch (error) {
       console.error('Error fetching public profile:', error);
       throw error;
@@ -232,29 +235,63 @@ const UserProfile = () => {
         setError(null);
 
         if (userId) {
-          // VIEWING SOMEONE ELSE'S PROFILE (No auth required)
-          setIsOwnProfile(false);
+          // VIEWING A PROFILE BY ID - Backend will tell us if it's our own
+          const profileResponse = await fetchPublicProfile(userId);
+          const publicProfile = profileResponse.user;
           
-          const publicProfile = await fetchPublicProfile(userId);
+          // Trust the backend's isOwnProfile flag
+          const isOwn = publicProfile.isOwnProfile || false;
+          setIsOwnProfile(isOwn);
           
-          // Don't proceed if redirected to own profile
-          if (!publicProfile) return;
-          
-          setUserData(prev => ({
-            ...prev,
-            name: publicProfile.name || "",
-            affiliation: publicProfile.affiliation || "",
-            institution: publicProfile.affiliation || "",
-            researchInterests: publicProfile.research_interests || [],
-            joinedDate: publicProfile.joinedDate || "",
-            profile_picture_url: publicProfile.profile_picture_url || null,
-            publications: publicProfile.publications || [],
-            totalPapers: publicProfile.totalPapers || 0,
-            mostCitedPapers: publicProfile.mostCitedPapers || [],
-          }));
+          if (isOwn) {
+            // This is our own profile - we have publications but might want email
+            setIsAuthenticated(true);
+            setUserData(prev => ({
+              ...prev,
+              name: publicProfile.name || "",
+              affiliation: publicProfile.affiliation || "",
+              institution: publicProfile.affiliation || "",
+              researchInterests: publicProfile.research_interests || [],
+              joinedDate: publicProfile.joinedDate || "",
+              profile_picture_url: publicProfile.profile_picture_url || null,
+              publications: publicProfile.publications || [],
+              totalPapers: publicProfile.totalPapers || 0,
+              mostCitedPapers: publicProfile.mostCitedPapers || [],
+            }));
+            
+            // Fetch additional own-profile data (email, reading stats)
+            try {
+              const fullProfile = await getUserProfile();
+              setUserData(prev => ({
+                ...prev,
+                id: fullProfile.id || "",
+                email: fullProfile.email || ""
+              }));
+              await fetchReadingProgress();
+            } catch (error) {
+              console.error('Could not fetch full profile data:', error);
+            }
+          } else {
+            // Viewing someone else's profile
+            setIsOwnProfile(false);
+            setIsAuthenticated(false);
+            
+            setUserData(prev => ({
+              ...prev,
+              name: publicProfile.name || "",
+              affiliation: publicProfile.affiliation || "",
+              institution: publicProfile.affiliation || "",
+              researchInterests: publicProfile.research_interests || [],
+              joinedDate: publicProfile.joinedDate || "",
+              profile_picture_url: publicProfile.profile_picture_url || null,
+              publications: publicProfile.publications || [],
+              totalPapers: publicProfile.totalPapers || 0,
+              mostCitedPapers: publicProfile.mostCitedPapers || [],
+            }));
+          }
           
         } else {
-          // VIEWING OWN PROFILE (Auth required)
+          // VIEWING OWN PROFILE via /profile route (Auth required)
           const token = localStorage.getItem('access_token');
 
           if (!token) {
@@ -263,13 +300,14 @@ const UserProfile = () => {
           }
 
           setIsOwnProfile(true);
-          setIsAuthenticated(true); // Set authentication status
+          setIsAuthenticated(true);
           
           const profile = await getUserProfile();
           
           setUserData(prev => ({
             ...prev,
             name: profile.name || "",
+            id: profile.id || "",
             email: profile.email || "",
             affiliation: profile.affiliation || "",
             institution: profile.affiliation || "",
@@ -529,7 +567,7 @@ const UserProfile = () => {
     
     setCiteItem(paper);
     setCiteOpen(true);
-    setCitationLoading(true); // FIXED: Changed from setCiteLoading to setCitationLoading
+    setCitationLoading(true);
     setCitationFormats([]);
     setSelectedFormat('bibtex');
     setCopied(false);
@@ -559,7 +597,7 @@ const UserProfile = () => {
       setCitationFormats([]);
       setSelectedFormat('bibtex');
     } finally {
-      setCitationLoading(false); // FIXED: Changed from setCiteLoading to setCitationLoading
+      setCitationLoading(false);
     }
   };
 
@@ -671,7 +709,9 @@ const UserProfile = () => {
 
   // ==================== SAVE MODAL FUNCTIONS (from ResultsPage) ====================
   const openSave = async (paper) => {
-    if (!isAuthenticated) {
+    // Anyone can click Save, but they need to be logged in to actually save
+    const token = localStorage.getItem('access_token');
+    if (!token) {
       alert('Please log in to save papers');
       navigate('/login');
       return;
@@ -1044,7 +1084,6 @@ const UserProfile = () => {
                       <h2 className="profile-name mb-0">
                         {userData.name || 'User'}
                       </h2>
-                      {userData.id && <span className="profile-id">{userData.id}</span>}
                     </div>
 
                     {userData.institution && (

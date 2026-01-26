@@ -1,5 +1,6 @@
 const { supabase } = require('../config/supabase');
 const { errorHandler } = require('../utils/errorHandler');
+const PaperContent = require('../models/PaperContent'); 
 
 // ========================================
 // EXISTING FUNCTIONS (for own profile)
@@ -154,23 +155,45 @@ const removeProfilePicture = async (req, res) => {
 };
 
 // ========================================
-// NEW FUNCTION (single route with everything)
+// PUBLIC PROFILE FUNCTION (WITH MONGODB ABSTRACT)
 // ========================================
 
 /**
  * Get public profile of any user with publications
- * ONE ROUTE - RETURNS EVERYTHING
+ * COMPLETELY PUBLIC - no authentication required
+ * Fetches abstracts from MongoDB using s2_paper_id
  */
 const getPublicUserProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const requestingUserId = req.user?.id;
-    const supabase = req.supabase;
-
-    // Fetch user's basic info
+    
+    // Check if there's an auth token (frontend can optionally send it)
+    let requestingAuthId = null;
+    const authHeader = req.headers.authorization;
+    
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      try {
+        // Try to verify the token
+        const { createClient } = require('@supabase/supabase-js');
+        const supabaseClient = createClient(
+          process.env.SUPABASE_URL,
+          process.env.SUPABASE_ANON_KEY
+        );
+        const { data: { user } } = await supabaseClient.auth.getUser(token);
+        if (user) {
+          requestingAuthId = user.id;
+        }
+      } catch (error) {
+        // Invalid token? No problem, just treat as unauthenticated
+        console.log('Invalid auth token in public route, continuing as unauthenticated');
+      }
+    }
+    
+    // Use the imported supabase instance (always available)
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, name, profile_picture_url, affiliation, research_interests, created_at')
+      .select('id, auth_id, name, profile_picture_url, affiliation, research_interests, created_at')
       .eq('id', user_id)
       .single();
 
@@ -181,7 +204,7 @@ const getPublicUserProfile = async (req, res) => {
       throw userError;
     }
 
-    // Fetch user's publications
+    // Fetch user's publications (without abstract - we'll get it from MongoDB)
     const { data: publications, error: pubError } = await supabase
       .from('user_papers')
       .select(`
@@ -203,9 +226,10 @@ const getPublicUserProfile = async (req, res) => {
 
     if (pubError) throw pubError;
 
-    // Get authors for each paper and transform data
+    // Get authors for each paper and fetch abstract from MongoDB
     const papersWithAuthors = await Promise.all(
       (publications || []).map(async (pub) => {
+        // Fetch authors from Supabase
         const { data: authorData } = await supabase
           .from('author_papers')
           .select(`authors (name)`)
@@ -213,10 +237,25 @@ const getPublicUserProfile = async (req, res) => {
 
         const authors = authorData?.map(a => a.authors.name) || [];
 
+        // Fetch abstract from MongoDB using s2_paper_id
+        let abstract = 'No abstract available';
+        try {
+          const paperContent = await PaperContent.findOne({ 
+            s2PaperId: pub.papers.s2_paper_id 
+          });
+          if (paperContent && paperContent.abstract) {
+            abstract = paperContent.abstract;
+          }
+        } catch (error) {
+          console.error(`Error fetching abstract for paper ${pub.papers.s2_paper_id}:`, error);
+        }
+
         return {
           id: pub.id,
+          s2_paper_id: pub.papers.s2_paper_id,
           title: pub.papers.title,
           authors: authors,
+          abstract: abstract,  // ✅ FROM MONGODB
           citation_count: pub.papers.citation_count || 0,
           year: pub.papers.published_date 
             ? new Date(pub.papers.published_date).getFullYear() 
@@ -252,8 +291,8 @@ const getPublicUserProfile = async (req, res) => {
       mostCitedPapers: mostCitedPapers
     };
 
-    // Check if viewing own profile
-    if (requestingUserId && userData.id === requestingUserId) {
+    // Check if viewing own profile (only if user sent a valid token)
+    if (requestingAuthId && userData.auth_id === requestingAuthId) {
       publicProfile.isOwnProfile = true;
       return res.status(200).json({
         message: 'This is your own profile. Use /api/users/profile for full data including email and stats.',

@@ -1,25 +1,3 @@
-// const express = require('express');
-// const router = express.Router();
-// const { authenticate } = require('../middlewares/authMiddleware');
-// const {
-//   getUserProfile,
-//   updateUserProfile,
-//   uploadProfilePicture,
-//   getPublicUserProfile
-// } = require('../controllers/userController');
-
-// // All routes require authentication
-// router.use(authenticate);
-
-// // User profile routes
-// router.get('/profile', getUserProfile);           // Get user profile
-// router.put('/profile', updateUserProfile);        // Update user profile
-// router.post('/profile-picture', uploadProfilePicture); // Upload profile picture
-// router.get('/profile/:user_id', getPublicUserProfile);  // Get public user profile by user ID
-
-// module.exports = router;
-
-
 const express = require('express');
 const router = express.Router();
 const { authenticate } = require('../middlewares/authMiddleware');
@@ -35,14 +13,12 @@ const {
 const { searchAuthors } = require('../controllers/userSearch.controller');
 
 
-// PUBLIC ROUTES
-
+// PUBLIC ROUTES (no authentication required)
 router.get('/search', searchAuthors);
-router.get('/profile/:user_id', getPublicUserProfile);
+router.get('/profile/:user_id', getPublicUserProfile);  // Completely public - no auth middleware
 
 
-// AUTHENTICATED ROUTES
-
+// AUTHENTICATED ROUTES (require login)
 router.get('/profile', authenticate, getUserProfile);
 router.put('/profile', authenticate, updateUserProfile);
 router.post('/profile-picture', authenticate, uploadProfilePicture);
