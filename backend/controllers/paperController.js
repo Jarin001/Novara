@@ -1,7 +1,10 @@
 const paperDetailsService = require('../services/paperdetails.service');
+const PaperService = require('../services/paperService');
+const AuthorService = require('../services/authorService');
 
 /**
  * Step 1: Preview paper details from API
+ * This function remains unchanged as it only fetches from external API
  */
 exports.fetchPaperPreview = async (req, res) => {
   try {
@@ -11,12 +14,12 @@ exports.fetchPaperPreview = async (req, res) => {
       return res.status(400).json({ message: 'paperId is required' });
     }
 
-    console.log('🔍 Fetching paper preview for:', paperId);
+    console.log('Fetching paper preview for:', paperId);
 
     // ONLY fetch from API - don't save anything yet
     const data = await paperDetailsService.getPaperDetails(paperId);
 
-    console.log('📄 Paper preview fetched:', {
+    console.log('aper preview fetched:', {
       paperId: data.paperId,
       title: data.title,
       hasAbstract: !!data.abstract,
@@ -78,7 +81,7 @@ exports.fetchPaperPreview = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(' Error fetching paper preview:', err);
+    console.error('Error fetching paper preview:', err);
     res.status(404).json({ 
       message: 'Paper not found. Please check the paper ID, DOI, or ArXiv ID and try again.' 
     });
@@ -86,25 +89,23 @@ exports.fetchPaperPreview = async (req, res) => {
 };
 
 /**
- * Add paper to user's publications 
+ *  Add paper to user's publications 
  */
 exports.addUserPublication = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
-    const PaperContent = require('../models/PaperContent');
-    
-    // Frontend should send ALL paper details that were previewed
     const { paperData } = req.body;
 
-    // Validate required fields
+ 
+    // VALIDATION
     if (!paperData || (!paperData.paperId && !paperData.s2_paper_id)) {
       return res.status(400).json({ 
         message: 'Paper data is required. Please preview the paper first.' 
       });
     }
 
-    // Normalize the paper ID (frontend might send either paperId or s2_paper_id)
+    // Normalize paper ID (accept both field names)
     const s2PaperId = paperData.paperId || paperData.s2_paper_id;
 
     console.log('User confirmed, saving paper:', {
@@ -114,7 +115,8 @@ exports.addUserPublication = async (req, res) => {
       abstractLength: paperData.abstract?.length || 0
     });
 
-    // Get user ID
+  
+    //  GET USER ID
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -125,172 +127,101 @@ exports.addUserPublication = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // Check if paper already exists in database
-    let { data: existingPaper } = await supabase
-      .from('papers')
-      .select('id, s2_paper_id, title, venue')
-      .eq('s2_paper_id', s2PaperId)
-      .maybeSingle();
+  
+    // UPSERT PAPER (using PaperService)
+    
+    console.log('Upserting paper to database...');
+    
+    const paper = await PaperService.upsertPaper(supabase, {
+      s2_paper_id: s2PaperId,
+      title: paperData.title,
+      venue: paperData.venue,
+      year: paperData.year || paperData.published_year || null,
+      citation_count: paperData.citationCount || paperData.citation_count || 0,
+      fields_of_study: paperData.fieldsOfStudy || paperData.fields_of_study || []
+    });
 
-    let paper;
+    console.log('Paper upserted:', paper.id);
 
-    if (existingPaper) {
-      console.log('Paper already exists in database:', existingPaper.id);
-      paper = existingPaper;
-    } else {
-      console.log('📝 Creating new paper in database...');
+    
+    // LINK AUTHORS
+    
+    if (paperData.authors && Array.isArray(paperData.authors) && paperData.authors.length > 0) {
+      console.log(`Linking ${paperData.authors.length} authors...`);
       
-      // Save paper to PostgreSQL - NOW INCLUDING VENUE
-      const { data: newPaper, error: paperError } = await supabase
-        .from('papers')
-        .insert({
-          s2_paper_id: s2PaperId,
-          title: paperData.title,
-          year: paperData.year || paperData.published_year || null,
-          published_date: paperData.publicationDate || paperData.publication_date || (paperData.year ? `${paperData.year}-01-01` : null),
-          citation_count: paperData.citationCount || paperData.citation_count || 0,
-          fields_of_study: paperData.fieldsOfStudy || paperData.fields_of_study || [],
-          venue: paperData.venue || null  // NEW: Include venue
-        })
-        .select()
-        .single();
-
-      if (paperError) {
-        console.error('Error saving paper to PostgreSQL:', paperError);
-        throw paperError;
-      }
-
-      paper = newPaper;
-      console.log('✅ Paper saved to PostgreSQL:', paper.id);
-
-      // Save authors (only if paper is new)
-      if (paperData.authors && Array.isArray(paperData.authors) && paperData.authors.length > 0) {
-        console.log(`👥 Saving ${paperData.authors.length} authors...`);
-
-        for (const authorData of paperData.authors) {
-          const authorName = typeof authorData === 'string' ? authorData : authorData.name;
-          if (!authorName || authorName.trim() === '') continue;
-
-          try {
-            // Check if author exists
-            let { data: existingAuthor } = await supabase
-              .from('authors')
-              .select('id')
-              .eq('name', authorName.trim())
-              .maybeSingle();
-
-            let authorId;
-
-            if (existingAuthor) {
-              authorId = existingAuthor.id;
-            } else {
-              // Create new author
-              const { data: newAuthor, error: createError } = await supabase
-                .from('authors')
-                .insert({ name: authorName.trim() })
-                .select('id')
-                .single();
-
-              if (createError) {
-                console.error('Error creating author:', createError);
-                continue;
-              }
-              authorId = newAuthor.id;
-            }
-
-            // Link author to paper
-            const { data: existingLink } = await supabase
-              .from('author_papers')
-              .select('id')
-              .eq('author_id', authorId)
-              .eq('paper_id', paper.id)
-              .maybeSingle();
-
-            if (!existingLink) {
-              await supabase
-                .from('author_papers')
-                .insert({
-                  author_id: authorId,
-                  paper_id: paper.id
-                });
-            }
-          } catch (err) {
-            console.error('Error processing author:', authorName, err);
-          }
+      // Transform authors to expected format {name, affiliation}
+      const authorsToLink = paperData.authors.map(authorData => {
+        if (typeof authorData === 'string') {
+          return { name: authorData, affiliation: null };
         }
+        return {
+          name: authorData.name,
+          affiliation: authorData.affiliation || null
+        };
+      }).filter(a => a.name && a.name.trim() !== '');
 
-        console.log('Authors saved successfully');
+      try {
+        await AuthorService.linkAuthorsToaPaper(supabase, paper.id, authorsToLink);
+        console.log('Authors linked successfully');
+      } catch (authorError) {
+        console.error('Error linking authors (non-fatal):', authorError);
       }
     }
 
-
+   
+    // SAVE PAPER CONTENT TO MONGODB 
     try {
-      console.log('Checking/updating abstract in MongoDB...');
+      console.log('Saving paper content to MongoDB...');
       
-      const mongoDoc = await PaperContent.findOneAndUpdate(
-        { s2PaperId: s2PaperId },
-        {
-          paperId: paper.id.toString(),
-          s2PaperId: s2PaperId,
-          abstract: paperData.abstract || '',
-          bibtex: paperData.bibtex || ''
-        },
-        { upsert: true, new: true }
+      await PaperService.savePaperContent(
+        paper.id,
+        s2PaperId,
+        paperData.abstract || '',
+        paperData.bibtex || ''
       );
 
-      console.log('Abstract ensured in MongoDB:', {
-        _id: mongoDoc._id,
-        paperId: mongoDoc.paperId,
-        s2PaperId: mongoDoc.s2PaperId,
-        abstractLength: mongoDoc.abstract?.length || 0
-      });
-
+      console.log('✅ Paper content saved to MongoDB');
     } catch (mongoError) {
-      console.error('MongoDB error:', mongoError);
+      console.error('⚠️ MongoDB error (non-fatal):', mongoError);
+      // Continue even if MongoDB fails
     }
 
-    // Check if already added to user's publications
-    const { data: existing } = await supabase
-      .from('user_papers')
-      .select('id')
-      .eq('user_id', userData.id)
-      .eq('paper_id', paper.id)
-      .maybeSingle();
+    
+    // LINK TO USER'S PUBLICATIONS (using PaperService)
+   
+    try {
+      console.log('🔗 Linking paper to user publications...');
+      
+      const userPaper = await PaperService.linkPaperToUser(
+        supabase,
+        userData.id,
+        paper.id
+      );
 
-    if (existing) {
-      return res.status(409).json({ 
-        message: 'This paper is already in your publications' 
+      console.log('Paper successfully added to user publications');
+
+   
+      res.status(201).json({
+        message: 'Paper added to your publications successfully',
+        publication: {
+          id: userPaper.id,
+          s2_paper_id: paper.s2_paper_id,
+          title: paper.title,
+          year: paper.year,
+          citation_count: paper.citation_count,
+          uploaded_at: userPaper.uploaded_at
+        }
       });
-    }
 
-    // Add to user's publications
-    const { data: userPaper, error: linkError } = await supabase
-      .from('user_papers')
-      .insert({
-        user_id: userData.id,
-        paper_id: paper.id
-      })
-      .select()
-      .single();
-
-    if (linkError) {
-      console.error(' Error linking paper to user:', linkError);
+    } catch (linkError) {
+      // Handle specific error codes from PaperService
+      if (linkError.code === 'DUPLICATE') {
+        return res.status(409).json({ 
+          message: 'This paper is already in your publications' 
+        });
+      }
       throw linkError;
     }
-
-    console.log('✅ Paper successfully added to user publications');
-
-    res.status(201).json({
-      message: 'Paper added to your publications successfully',
-      publication: {
-        id: userPaper.id,
-        s2_paper_id: paper.s2_paper_id,
-        title: paper.title,
-        year: paper.year,
-        citation_count: paper.citation_count,
-        uploaded_at: userPaper.uploaded_at
-      }
-    });
 
   } catch (err) {
     console.error('Error adding publication:', err);
@@ -302,14 +233,16 @@ exports.addUserPublication = async (req, res) => {
 };
 
 /**
- * Get user's publications with authors and abstract from MongoDB
+ * Get user's publications 
  */
 exports.getUserPublications = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
-    const PaperContent = require('../models/PaperContent');
 
+    
+    //  GET USER ID
+    
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -320,113 +253,82 @@ exports.getUserPublications = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
+    
+    // GET PUBLICATIONS FROM DATABASE 
+    
+    const publications = await PaperService.getUserPapers(supabase, userData.id);
 
-    const { data: publications, error: pubError } = await supabase
-      .from('user_papers')
-      .select(`
-        id,
-        uploaded_at,
-        papers (
-          id,
-          s2_paper_id,
-          title,
-          year,
-          published_date,
-          citation_count,
-          fields_of_study,
-          venue
-        )
-      `)
-      .eq('user_id', userData.id)
-      .order('uploaded_at', { ascending: false });
-
-    if (pubError) throw pubError;
+    if (!publications || publications.length === 0) {
+      return res.json({ publications: [] });
+    }
 
     console.log(`Fetching details for ${publications.length} papers`);
 
-    // Fetch all abstracts in one query (optimized)
-    const paperIds = publications.map(p => p.papers.id.toString());
+ 
+    const paperIds = publications.map(p => p.papers.id);
+
     
-    let allPaperContents = [];
-    try {
-      allPaperContents = await PaperContent.find({ 
-        paperId: { $in: paperIds } 
-      });
-      console.log(`Found ${allPaperContents.length} abstracts in MongoDB`);
-    } catch (mongoError) {
-      console.error('Error fetching from MongoDB:', mongoError);
-    }
-
-    // Create a map for O(1) lookup
-    const contentMap = new Map(
-      allPaperContents.map(pc => [pc.paperId, pc])
-    );
-
-    // Fetch authors and combine with abstracts
-    const publicationsWithDetails = await Promise.all(
-      publications.map(async (pub) => {
-        // Fetch authors from PostgreSQL
-        const { data: authorData } = await supabase
-          .from('author_papers')
-          .select(`
-            authors (
-              id,
-              name,
-              affiliation
-            )
-          `)
-          .eq('paper_id', pub.papers.id);
-
-        const authors = authorData?.map(ap => ap.authors.name) || [];
-
-        // Get abstract from the map
-        const paperContent = contentMap.get(pub.papers.id.toString());
-        const abstract = paperContent?.abstract || '';
-
-        
-        return {
-          id: pub.id,                           
-          uploaded_at: pub.uploaded_at,
-          paper_id: pub.papers.id,              
-          s2_paper_id: pub.papers.s2_paper_id,
-          title: pub.papers.title,
-          year: pub.papers.year,
-          published_date: pub.papers.published_date,
-          citation_count: pub.papers.citation_count,
-          fields_of_study: pub.papers.fields_of_study,
-          venue: pub.papers.venue,             
-          authors: authors,
-          abstract: abstract
-        };
+    // FETCH ALL DATA IN PARALLEL 
+    
+    const [contentMap, authorsMap] = await Promise.all([
+      // Get abstracts from MongoDB
+      PaperService.getPaperContents(paperIds).catch(err => {
+        console.error('⚠️ Error fetching paper contents:', err);
+        return {}; // Return empty map on error
+      }),
+      // Get authors from PostgreSQL
+      AuthorService.getAuthorsForPapers(supabase, paperIds).catch(err => {
+        console.error('⚠️ Error fetching authors:', err);
+        return {}; // Return empty map on error
       })
-    );
+    ]);
 
+    console.log(`Found ${Object.keys(contentMap).length} abstracts and authors for ${Object.keys(authorsMap).length} papers`);
+
+    
+    // COMBINE ALL DATA
+    const publicationsWithDetails = publications.map(pub => ({
+      id: pub.id,
+      uploaded_at: pub.uploaded_at,
+      paper_id: pub.papers.id,
+      s2_paper_id: pub.papers.s2_paper_id,
+      title: pub.papers.title,
+      year: pub.papers.year,
+      published_date: pub.papers.published_date,
+      citation_count: pub.papers.citation_count,
+      fields_of_study: pub.papers.fields_of_study,
+      venue: pub.papers.venue,
+      authors: authorsMap[pub.papers.id]?.map(a => a.name) || [],
+      abstract: contentMap[pub.papers.id.toString()]?.abstract || ''
+    }));
+
+   
     res.json({
       publications: publicationsWithDetails
     });
 
   } catch (err) {
-    console.error('❌ Error fetching publications:', err);
-    res.status(500).json({ message: 'Failed to fetch publications' });
+    console.error('Error fetching publications:', err);
+    res.status(500).json({ 
+      message: 'Failed to fetch publications',
+      error: err.message 
+    });
   }
 };
 
-
 /**
- * Remove paper from user's publications
+ * Remove paper from user's publications 
  */
-
 exports.removeUserPublication = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
     const { publication_id } = req.params;
 
-    console.log('🗑️ === DELETE REQUEST RECEIVED ===');
-    console.log('Auth ID:', authId);
-    console.log('Publication ID:', publication_id);
+  
 
-    // Get user ID from auth_id
+    // 1. GET USER ID
+    
     const { data: userData, error: userError } = await supabase
       .from('users')
       .select('id')
@@ -440,82 +342,42 @@ exports.removeUserPublication = async (req, res) => {
 
     console.log('User found, ID:', userData.id);
 
-    // CRITICAL: Check if publication exists BEFORE deleting
-    const { data: beforeCheck, error: beforeError } = await supabase
-      .from('user_papers')
-      .select('id, paper_id, user_id')
-      .eq('id', publication_id)
-      .eq('user_id', userData.id)
-      .maybeSingle();
+    try {
+      const deletedPublication = await PaperService.unlinkPaperFromUser(
+        supabase,
+        userData.id,
+        publication_id
+      );
 
-    console.log('Before delete check:', beforeCheck);
+      console.log('Publication deleted successfully');
+      
 
-    if (!beforeCheck) {
-      console.warn('Publication not found or does not belong to user');
-      return res.status(404).json({ 
-        message: 'Publication not found or you do not have permission to delete it' 
+      res.json({ 
+        message: 'Publication removed successfully',
+        deleted: true,
+        deleted_id: publication_id,
+        deleted_paper_id: deletedPublication.paper_id
       });
+
+    } catch (serviceError) {
+      // Handle specific error codes from PaperService
+      if (serviceError.code === 'NOT_FOUND') {
+        console.warn('Publication not found or does not belong to user');
+        return res.status(404).json({ 
+          message: 'Publication not found or you do not have permission to delete it' 
+        });
+      }
+      
+      if (serviceError.code === 'DELETE_FAILED') {
+        console.error('Delete operation failed');
+        return res.status(500).json({ 
+          message: 'Failed to delete publication - no rows affected'
+        });
+      }
+
+      // Re-throw other errors
+      throw serviceError;
     }
-
-    console.log('Publication found, proceeding with deletion...');
-
-  
-    const { data: deleteResult, error: deleteError } = await supabase
-      .from('user_papers')
-      .delete()
-      .eq('id', publication_id)
-      .eq('user_id', userData.id)
-      .select(); // This returns the deleted row(s)
-
-    console.log('🗑️ Delete result:', deleteResult);
-    console.log('🗑️ Delete error:', deleteError);
-
-    if (deleteError) {
-      console.error('Delete query error:', deleteError);
-      throw deleteError;
-    }
-
-    
-    if (!deleteResult || deleteResult.length === 0) {
-      console.error('DELETE RETURNED NO ROWS - NOTHING WAS DELETED!');
-      return res.status(500).json({ 
-        message: 'Failed to delete publication - no rows affected',
-        debug: {
-          attempted_id: publication_id,
-          user_id: userData.id
-        }
-      });
-    }
-
-    console.log('✅ Deleted rows:', deleteResult.length);
-
-    // Check if the record still exists
-    const { data: afterCheck, error: afterError } = await supabase
-      .from('user_papers')
-      .select('id')
-      .eq('id', publication_id)
-      .maybeSingle();
-
-    if (afterCheck) {
-      console.error('CRITICAL: RECORD STILL EXISTS AFTER DELETE!');
-      console.error('Record:', afterCheck);
-      return res.status(500).json({ 
-        message: 'Deletion appeared to succeed but record still exists',
-        debug: {
-          still_exists: true,
-          record: afterCheck
-        }
-      });
-    }
-
-    console.log('✅✅✅ Verification passed - record no longer exists');
-    console.log('🗑️ === DELETE SUCCESSFUL ===');
-
-    res.json({ 
-      message: 'Publication removed successfully',
-      deleted: true,
-      deleted_id: publication_id
-    });
 
   } catch (err) {
     console.error('Error removing publication:', err);
