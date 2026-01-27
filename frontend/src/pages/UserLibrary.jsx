@@ -162,7 +162,7 @@ const ResearchLibrary = () => {
           title: paper.title,
           authors: paper.authors || [],
           venue: paper.venue || "Unknown Venue",
-date: paper.year ? String(paper.year) : "",
+          date: paper.year ? String(paper.year) : "",
           citations: paper.citation_count || 0,
           source: "Database",
           abstract: paper.abstract || "",
@@ -183,7 +183,7 @@ date: paper.year ? String(paper.year) : "",
     }
   };
 
-  // Fetch all papers from all libraries (deduplicated from backend)
+  // Fetch all papers from all libraries
   const fetchAllPapers = async () => {
     try {
       const token = getAuthToken();
@@ -213,7 +213,7 @@ date: paper.year ? String(paper.year) : "",
           title: paper.title,
           authors: paper.authors || [],
           venue: paper.venue || "Unknown Venue",
-      date: paper.year ? String(paper.year) : "",
+          date: paper.year ? String(paper.year) : "",
           citations: paper.citation_count || 0,
           source: "Database",
           abstract: paper.abstract || "",
@@ -645,7 +645,7 @@ date: paper.year ? String(paper.year) : "",
     }));
   };
 
-  // Show loading state until libraries are loaded on initial page load, OR until initial papers load
+  // Show loading state until librarie & papers are loaded
   if (loading.libraries || (papers.length === 0 && loading.papers)) {
     return (
       <div
@@ -661,32 +661,28 @@ date: paper.year ? String(paper.year) : "",
           style={{
             flex: 1,
             display: "flex",
-            alignItems: "center",
+            flexDirection: "column",
             justifyContent: "center",
-            marginTop: "64px",
+            alignItems: "center",
+            minHeight: "calc(100vh - 80px)",
+            marginTop: "80px",
           }}
         >
-          <div style={{ textAlign: "center" }}>
-            <Loader2
-              size={48}
-              className="spin"
-              style={{
-                color: "#3E513E",
-                marginBottom: "16px",
-                animation: "spin 1s linear infinite",
-              }}
-            />
-            <p style={{ color: "#3E513E" }}>
-              {loading.libraries ? "Loading libraries..." : "Loading papers..."}
-            </p>
+          <div
+            className="spinner-border"
+            role="status"
+            style={{
+              width: "3rem",
+              height: "3rem",
+              color: "#2e7d32",
+            }}
+          >
+            <span className="visually-hidden">Loading...</span>
           </div>
+          <p className="mt-3 text-muted">
+            {loading.libraries ? "Loading libraries..." : "Loading papers..."}
+          </p>
         </div>
-        <style>{`
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     );
   }
@@ -1169,15 +1165,19 @@ date: paper.year ? String(paper.year) : "",
                   color: "#9ca3af",
                 }}
               >
-                <Loader2
-                  size={48}
-                  className="spin"
+                <div
+                  className="spinner-border"
+                  role="status"
                   style={{
+                    width: "3rem",
+                    height: "3rem",
+                    color: "#2e7d32",
                     marginBottom: "16px",
-                    animation: "spin 1s linear infinite",
                   }}
-                />
-                <p style={{ fontSize: "1.125rem" }}>Loading papers...</p>
+                >
+                  <span className="visually-hidden">Loading...</span>
+                </div>
+                <p className="text-muted">Loading papers...</p>
               </div>
             ) : sortedPapers.length === 0 ? (
               <div
@@ -1212,12 +1212,11 @@ date: paper.year ? String(paper.year) : "",
                   <div
                     key={paper.id}
                     style={{
-                      borderBottom: "1px solid #eee", // Changed from #e5e7eb to #eee
+                      borderBottom: "1px solid #eee",
                       paddingBottom: "24px",
-                      padding: "18px 0", // Added padding top/bottom like ResultsPage
+                      padding: "18px 0",
                     }}
                   >
-                    {/* Title with Note Icon */}
                     {/* Title with Note Icon */}
                     <div
                       style={{
@@ -1228,10 +1227,10 @@ date: paper.year ? String(paper.year) : "",
                       }}
                     >
                       <button
-                        onClick={() => navigate(`/paper/${paper.s2PaperId}`)} // Navigate using semantic scholar ID
+                        onClick={() => navigate(`/paper/${paper.s2PaperId}`)}
                         style={{
-                          fontSize: "20px", // Changed from 1.125rem to 20px
-                          fontWeight: 600, // Changed from 400 to 600
+                          fontSize: "20px",
+                          fontWeight: 600,
                           color: "#3E513E",
                           cursor: "pointer",
                           flex: 1,
@@ -1288,8 +1287,7 @@ date: paper.year ? String(paper.year) : "",
                     </div>
 
                     {/* Authors */}
-                    {/* Authors - Updated to match ResultsPage */}
-                    {/* Authors and Fields of Study - UPDATED */}
+
                     <div
                       style={{
                         marginTop: "8px",
@@ -1300,13 +1298,12 @@ date: paper.year ? String(paper.year) : "",
                         marginBottom: "8px",
                       }}
                     >
-                      {/* Authors - CHANGED COLOR to #f2f2f2 (was #f2f6f8) */}
                       {Array.isArray(paper.authors) && paper.authors.length > 0
                         ? paper.authors.map((a, idx) => (
                             <span
                               key={idx}
                               style={{
-                                background: "#f2f2f2", // CHANGED COLOR
+                                background: "#f2f2f2",
                                 padding: "4px 8px",
                                 borderRadius: "4px",
                                 fontSize: "12px",
@@ -1317,7 +1314,8 @@ date: paper.year ? String(paper.year) : "",
                           ))
                         : ""}
 
-                      {/* Field of Study - CHANGED COLOR to #f2f6f8 (was #f2f2f2) and moved beside authors */}
+                      {/* Field of Study*/}
+
                       {paper.field && (
                         <>
                           {(Array.isArray(paper.field) ? paper.field : []).map(
@@ -1325,10 +1323,12 @@ date: paper.year ? String(paper.year) : "",
                               <span
                                 key={idx}
                                 style={{
-                                  background: "#f2f6f8", // CHANGED COLOR
+                                  background: "#e8f4f8",
                                   padding: "4px 8px",
                                   borderRadius: "4px",
-                                  fontSize: "12px",
+                                  fontSize: "11px",
+                                  color: "#1a73e8",
+                                  fontWeight: 400,
                                 }}
                               >
                                 {typeof f === "object" ? f.name || "" : f || ""}
@@ -1339,11 +1339,11 @@ date: paper.year ? String(paper.year) : "",
                       )}
                     </div>
 
-                    {/* Venue and Date - Updated styling */}
+                    {/* Venue and Date */}
                     <div
                       style={{
-                        fontSize: "13px", // Changed from 0.875rem to 13px
-                        color: "#888", // Changed from #6b7280 to #888
+                        fontSize: "13px",
+                        color: "#888",
                         marginBottom: "10px",
                       }}
                     >
@@ -1351,13 +1351,11 @@ date: paper.year ? String(paper.year) : "",
                     </div>
 
                     {/* Abstract */}
-                    {/* Abstract - Updated colors */}
-                    {/* Abstract */}
-                    {/* Abstract - Updated colors */}
+
                     <p
                       style={{
                         fontSize: "0.875rem",
-                        color: "#444", // Changed from #374151 to #444
+                        color: "#444",
                         marginBottom: "12px",
                         lineHeight: "1.5",
                       }}
@@ -1428,8 +1426,7 @@ date: paper.year ? String(paper.year) : "",
                     </p>
 
                     {/* Bottom Actions */}
-                    {/* Bottom Actions - Updated citation styling */}
-                    {/* Bottom Actions - Fixed layout with status on right */}
+
                     <div
                       style={{
                         display: "flex",
@@ -1443,11 +1440,11 @@ date: paper.year ? String(paper.year) : "",
                         style={{
                           display: "flex",
                           alignItems: "center",
-                          gap: "12px", // Changed from 16px to 12px for better spacing
+                          gap: "12px",
                         }}
                       >
-                        {/* Citations Count with ResultsPage badge styling */}
-                        {/* Citations Count with ResultsPage badge styling - ADDED INVERTED COMMA ICON */}
+                        {/* Citations Count */}
+
                         <span
                           style={{
                             display: "inline-flex",
@@ -1474,7 +1471,7 @@ date: paper.year ? String(paper.year) : "",
                           {paper.citations}
                         </span>
 
-                        {/* Cite Button with ResultsPage styling */}
+                        {/* Cite Button */}
                         <button
                           onClick={() =>
                             setCitationModal({
@@ -1511,7 +1508,7 @@ date: paper.year ? String(paper.year) : "",
                           Cite
                         </button>
 
-                        {/* Remove button - Keep original style */}
+                        {/* Remove button */}
                         <button
                           onClick={() =>
                             handleRemovePaper(paper.id, paper.dbPaperId)

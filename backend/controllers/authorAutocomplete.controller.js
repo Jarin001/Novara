@@ -3,8 +3,6 @@ const { errorHandler } = require('../utils/errorHandler');
 
 /**
  * Author autocomplete
- * GET /api/author-autocomplete?query=xyz
- * Returns minimal author info for suggestions
  */
 const authorAutocomplete = async (req, res) => {
   try {
