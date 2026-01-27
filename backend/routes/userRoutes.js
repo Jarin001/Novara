@@ -15,7 +15,7 @@ const { searchAuthors } = require('../controllers/userSearch.controller');
 
 // PUBLIC ROUTES (no authentication required)
 router.get('/search', searchAuthors);
-router.get('/profile/:user_id', getPublicUserProfile);  // Completely public - no auth middleware
+router.get('/profile/:user_id', getPublicUserProfile); 
 
 
 // AUTHENTICATED ROUTES (require login)

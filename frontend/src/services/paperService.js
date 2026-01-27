@@ -1,5 +1,3 @@
-// services/paperService.js
-
 const API_BASE_URL = process.env.REACT_APP_BACKEND_URL;
 
 /**
@@ -44,8 +42,8 @@ export const getUserPublications = async () => {
     
     // Transform publications to match UI format - NOW INCLUDING ALL FIELDS
     const transformedPublications = data.publications.map(pub => ({
-      id: pub.id,  // Keep this as the user_papers.id for deletion
-      paperId: pub.s2_paper_id,  // CRITICAL: Use s2_paper_id for routing to paper details
+      id: pub.id,  
+      paperId: pub.s2_paper_id,  
       s2_paper_id: pub.s2_paper_id,
       title: pub.title,
       authors: pub.authors && pub.authors.length > 0 ? pub.authors.join(', ') : 'Unknown Authors',
@@ -65,7 +63,7 @@ export const getUserPublications = async () => {
       paper_id: pub.paper_id
     }));
     
-    console.log('📄 Sample transformed publication:', transformedPublications[0]);
+    console.log('Sample transformed publication:', transformedPublications[0]);
     
     return transformedPublications;
   } catch (error) {
@@ -95,9 +93,6 @@ export const removePublication = async (userPaperId) => {
 
 /**
  * Calculate most cited papers from publications list
- * @param {Array} publications - Array of publications
- * @param {number} count - Number of top papers to return
- * @returns {Array} Top cited papers
  */
 export const getMostCitedPapers = (publications, count = 3) => {
   return [...publications]

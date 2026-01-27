@@ -2,9 +2,6 @@ const { supabase } = require('../config/supabase');
 const { errorHandler } = require('../utils/errorHandler');
 const PaperContent = require('../models/PaperContent'); 
 
-// ========================================
-// EXISTING FUNCTIONS (for own profile)
-// ========================================
 
 // Get user's own profile (full access)
 const getUserProfile = async (req, res) => {
@@ -154,15 +151,9 @@ const removeProfilePicture = async (req, res) => {
   }
 };
 
-// ========================================
-// PUBLIC PROFILE FUNCTION (WITH MONGODB ABSTRACT)
-// ========================================
 
-/**
- * Get public profile of any user with publications
- * COMPLETELY PUBLIC - no authentication required
- * Fetches abstracts from MongoDB using s2_paper_id
- */
+// Get public profile of any user with publications
+ 
 const getPublicUserProfile = async (req, res) => {
   try {
     const { user_id } = req.params;

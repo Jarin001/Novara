@@ -2,8 +2,6 @@ const paperDetailsService = require('../services/paperdetails.service');
 
 /**
  * Step 1: Preview paper details from API
- * ONLY fetches from API, does NOT save to database
- * Returns ALL fields to frontend for preview
  */
 exports.fetchPaperPreview = async (req, res) => {
   try {
@@ -80,7 +78,7 @@ exports.fetchPaperPreview = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error fetching paper preview:', err);
+    console.error(' Error fetching paper preview:', err);
     res.status(404).json({ 
       message: 'Paper not found. Please check the paper ID, DOI, or ArXiv ID and try again.' 
     });
@@ -88,8 +86,7 @@ exports.fetchPaperPreview = async (req, res) => {
 };
 
 /**
- * Step 2: Add paper to user's publications (AFTER user confirms)
- * THIS is where we save everything to the database
+ * Add paper to user's publications 
  */
 exports.addUserPublication = async (req, res) => {
   try {
@@ -110,7 +107,7 @@ exports.addUserPublication = async (req, res) => {
     // Normalize the paper ID (frontend might send either paperId or s2_paper_id)
     const s2PaperId = paperData.paperId || paperData.s2_paper_id;
 
-    console.log('💾 User confirmed, saving paper:', {
+    console.log('User confirmed, saving paper:', {
       s2PaperId: s2PaperId,
       title: paperData.title,
       hasAbstract: !!paperData.abstract,
@@ -138,7 +135,7 @@ exports.addUserPublication = async (req, res) => {
     let paper;
 
     if (existingPaper) {
-      console.log('📌 Paper already exists in database:', existingPaper.id);
+      console.log('Paper already exists in database:', existingPaper.id);
       paper = existingPaper;
     } else {
       console.log('📝 Creating new paper in database...');
@@ -159,7 +156,7 @@ exports.addUserPublication = async (req, res) => {
         .single();
 
       if (paperError) {
-        console.error('❌ Error saving paper to PostgreSQL:', paperError);
+        console.error('Error saving paper to PostgreSQL:', paperError);
         throw paperError;
       }
 
@@ -195,7 +192,7 @@ exports.addUserPublication = async (req, res) => {
                 .single();
 
               if (createError) {
-                console.error('❌ Error creating author:', createError);
+                console.error('Error creating author:', createError);
                 continue;
               }
               authorId = newAuthor.id;
@@ -218,18 +215,17 @@ exports.addUserPublication = async (req, res) => {
                 });
             }
           } catch (err) {
-            console.error('❌ Error processing author:', authorName, err);
+            console.error('Error processing author:', authorName, err);
           }
         }
 
-        console.log('✅ Authors saved successfully');
+        console.log('Authors saved successfully');
       }
     }
 
-    // CRITICAL: Always ensure abstract is in MongoDB, even for existing papers
-    // This handles the case where paper exists but abstract was never saved
+
     try {
-      console.log('🔍 Checking/updating abstract in MongoDB...');
+      console.log('Checking/updating abstract in MongoDB...');
       
       const mongoDoc = await PaperContent.findOneAndUpdate(
         { s2PaperId: s2PaperId },
@@ -242,7 +238,7 @@ exports.addUserPublication = async (req, res) => {
         { upsert: true, new: true }
       );
 
-      console.log('✅ Abstract ensured in MongoDB:', {
+      console.log('Abstract ensured in MongoDB:', {
         _id: mongoDoc._id,
         paperId: mongoDoc.paperId,
         s2PaperId: mongoDoc.s2PaperId,
@@ -250,7 +246,7 @@ exports.addUserPublication = async (req, res) => {
       });
 
     } catch (mongoError) {
-      console.error('❌ MongoDB error:', mongoError);
+      console.error('MongoDB error:', mongoError);
     }
 
     // Check if already added to user's publications
@@ -278,7 +274,7 @@ exports.addUserPublication = async (req, res) => {
       .single();
 
     if (linkError) {
-      console.error('❌ Error linking paper to user:', linkError);
+      console.error(' Error linking paper to user:', linkError);
       throw linkError;
     }
 
@@ -297,7 +293,7 @@ exports.addUserPublication = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error adding publication:', err);
+    console.error('Error adding publication:', err);
     res.status(500).json({ 
       message: 'Failed to add paper to publications',
       error: err.message 
@@ -307,7 +303,6 @@ exports.addUserPublication = async (req, res) => {
 
 /**
  * Get user's publications with authors and abstract from MongoDB
- * UPDATED: Now includes venue in the response
  */
 exports.getUserPublications = async (req, res) => {
   try {
@@ -325,7 +320,7 @@ exports.getUserPublications = async (req, res) => {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    // UPDATED: Now selecting venue from papers table
+
     const { data: publications, error: pubError } = await supabase
       .from('user_papers')
       .select(`
@@ -347,7 +342,7 @@ exports.getUserPublications = async (req, res) => {
 
     if (pubError) throw pubError;
 
-    console.log(`📚 Fetching details for ${publications.length} papers`);
+    console.log(`Fetching details for ${publications.length} papers`);
 
     // Fetch all abstracts in one query (optimized)
     const paperIds = publications.map(p => p.papers.id.toString());
@@ -357,9 +352,9 @@ exports.getUserPublications = async (req, res) => {
       allPaperContents = await PaperContent.find({ 
         paperId: { $in: paperIds } 
       });
-      console.log(`✅ Found ${allPaperContents.length} abstracts in MongoDB`);
+      console.log(`Found ${allPaperContents.length} abstracts in MongoDB`);
     } catch (mongoError) {
-      console.error('❌ Error fetching from MongoDB:', mongoError);
+      console.error('Error fetching from MongoDB:', mongoError);
     }
 
     // Create a map for O(1) lookup
@@ -388,18 +383,18 @@ exports.getUserPublications = async (req, res) => {
         const paperContent = contentMap.get(pub.papers.id.toString());
         const abstract = paperContent?.abstract || '';
 
-        // UPDATED: Now including venue in the response
+        
         return {
-          id: pub.id,                           // ← user_papers.id (for DELETE)
+          id: pub.id,                           
           uploaded_at: pub.uploaded_at,
-          paper_id: pub.papers.id,              // ← papers.id
+          paper_id: pub.papers.id,              
           s2_paper_id: pub.papers.s2_paper_id,
           title: pub.papers.title,
           year: pub.papers.year,
           published_date: pub.papers.published_date,
           citation_count: pub.papers.citation_count,
           fields_of_study: pub.papers.fields_of_study,
-          venue: pub.papers.venue,              // NEW: Include venue
+          venue: pub.papers.venue,             
           authors: authors,
           abstract: abstract
         };
@@ -420,10 +415,6 @@ exports.getUserPublications = async (req, res) => {
 /**
  * Remove paper from user's publications
  */
-// ============================================================================
-// FIXED removeUserPublication function for paperController.js
-// Replace your existing removeUserPublication function with this
-// ============================================================================
 
 exports.removeUserPublication = async (req, res) => {
   try {
@@ -443,11 +434,11 @@ exports.removeUserPublication = async (req, res) => {
       .single();
 
     if (userError || !userData) {
-      console.error('❌ User not found:', userError);
+      console.error('User not found:', userError);
       return res.status(404).json({ message: 'User not found' });
     }
 
-    console.log('✅ User found, ID:', userData.id);
+    console.log('User found, ID:', userData.id);
 
     // CRITICAL: Check if publication exists BEFORE deleting
     const { data: beforeCheck, error: beforeError } = await supabase
@@ -457,18 +448,18 @@ exports.removeUserPublication = async (req, res) => {
       .eq('user_id', userData.id)
       .maybeSingle();
 
-    console.log('📊 Before delete check:', beforeCheck);
+    console.log('Before delete check:', beforeCheck);
 
     if (!beforeCheck) {
-      console.warn('⚠️ Publication not found or does not belong to user');
+      console.warn('Publication not found or does not belong to user');
       return res.status(404).json({ 
         message: 'Publication not found or you do not have permission to delete it' 
       });
     }
 
-    console.log('📄 Publication found, proceeding with deletion...');
+    console.log('Publication found, proceeding with deletion...');
 
-    // Attempt to delete - CRITICAL: Use .select() to see what was actually deleted
+  
     const { data: deleteResult, error: deleteError } = await supabase
       .from('user_papers')
       .delete()
@@ -480,13 +471,13 @@ exports.removeUserPublication = async (req, res) => {
     console.log('🗑️ Delete error:', deleteError);
 
     if (deleteError) {
-      console.error('❌ Delete query error:', deleteError);
+      console.error('Delete query error:', deleteError);
       throw deleteError;
     }
 
-    // CRITICAL CHECK: Verify something was actually deleted
+    
     if (!deleteResult || deleteResult.length === 0) {
-      console.error('❌❌❌ DELETE RETURNED NO ROWS - NOTHING WAS DELETED!');
+      console.error('DELETE RETURNED NO ROWS - NOTHING WAS DELETED!');
       return res.status(500).json({ 
         message: 'Failed to delete publication - no rows affected',
         debug: {
@@ -498,7 +489,7 @@ exports.removeUserPublication = async (req, res) => {
 
     console.log('✅ Deleted rows:', deleteResult.length);
 
-    // VERIFICATION: Check if the record still exists
+    // Check if the record still exists
     const { data: afterCheck, error: afterError } = await supabase
       .from('user_papers')
       .select('id')
@@ -506,7 +497,7 @@ exports.removeUserPublication = async (req, res) => {
       .maybeSingle();
 
     if (afterCheck) {
-      console.error('❌❌❌ CRITICAL: RECORD STILL EXISTS AFTER DELETE!');
+      console.error('CRITICAL: RECORD STILL EXISTS AFTER DELETE!');
       console.error('Record:', afterCheck);
       return res.status(500).json({ 
         message: 'Deletion appeared to succeed but record still exists',
@@ -527,7 +518,7 @@ exports.removeUserPublication = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('❌ Error removing publication:', err);
+    console.error('Error removing publication:', err);
     res.status(500).json({ 
       message: 'Failed to remove publication',
       error: err.message 
