@@ -172,7 +172,7 @@ const CitationsPage = () => {
           
           if (response.ok) {
             const data = await response.json();
-            console.log("Citations loaded:", data);
+            console.log("Citations raw data:", data);
             
             // Handle different response formats
             let citationsArray = [];
@@ -184,16 +184,41 @@ const CitationsPage = () => {
               citationsArray = data.citations;
             }
             
-            // Process the citations to ensure consistent ID format
-            const processedCitations = citationsArray.map(citation => ({
-              ...citation,
-              // Ensure paperId is the main ID (matching ResultsPage format)
-              paperId: citation.paperId || citation.id || citation.paper_id,
-              // Ensure fieldsOfStudy is an array
-              fieldsOfStudy: Array.isArray(citation.fieldsOfStudy) ? citation.fieldsOfStudy : 
-                            citation.fields ? (Array.isArray(citation.fields) ? citation.fields : []) : []
-            }));
+            // Process the citations to ensure consistent ID format - FIXED WITH PROPER AUTHORS PROCESSING
+            const processedCitations = citationsArray.map(citation => {
+              // Extract authors - handle both string and object formats (LIKE REFERENCES PAGE)
+              let authorsArray = [];
+              if (Array.isArray(citation.authors)) {
+                authorsArray = citation.authors.map(author => {
+                  if (typeof author === 'object') {
+                    // Return the full author object for the save modal
+                    return {
+                      name: author.name || author.authorName || author.fullName || '',
+                      affiliation: author.affiliation || ''
+                    };
+                  }
+                  // If it's just a string, return as object with name field
+                  return { name: author || '', affiliation: '' };
+                }).filter(author => author.name); // Remove empty authors
+              } else if (typeof citation.authors === 'string') {
+                authorsArray = [{ name: citation.authors, affiliation: '' }];
+              } else if (citation.author) {
+                authorsArray = [{ name: citation.author, affiliation: '' }];
+              }
+              
+              return {
+                ...citation,
+                // Ensure paperId is the main ID (matching ResultsPage format)
+                paperId: citation.paperId || citation.id || citation.paper_id,
+                // Ensure fieldsOfStudy is an array
+                fieldsOfStudy: Array.isArray(citation.fieldsOfStudy) ? citation.fieldsOfStudy : 
+                              citation.fields ? (Array.isArray(citation.fields) ? citation.fields : []) : [],
+                // Processed authors array
+                authors: authorsArray
+              };
+            });
             
+            console.log("Processed citations with authors:", processedCitations);
             setCitations(processedCitations);
             setTotalResults(processedCitations.length);
           } else {
@@ -660,8 +685,9 @@ const CitationsPage = () => {
     // Check which libraries this paper is already in
     const paperId = item.paperId; // Use paperId field (should be consistent now)
     if (paperId) {
-      console.log('Opening save modal for paper:', item.title);
+      console.log('Opening save modal for paper:', item);
       console.log('Paper ID (s2_paper_id):', paperId);
+      console.log('Paper authors:', item.authors);
       
       // Show modal immediately, then check libraries in background
       setCheckingPaperInLibraries(true);
@@ -785,6 +811,8 @@ const CitationsPage = () => {
           (async () => {
             try {
               console.log(`Adding paper to library: ${library.name}`);
+              console.log(`Paper data authors:`, paperData.authors);
+              
               const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
                 method: 'POST',
                 headers: {
@@ -794,16 +822,30 @@ const CitationsPage = () => {
                 body: JSON.stringify(paperData)
               });
 
+              console.log(`Response status for ${library.name}:`, response.status);
+              
               if (response.ok) {
                 addedCount++;
                 console.log(`✓ Paper added to library ${library.name}`);
               } else {
+                let errorText = '';
+                try {
+                  errorText = await response.text();
+                  console.error(`Response text for ${library.name}:`, errorText);
+                } catch (e) {
+                  console.error(`Could not read response text for ${library.name}:`, e);
+                }
+                
                 let errorData = { message: 'Unknown error' };
                 try {
-                  errorData = await response.json();
+                  if (errorText) {
+                    errorData = JSON.parse(errorText);
+                  }
                 } catch (e) {
-                  console.error('Response is not JSON:', e);
+                  console.error('Response is not JSON:', errorText);
+                  errorData = { message: errorText || `HTTP ${response.status}` };
                 }
+                
                 console.error(`Failed to add to library ${library.name}:`, errorData, 'Status:', response.status);
                 failedAdditions.push(`${library.name}: ${errorData.message || `HTTP ${response.status}`}`);
               }
@@ -1151,9 +1193,10 @@ const CitationsPage = () => {
                   </button>
 
                   <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-                    {/* Authors */}
+                    {/* Authors - FIXED to handle object format */}
                     {(r.authors || []).map((a, idx) => {
                       const authorName = typeof a === 'object' ? a.name || '' : a || '';
+                      if (!authorName) return null;
                       return (
                         <span key={idx} style={{ background: "#f2f6f8", padding: "4px 8px", borderRadius: 4, fontSize: 12 }}>
                           {authorName}
