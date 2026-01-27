@@ -1,8 +1,6 @@
 const BASE_URL = "https://api.semanticscholar.org/graph/v1";
 
 
-// Call Semantic Scholar autocomplete API
-
 async function fetchPaperAutocomplete(query) {
   const url = `${BASE_URL}/paper/autocomplete?query=${encodeURIComponent(
     query.slice(0, 100)

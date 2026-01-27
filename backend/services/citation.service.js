@@ -8,27 +8,6 @@ const { tidy } = require('bibtex-tidy');
 const he = require('he');
 
 
-// Register remote CSL styles (non-default)
-
-// const registerRemoteStyle = async (name, url) => {
-//   const config = plugins.config.get('@csl');
-//   if (!config.templates.has(name)) {
-//     const { data } = await axios.get(url);
-//     config.templates.add(name, data);
-//   }
-// };
-
-// const initStyles = async () => {
-//   await registerRemoteStyle(
-//     'ieee',
-//     'https://raw.githubusercontent.com/citation-style-language/styles/master/ieee.csl'
-//   );
-//   await registerRemoteStyle(
-//     'mla',
-//     'https://raw.githubusercontent.com/citation-style-language/styles/master/modern-language-association.csl'
-//   );
-// };
-
 const registerLocalStyle = async (name, filePath) => {
   const config = plugins.config.get('@csl');
   if (!config.templates.has(name)) {
@@ -62,7 +41,7 @@ const fetchAndFormatCitation = async (paperId) => {
     throw new Error('BibTeX not available for this paper');
   }
 
-  //Decode HTML entities (&amp; → &)
+  //Decode HTML entities
   const decodedBibtex = he.decode(rawBibtex);
 
   //Normalize syntax using bibtex-tidy
