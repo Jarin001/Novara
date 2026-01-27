@@ -20,7 +20,7 @@ import {
   getMostCitedPapers
 } from '../services/paperService';
 
-// Import icons (using react-icons - install with: npm install react-icons)
+
 import { FiCamera, FiEdit2 } from 'react-icons/fi'; 
 
 // Import the bookmark and citation icons (for ResultsPage-style paper display)
@@ -345,19 +345,19 @@ const UserProfile = () => {
   useEffect(() => {
     const fetchUserLibraries = async () => {
       if (!isOwnProfile) {
-        console.log('⏭️ Skipping library fetch - not own profile');
+        console.log('Skipping library fetch - not own profile');
         return; // Only fetch for own profile
       }
       
       const token = localStorage.getItem('access_token');
       if (!token) {
-        console.log('⏭️ Skipping library fetch - no token');
+        console.log('Skipping library fetch - no token');
         setIsAuthenticated(false);
         setUserLibraries([]);
         return;
       }
 
-      console.log('📚 Fetching user libraries...');
+      console.log('Fetching user libraries...');
       setLibrariesLoading(true);
       try {
         const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries`, {
@@ -368,7 +368,7 @@ const UserProfile = () => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log('📚 User libraries fetched on mount:', data);
+          console.log(' User libraries fetched on mount:', data);
           
           // Handle both response formats - same as PaperDetails
           let libraries = [];
@@ -393,22 +393,22 @@ const UserProfile = () => {
             libraries = data.libraries;
           }
           
-          console.log('✅ Libraries loaded on mount:', libraries.length, libraries);
+          console.log('Libraries loaded on mount:', libraries.length, libraries);
           setUserLibraries(libraries);
         } else if (response.status === 401) {
-          console.log('❌ Unauthorized - clearing auth');
+          console.log('Unauthorized - clearing auth');
           setIsAuthenticated(false);
           setUserLibraries([]);
         } else {
-          console.error('❌ Failed to fetch libraries:', response.status);
+          console.error('Failed to fetch libraries:', response.status);
           setUserLibraries([]);
         }
       } catch (error) {
-        console.error('❌ Error fetching libraries:', error);
+        console.error(' Error fetching libraries:', error);
         setUserLibraries([]);
       } finally {
         setLibrariesLoading(false);
-        console.log('✅ Library fetch complete');
+        console.log('Library fetch complete');
       }
     };
 
@@ -559,7 +559,7 @@ const UserProfile = () => {
     }
   };
 
-  // ==================== CITATION MODAL FUNCTIONS (from PaperDetails) ====================
+  // CITATION MODAL FUNCTIONS (from PaperDetails) 
   const openCite = async (paper) => {
     if (!paper || (!paper.paperId && !paper.s2_paper_id && !paper.id)) return;
     
@@ -707,7 +707,7 @@ const UserProfile = () => {
     URL.revokeObjectURL(url);
   };
 
-  // ==================== SAVE MODAL FUNCTIONS (from ResultsPage) ====================
+  // SAVE MODAL FUNCTIONS 
   const openSave = async (paper) => {
     // Anyone can click Save, but they need to be logged in to actually save
     const token = localStorage.getItem('access_token');
@@ -811,7 +811,7 @@ const UserProfile = () => {
     try {
       const bibtex = await fetchPaperBibtex(saveItem.paperId || saveItem.s2_paper_id || saveItem.id);
 
-      // Prepare paper data in the correct format (same as PaperDetails)
+      // Prepare paper data in the correct format 
       const paperData = {
         s2_paper_id: saveItem.paperId || saveItem.s2_paper_id || saveItem.id,
         title: saveItem.title || '',
@@ -842,7 +842,7 @@ const UserProfile = () => {
         external_ids: saveItem.externalIds || {}
       };
 
-      console.log('💾 Saving paper with data:', paperData);
+      console.log(' Saving paper with data:', paperData);
 
       // Save to each selected library (using library objects now)
       let savedCount = 0;

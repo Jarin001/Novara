@@ -26,7 +26,7 @@ router.use(authenticate);
 router.post('/', createLibrary);                    // Create library
 router.get('/', getUserLibraries);                  // Get all user's libraries (my + shared)
 router.get('/:library_id', getLibrary);             // Get single library
-router.put('/:library_id', updateLibrary);          // Update library (both owner & collaborator)
+router.put('/:library_id', updateLibrary);          // Update library 
 router.delete('/:library_id', deleteLibrary);       // Delete library (ONLY owner)
 
 // Library papers management
