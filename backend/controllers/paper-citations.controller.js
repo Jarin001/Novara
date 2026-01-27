@@ -1,14 +1,11 @@
 const paperCitationsService = require("../services/paper-citations.service");
 
-/**
- * GET /api/papers/:paperId/citations
- * Same behavior as paper search, but source is paperId
- */
+
 exports.getPaperCitations = async (req, res) => {
   try {
     const { paperId } = req.params;
     const {
-      citationCount, // <-- frontend must send this
+      citationCount, 
       offset = 0,
       limit = 10,
       sortByCitations = "false",
