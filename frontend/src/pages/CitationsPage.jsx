@@ -1829,7 +1829,7 @@ const CitationsPage = () => {
                     transition: 'background-color 0.2s',
                   }}
                 >
-                  {selectedLibraries.length === 0 && paperInLibraries.length > 0 ? 'Remove from All Libraries' : 'Save Changes'}
+                  {selectedLibraries.length === 0 && paperInLibraries.length > 0 ? 'Save Changes' : 'Save Changes'}
                 </button>
               </div>
             </div>

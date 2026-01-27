@@ -39,7 +39,7 @@ const Authors = () => {
           // Use the backend data directly - no need to transform
           setFilteredAuthors(data.authors || []);
         } else {
-          setError('Failed to load authors from server');
+          setError('');
           setFilteredAuthors([]);
         }
       } catch (error) {
