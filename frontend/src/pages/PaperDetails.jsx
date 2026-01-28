@@ -154,9 +154,8 @@ const PaperDetails = () => {
   // State for BibTeX
   const [paperBibtex, setPaperBibtex] = useState('');
 
-  // State to check if PDF is available
+  // State to check if PDF is available (using backend validation)
   const [pdfAvailable, setPdfAvailable] = useState(false);
-  const [pdfChecking, setPdfChecking] = useState(false);
   const [pdfUrl, setPdfUrl] = useState('');
 
   // NEW: Track which libraries the paper is already saved in
@@ -178,83 +177,6 @@ const PaperDetails = () => {
   useEffect(() => {
     loadCitationCacheFromStorage();
   }, []);
-
-  // Improved PDF validation function - More lenient for arXiv
-  const validatePdfUrl = async (url) => {
-    if (!url) return false;
-    
-    try {
-      console.log('🔍 Validating PDF URL:', url);
-      
-      // Check if it's an arXiv URL - these are always PDFs
-      if (url.includes('arxiv.org/pdf/') || url.includes('arxiv.org/abs/')) {
-        console.log('✅ arXiv PDF detected - assuming valid');
-        return true;
-      }
-      
-      // For other URLs, try to validate
-      try {
-        // Try HEAD request first
-        const headResponse = await fetch(url, {
-          method: 'HEAD',
-          mode: 'cors',
-          headers: {
-            'Accept': 'application/pdf',
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-          }
-        });
-        
-        // Check content type
-        const contentType = headResponse.headers.get('content-type');
-        const isPdf = contentType && (
-          contentType.toLowerCase().includes('application/pdf') ||
-          contentType.toLowerCase().includes('application/octet-stream') ||
-          contentType.toLowerCase().includes('binary/octet-stream')
-        );
-        
-        if (isPdf) {
-          console.log('✅ Valid PDF (HEAD request):', contentType);
-          return true;
-        }
-      } catch (headError) {
-        console.log('⚠️ HEAD request failed, trying GET request:', headError.message);
-        
-        // If HEAD fails, try a small GET request
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 5000);
-          
-          const getResponse = await fetch(url, {
-            method: 'GET',
-            mode: 'cors',
-            headers: {
-              'Range': 'bytes=0-100', // Only fetch first 100 bytes
-              'Accept': 'application/pdf',
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-            },
-            signal: controller.signal
-          });
-          
-          clearTimeout(timeoutId);
-          
-          if (getResponse.ok) {
-            console.log('✅ GET request succeeded - assuming valid PDF');
-            return true;
-          }
-        } catch (getError) {
-          console.log('❌ GET request also failed:', getError.message);
-        }
-      }
-      
-      // If we get here, validation failed
-      console.log('❌ PDF validation failed');
-      return false;
-      
-    } catch (error) {
-      console.log('❌ PDF validation error:', error.message);
-      return false;
-    }
-  };
 
   // Fetch paper details from backend
   useEffect(() => {
@@ -281,38 +203,22 @@ const PaperDetails = () => {
           console.log("Paper details loaded:", data);
           setPaper(data);
           
-          // Get PDF URL
-          const pdfUrl = data.openAccessPdf?.url || data.pdfUrl || data.url || '';
+          // Get PDF URL from backend
+          const pdfUrl = data.openAccessPdf?.url || '';
           setPdfUrl(pdfUrl);
           
-          // Check if PDF is available - use Semantic Scholar's status
-          const hasPdf = !!(pdfUrl && 
-            (data.openAccessPdf?.status !== 'UNAVAILABLE') && 
-            (data.openAccessPdf?.status !== null)
-          );
+          // Use backend's PDF status directly
+          // Backend returns openAccessPdf.status as "UNAVAILABLE" when no PDF
+          const pdfStatus = data.openAccessPdf?.status;
+          const hasPdf = !!(pdfUrl && pdfStatus !== 'UNAVAILABLE' && pdfStatus !== null);
           
-          console.log("PDF status from API:", {
+          console.log("PDF status from backend:", {
             url: pdfUrl,
-            status: data.openAccessPdf?.status,
+            status: pdfStatus,
             hasPdf: hasPdf
           });
           
-          if (hasPdf) {
-            // For arXiv, we trust the API
-            if (pdfUrl.includes('arxiv.org')) {
-              console.log('✅ arXiv PDF - enabling AI chat');
-              setPdfAvailable(true);
-            } else {
-              // For other sources, validate
-              setPdfChecking(true);
-              const isValid = await validatePdfUrl(pdfUrl);
-              setPdfAvailable(isValid);
-              console.log("PDF validation result:", isValid);
-            }
-          } else {
-            setPdfAvailable(false);
-            console.log("No PDF available according to API");
-          }
+          setPdfAvailable(hasPdf);
           
           // Check if paper already has keywords
           if (data.keywords && data.keywords.length > 0) {
@@ -337,7 +243,6 @@ const PaperDetails = () => {
         setPaperError(`Error loading paper details: ${error.message}`);
       } finally {
         setPaperLoading(false);
-        setPdfChecking(false);
       }
     };
 
@@ -1148,6 +1053,15 @@ const PaperDetails = () => {
     downloadFile(name, content, 'application/x-bibtex');
   };
 
+  // Function to handle opening chat with PDF availability check
+  const handleOpenChat = () => {
+    if (!pdfAvailable || !pdfUrl) {
+      alert(`AI Chat is not available for this paper.\n\nBackend PDF Status: ${paper?.openAccessPdf?.status || 'UNAVAILABLE'}`);
+      return;
+    }
+    setChatOpen(true);
+  };
+
   // Tabs configuration
   const tabs = [
     { id: 'details', label: 'Details' },
@@ -1194,15 +1108,6 @@ const PaperDetails = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [saveOpen, citeOpen]);
-
-  // Function to handle opening chat with PDF availability check
-  const handleOpenChat = () => {
-    if (!pdfAvailable || !pdfUrl) {
-      alert(`AI Chat is ${pdfUrl ? 'temporarily unavailable' : 'not available'} for this paper.\n\nPDF Status: ${paper?.openAccessPdf?.status || 'Unknown'}`);
-      return;
-    }
-    setChatOpen(true);
-  };
 
   return (
     <>
@@ -1254,28 +1159,6 @@ const PaperDetails = () => {
             >
               Retry
             </button>
-          </div>
-        )}
-        
-        {/* PDF Checking State */}
-        {pdfChecking && (
-          <div style={{ 
-            position: 'fixed',
-            top: 100,
-            right: 160,
-            zIndex: 1000,
-            background: '#fff',
-            padding: '8px 12px',
-            borderRadius: 4,
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-            fontSize: 12,
-            color: '#666',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6
-          }}>
-            <div style={{ width: 12, height: 12, borderRadius: '50%', background: '#3E513E', animation: 'pulse 1.5s infinite' }}></div>
-            Checking PDF availability...
           </div>
         )}
         
@@ -1437,6 +1320,7 @@ const PaperDetails = () => {
                 >
                   [PDF] {(() => {
                     const status = paper.openAccessPdf.status;
+                    if (status === 'UNAVAILABLE') return 'Not Available';
                     const statusMap = {
                       'ARXIV': 'arXiv',
                       'DOI': 'DOI',
@@ -1463,7 +1347,7 @@ const PaperDetails = () => {
                     fontWeight: 500
                   }}
                 >
-                  [PDF] Unavailable
+                  [PDF] Not Available
                 </button>
               )}
               
@@ -2505,7 +2389,7 @@ const PaperDetails = () => {
             letterSpacing: '0.5px',
             opacity: pdfAvailable ? 1 : 0.7
           }}
-          title={pdfAvailable ? "Chat with AI" : `AI Chat not available (PDF Status: ${paper?.openAccessPdf?.status || 'Unknown'})`}
+          title={pdfAvailable ? "Chat with AI" : `AI Chat not available (PDF Status: ${paper?.openAccessPdf?.status || 'UNAVAILABLE'})`}
         >
           AI Chat
         </button>
@@ -2584,11 +2468,11 @@ const PaperDetails = () => {
               marginBottom: 16
             }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: '#e67e22', marginBottom: 4 }}>
-                ⚠️ PDF Validation Failed
+                ⚠️ PDF Not Validated by Backend
               </div>
               <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4 }}>
-                AI chat may not work properly because PDF validation failed.
-                PDF Status: {paper?.openAccessPdf?.status || 'Unknown'}
+                Backend validation failed for this PDF.
+                Status: {paper?.openAccessPdf?.status || 'UNAVAILABLE'}
               </div>
             </div>
           )}
@@ -2605,7 +2489,8 @@ const PaperDetails = () => {
                 ⚠️ No PDF Available
               </div>
               <div style={{ fontSize: 12, color: '#666', lineHeight: 1.4 }}>
-                AI chat is disabled because no PDF is available for this paper.
+                Backend reported no PDF for this paper.
+                Status: {paper?.openAccessPdf?.status || 'UNAVAILABLE'}
               </div>
             </div>
           )}
