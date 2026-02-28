@@ -135,9 +135,8 @@ const unfollowUser = async (req, res) => {
 const getFollowers = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const supabaseClient = req.supabase;
 
-    const { data: followers, error } = await supabaseClient
+    const { data: followers, error } = await supabase
       .from('user_follows')
       .select(`
         follower_id,
@@ -173,9 +172,8 @@ const getFollowers = async (req, res) => {
 const getFollowing = async (req, res) => {
   try {
     const { user_id } = req.params;
-    const supabaseClient = req.supabase;
 
-    const { data: following, error } = await supabaseClient
+    const { data: following, error } = await supabase
       .from('user_follows')
       .select(`
         following_id,

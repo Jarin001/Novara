@@ -88,6 +88,13 @@ const UserProfile = () => {
   const [followLoading, setFollowLoading] = useState(false);
   const [followMessage, setFollowMessage] = useState('');
 
+  // Followers/Following modal state
+  const [showFollowersModal, setShowFollowersModal] = useState(false);
+  const [followersModalType, setFollowersModalType] = useState('followers'); // 'followers' or 'following'
+  const [followersList, setFollowersList] = useState([]);
+  const [followingList, setFollowingList] = useState([]);
+  const [loadingFollowList, setLoadingFollowList] = useState(false);
+
   // Save modal state (from ResultsPage)
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveItem, setSaveItem] = useState(null);
@@ -263,7 +270,7 @@ const UserProfile = () => {
         followerCount: prev.isFollowing ? prev.followerCount - 1 : prev.followerCount + 1
       }));
 
-      setFollowMessage(followStatus.isFollowing ? 'Unfollowed successfully' : 'Following!');
+      //setFollowMessage(followStatus.isFollowing ? 'Unfollowed successfully' : 'Following!');
       setTimeout(() => setFollowMessage(''), 3000);
 
     } catch (error) {
@@ -272,6 +279,71 @@ const UserProfile = () => {
       setTimeout(() => setFollowMessage(''), 3000);
     } finally {
       setFollowLoading(false);
+    }
+  };
+
+  /**
+   * Fetch followers list
+   */
+  const fetchFollowersList = async (targetUserId) => {
+    setLoadingFollowList(true);
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/followers`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch followers');
+      }
+
+      const data = await response.json();
+      setFollowersList(data.followers || []);
+    } catch (error) {
+      console.error('Error fetching followers:', error);
+      setFollowersList([]);
+    } finally {
+      setLoadingFollowList(false);
+    }
+  };
+
+  /**
+   * Fetch following list
+   */
+  const fetchFollowingList = async (targetUserId) => {
+    setLoadingFollowList(true);
+    try {
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/following`
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch following');
+      }
+
+      const data = await response.json();
+      setFollowingList(data.following || []);
+    } catch (error) {
+      console.error('Error fetching following:', error);
+      setFollowingList([]);
+    } finally {
+      setLoadingFollowList(false);
+    }
+  };
+
+  /**
+   * Open followers/following modal
+   */
+  const openFollowersModal = async (type) => {
+    const targetUserId = userId || userData.id;
+    if (!targetUserId) return;
+
+    setFollowersModalType(type);
+    setShowFollowersModal(true);
+
+    if (type === 'followers') {
+      await fetchFollowersList(targetUserId);
+    } else {
+      await fetchFollowingList(targetUserId);
     }
   };
 
@@ -289,11 +361,13 @@ const UserProfile = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
+      console.log('fetchPublicProfile: Fetching from:', `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`);
       const response = await fetch(
         `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`,
         { headers }
       );
 
+      console.log('fetchPublicProfile: Response status:', response.status);
       if (!response.ok) {
         if (response.status === 404) {
           throw new Error('User not found');
@@ -302,6 +376,7 @@ const UserProfile = () => {
       }
 
       const data = await response.json();
+      console.log('fetchPublicProfile: Response data:', data);
       return data;  // Return full response (includes message, redirectTo if own profile)
     } catch (error) {
       console.error('Error fetching public profile:', error);
@@ -315,12 +390,15 @@ const UserProfile = () => {
   useEffect(() => {
     const initializeProfile = async () => {
       try {
+        console.log('UserProfile: Initializing with userId:', userId);
         setLoading(true);
         setError(null);
 
         if (userId) {
           // VIEWING A PROFILE BY ID - Backend will tell us if it's our own
+          console.log('UserProfile: Fetching public profile for userId:', userId);
           const profileResponse = await fetchPublicProfile(userId);
+          console.log('UserProfile: Received profile response:', profileResponse);
           const publicProfile = profileResponse.user;
           
           // Trust the backend's isOwnProfile flag
@@ -352,6 +430,11 @@ const UserProfile = () => {
                 email: fullProfile.email || ""
               }));
               await fetchReadingProgress();
+              
+              // Fetch follow stats for own profile
+              if (userId) {
+                await fetchFollowStatus(userId);
+              }
             } catch (error) {
               console.error('Could not fetch full profile data:', error);
             }
@@ -410,10 +493,15 @@ const UserProfile = () => {
 
           await fetchPublications();
           await fetchReadingProgress();
+          
+          // Fetch follow stats for own profile too
+          if (profile.id) {
+            await fetchFollowStatus(profile.id);
+          }
         }
 
       } catch (error) {
-        console.error("Failed to initialize profile:", error);
+        console.error("UserProfile: Failed to initialize profile:", error);
         setError(error.message);
 
         // Only redirect to login for own profile authentication errors
@@ -422,6 +510,7 @@ const UserProfile = () => {
           navigate('/login');
         }
       } finally {
+        console.log('UserProfile: Setting loading to false');
         setLoading(false);
       }
     };
@@ -1170,10 +1259,61 @@ const UserProfile = () => {
 
                   {/* Profile Info */}
                   <div className="col">
-                    <div className="d-flex align-items-baseline gap-3 mb-2">
+                    <div className="d-flex align-items-baseline justify-content-between gap-3 mb-2">
                       <h2 className="profile-name mb-0">
                         {userData.name || 'User'}
                       </h2>
+
+                      {/* Right button: edit for own profile, follow for others */}
+                      {isOwnProfile ? (
+                        <button
+                          className="btn btn-outline-primary fw-semibold d-flex align-items-center gap-2"
+                          onClick={() => setIsEditModalOpen(true)}
+                          disabled={updateLoading}
+                          style={{
+                            padding: '6px 16px',
+                            fontSize: '13px',
+                            fontWeight: '600',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          <FiEdit2 size={16} />
+                          <span>{updateLoading ? 'Updating...' : 'Edit Profile'}</span>
+                        </button>
+                      ) : (
+                        !isOwnProfile && localStorage.getItem('access_token') && (
+                          <button
+                            onClick={handleFollowToggle}
+                            disabled={followLoading}
+                            style={{
+                              padding: '6px 16px',
+                              backgroundColor: followStatus.isFollowing ? '#fff' : '#3E513E',
+                              color: followStatus.isFollowing ? '#3E513E' : '#fff',
+                              border: followStatus.isFollowing ? '2px solid #3E513E' : 'none',
+                              borderRadius: '6px',
+                              cursor: followLoading ? 'not-allowed' : 'pointer',
+                              fontSize: '13px',
+                              fontWeight: '600',
+                              transition: 'all 0.2s',
+                              opacity: followLoading ? 0.6 : 1,
+                              whiteSpace: 'nowrap'
+                            }}
+                          >
+                            {followLoading ? (
+                              <div style={{
+                                width: '12px',
+                                height: '12px',
+                                border: '2px solid currentColor',
+                                borderTopColor: 'transparent',
+                                borderRadius: '50%',
+                                animation: 'spin 0.6s linear infinite'
+                              }} />
+                            ) : (
+                              <span>{followStatus.isFollowing ? 'Following' : 'Follow'}</span>
+                            )}
+                          </button>
+                        )
+                      )}
                     </div>
 
                     {userData.institution && (
@@ -1207,105 +1347,51 @@ const UserProfile = () => {
                       </div>
                     )}
 
-                    <div className="d-flex gap-3 align-items-center flex-wrap">
-                      {/* Edit Profile button - ONLY FOR OWN PROFILE */}
-                      {isOwnProfile && (
-                        <button
-                          className="btn btn-outline-primary fw-semibold d-flex align-items-center gap-2"
-                          onClick={() => setIsEditModalOpen(true)}
-                          disabled={updateLoading}
+                    {/* follower/following counts + member since */}
+                    <div className="d-flex gap-2 align-items-start mb-2" style={{ fontSize: '14px', color: '#666' }}>
+                      <div>
+                        <div
+                          onClick={() => openFollowersModal('followers')}
+                          style={{
+                            cursor: 'pointer',
+                            transition: 'color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.color = '#3E513E'}
+                          onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
                         >
-                          <FiEdit2 size={16} />
-                          <span>{updateLoading ? 'Updating...' : 'Edit Profile'}</span>
-                        </button>
-                      )}
-
-                      {/* Follow/Unfollow button - ONLY FOR OTHER PROFILES */}
-                      {!isOwnProfile && localStorage.getItem('access_token') && (
-                        <div className="d-flex align-items-center gap-3">
-                          <button
-                            onClick={handleFollowToggle}
-                            disabled={followLoading}
-                            style={{
-                              padding: '10px 24px',
-                              backgroundColor: followStatus.isFollowing ? '#fff' : '#3E513E',
-                              color: followStatus.isFollowing ? '#3E513E' : '#fff',
-                              border: followStatus.isFollowing ? '2px solid #3E513E' : 'none',
-                              borderRadius: '6px',
-                              cursor: followLoading ? 'not-allowed' : 'pointer',
-                              fontSize: '14px',
-                              fontWeight: '600',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '8px',
-                              transition: 'all 0.2s',
-                              opacity: followLoading ? 0.6 : 1
-                            }}
-                          >
-                            {followLoading ? (
-                              <>
-                                <div style={{
-                                  width: '14px',
-                                  height: '14px',
-                                  border: '2px solid currentColor',
-                                  borderTopColor: 'transparent',
-                                  borderRadius: '50%',
-                                  animation: 'spin 0.6s linear infinite'
-                                }} />
-                                <span>{followStatus.isFollowing ? 'Unfollowing...' : 'Following...'}</span>
-                              </>
-                            ) : (
-                              <>
-                                {followStatus.isFollowing ? (
-                                  <>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                      <path d="M20 7L9 18L4 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    <span>Following</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                      <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                    </svg>
-                                    <span>Follow</span>
-                                  </>
-                                )}
-                              </>
-                            )}
-                          </button>
-
-                          {/* Follower/Following Counts */}
-                          <div className="d-flex gap-3" style={{ fontSize: '14px', color: '#666' }}>
-                            <div>
-                              <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followerCount}</span>
-                              {' '}Follower{followStatus.followerCount !== 1 ? 's' : ''}
-                            </div>
-                            <div>
-                              <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followingCount}</span>
-                              {' '}Following
-                            </div>
-                          </div>
+                          <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followerCount}</span>
+                          {' '}Follower{followStatus.followerCount !== 1 ? 's' : ''}
                         </div>
-                      )}
-                      
-                      {/* Follow success/error message */}
-                      {followMessage && (
-                        <span style={{
-                          fontSize: '13px',
-                          color: followMessage.includes('success') || followMessage.includes('Following') ? '#0b8043' : '#d32f2f',
-                          fontWeight: '600'
-                        }}>
-                          {followMessage}
-                        </span>
-                      )}
-
-                      {userData.joinedDate && (
-                        <span className="text-muted small">
-                          Member since {userData.joinedDate}
-                        </span>
-                      )}
+                        {userData.joinedDate && (
+                          <div className="text-muted small mt-2">
+                            Member since {userData.joinedDate}
+                          </div>
+                        )}
+                      </div>
+                      <div
+                        onClick={() => openFollowersModal('following')}
+                        style={{
+                          cursor: 'pointer',
+                          transition: 'color 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.color = '#3E513E'}
+                        onMouseLeave={(e) => e.currentTarget.style.color = '#666'}
+                      >
+                        <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followingCount}</span>
+                        {' '}Following
+                      </div>
                     </div>
+
+                    {/* Follow success/error message */}
+                    {followMessage && (
+                      <span style={{
+                        fontSize: '13px',
+                        color: followMessage.includes('success') || followMessage.includes('Following') ? '#0b8043' : '#d32f2f',
+                        fontWeight: '600'
+                      }}>
+                        {followMessage}
+                      </span>
+                    )}
 
                     {/* Add keyframe animation for loading spinner */}
                     <style>{`
@@ -2059,6 +2145,231 @@ const UserProfile = () => {
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
                   No citation formats available
                 </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Followers/Following Modal */}
+      {showFollowersModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000
+          }}
+          onClick={() => setShowFollowersModal(false)}
+        >
+          <div
+            style={{
+              width: '500px',
+              maxWidth: '90vw',
+              maxHeight: '80vh',
+              background: '#fff',
+              borderRadius: '12px',
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '20px 24px',
+                borderBottom: '1px solid #e0e0e0'
+              }}
+            >
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600', color: '#333' }}>
+                {followersModalType === 'followers' ? 'Followers' : 'Following'}
+              </h2>
+              <button
+                onClick={() => setShowFollowersModal(false)}
+                style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '50%',
+                  background: '#f5f5f5',
+                  color: '#666',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.target.style.backgroundColor = '#e0e0e0'}
+                onMouseLeave={(e) => e.target.style.backgroundColor = '#f5f5f5'}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ overflowY: 'auto', flex: 1 }}>
+              {loadingFollowList ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                  Loading...
+                </div>
+              ) : (
+                <>
+                  {followersModalType === 'followers' ? (
+                    followersList.length === 0 ? (
+                      <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                        No followers yet
+                      </div>
+                    ) : (
+                      followersList.map((follower) => (
+                        <div
+                          key={follower.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '12px 24px',
+                            borderBottom: '1px solid #f0f0f0',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                          onClick={() => {
+                            setShowFollowersModal(false);
+                            navigate(`/user/${follower.id}`);
+                          }}
+                        >
+                          {/* Profile Picture */}
+                          <div
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              backgroundColor: follower.profile_picture_url ? 'transparent' : '#e0e0e0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              flexShrink: 0
+                            }}
+                          >
+                            {follower.profile_picture_url ? (
+                              <img
+                                src={follower.profile_picture_url}
+                                alt={follower.name}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover'
+                                }}
+                              />
+                            ) : (
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* User Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: '600', fontSize: '15px', color: '#333' }}>
+                              {follower.name}
+                            </div>
+                            {follower.affiliation && (
+                              <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
+                                {follower.affiliation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )
+                  ) : (
+                    followingList.length === 0 ? (
+                      <div style={{ padding: '40px', textAlign: 'center', color: '#999' }}>
+                        Not following anyone yet
+                      </div>
+                    ) : (
+                      followingList.map((following) => (
+                        <div
+                          key={following.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '12px',
+                            padding: '12px 24px',
+                            borderBottom: '1px solid #f0f0f0',
+                            cursor: 'pointer',
+                            transition: 'background-color 0.2s'
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                          onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#fff'}
+                          onClick={() => {
+                            setShowFollowersModal(false);
+                            navigate(`/user/${following.id}`);
+                          }}
+                        >
+                          {/* Profile Picture */}
+                          <div
+                            style={{
+                              width: '48px',
+                              height: '48px',
+                              borderRadius: '50%',
+                              backgroundColor: following.profile_picture_url ? 'transparent' : '#e0e0e0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              overflow: 'hidden',
+                              flexShrink: 0
+                            }}
+                          >
+                            {following.profile_picture_url ? (
+                              <img
+                                src={following.profile_picture_url}
+                                alt={following.name}
+                                style={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover'
+                                }}
+                              />
+                            ) : (
+                              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* User Info */}
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontWeight: '600', fontSize: '15px', color: '#333' }}>
+                              {following.name}
+                            </div>
+                            {following.affiliation && (
+                              <div style={{ fontSize: '13px', color: '#666', marginTop: '2px' }}>
+                                {following.affiliation}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )
+                  )}
+                </>
               )}
             </div>
           </div>

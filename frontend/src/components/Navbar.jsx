@@ -10,6 +10,7 @@ const Navbar = () => {
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [followingFromNotif, setFollowingFromNotif] = useState({}); // Track follow state for notifications
   
   // Get user data from context instead of fetching
   const { userData, isLoggedIn, logout: contextLogout } = useUser();
@@ -144,6 +145,51 @@ const Navbar = () => {
     }
 
     setNotificationDropdownOpen(false);
+  };
+
+  const handleFollowBackFromNotification = async (e, notification) => {
+    e.stopPropagation(); // Prevent triggering handleNotificationClick
+    
+    if (!notification.actor) return;
+    
+    const actorId = notification.actor.id;
+    setFollowingFromNotif(prev => ({
+      ...prev,
+      [actorId]: true
+    }));
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/${actorId}/follow`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to follow user');
+      }
+
+      // Update notifications to reflect the follow action
+      setNotifications(notifications.map(notif => 
+        notif.actor?.id === actorId 
+          ? { ...notif, isFollowing: true }
+          : notif
+      ));
+    } catch (error) {
+      console.error('Error following user from notification:', error);
+    } finally {
+      setFollowingFromNotif(prev => ({
+        ...prev,
+        [actorId]: false
+      }));
+    }
   };
 
   const toggleNotificationDropdown = () => {
@@ -509,9 +555,41 @@ const Navbar = () => {
                             >
                               {notification.message}
                             </div>
-                            <div style={{ fontSize: "12px", color: "#999" }}>
+                            <div style={{ fontSize: "12px", color: "#999", marginBottom: "8px" }}>
                               {formatNotificationTime(notification.created_at)}
                             </div>
+                            
+                            {/* Follow Back Button for follow notifications */}
+                            {(notification.type === 'follow' || notification.type === 'follow_back') && notification.actor && (
+                              <button
+                                onClick={(e) => handleFollowBackFromNotification(e, notification)}
+                                disabled={followingFromNotif[notification.actor.id]}
+                                style={{
+                                  padding: "6px 12px",
+                                  backgroundColor: "#3E513E",
+                                  color: "#fff",
+                                  border: "none",
+                                  borderRadius: "4px",
+                                  fontSize: "12px",
+                                  fontWeight: "600",
+                                  cursor: followingFromNotif[notification.actor.id] ? "not-allowed" : "pointer",
+                                  opacity: followingFromNotif[notification.actor.id] ? 0.6 : 1,
+                                  transition: "all 0.2s"
+                                }}
+                                onMouseEnter={(e) => {
+                                  if (!followingFromNotif[notification.actor.id]) {
+                                    e.target.style.backgroundColor = "#2d3f2d";
+                                  }
+                                }}
+                                onMouseLeave={(e) => {
+                                  if (!followingFromNotif[notification.actor.id]) {
+                                    e.target.style.backgroundColor = "#3E513E";
+                                  }
+                                }}
+                              >
+                                {followingFromNotif[notification.actor.id] ? "Following..." : "Follow Back"}
+                              </button>
+                            )}
                           </div>
 
                           {/* Unread Indicator */}

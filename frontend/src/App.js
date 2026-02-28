@@ -61,6 +61,7 @@ function App() {
           {/* User routes */}
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/profile/:userId" element={<UserProfile />} />
+          <Route path="/user/:userId" element={<UserProfile />} />
           <Route path="/author/:userId" element={<UserProfile />} />
           <Route path="/library" element={<UserLibrary />} />
         </Routes>
