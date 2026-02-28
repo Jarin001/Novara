@@ -1309,7 +1309,14 @@ const UserProfile = () => {
                                 animation: 'spin 0.6s linear infinite'
                               }} />
                             ) : (
-                              <span>{followStatus.isFollowing ? 'Following' : 'Follow'}</span>
+                              <span>
+                                {followStatus.isFollowing 
+                                  ? 'Following' 
+                                  : followStatus.isFollower 
+                                    ? 'Follow Back' 
+                                    : 'Follow'
+                                }
+                              </span>
                             )}
                           </button>
                         )

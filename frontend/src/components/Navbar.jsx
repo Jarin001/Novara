@@ -192,6 +192,38 @@ const Navbar = () => {
     }
   };
 
+  const deleteNotification = async (notificationId, wasUnread, e) => {
+    if (e) e.stopPropagation();
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/notifications/${notificationId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete notification');
+      }
+
+      // Remove from local state
+      setNotifications(prev => prev.filter(n => n.id !== notificationId));
+      if (wasUnread) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error);
+    }
+  };
+
   const toggleNotificationDropdown = () => {
     if (!notificationDropdownOpen) {
       fetchNotifications();
@@ -559,8 +591,8 @@ const Navbar = () => {
                               {formatNotificationTime(notification.created_at)}
                             </div>
                             
-                            {/* Follow Back Button for follow notifications */}
-                            {(notification.type === 'follow' || notification.type === 'follow_back') && notification.actor && (
+                            {/* Follow Back Button - only for initial follow notifications, not if already following */}
+                            {notification.type === 'follow' && notification.actor && !notification.isFollowing && (
                               <button
                                 onClick={(e) => handleFollowBackFromNotification(e, notification)}
                                 disabled={followingFromNotif[notification.actor.id]}
@@ -592,19 +624,53 @@ const Navbar = () => {
                             )}
                           </div>
 
-                          {/* Unread Indicator */}
-                          {!notification.is_read && (
-                            <div
+                          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', flexShrink: 0, marginTop: 6 }}>
+                            {/* Delete (bin) button */}
+                            <button
+                              onClick={(e) => deleteNotification(notification.id, !notification.is_read, e)}
+                              title="Delete notification"
                               style={{
-                                width: "8px",
-                                height: "8px",
-                                borderRadius: "50%",
-                                backgroundColor: "#3E513E",
-                                flexShrink: 0,
-                                marginTop: "6px",
+                                background: 'none',
+                                border: 'none',
+                                cursor: 'pointer',
+                                padding: 4,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#999',
+                                transition: 'color 0.15s ease, background-color 0.15s ease'
                               }}
-                            />
-                          )}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.backgroundColor = '#f5f5f5';
+                                e.currentTarget.style.color = '#d32f2f';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.backgroundColor = 'transparent';
+                                e.currentTarget.style.color = '#999';
+                              }}
+                            >
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M3 6h18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M10 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            </button>
+
+                            {/* Unread Indicator */}
+                            {!notification.is_read && (
+                              <div
+                                style={{
+                                  width: "8px",
+                                  height: "8px",
+                                  borderRadius: "50%",
+                                  backgroundColor: "#3E513E",
+                                  flexShrink: 0,
+                                }}
+                              />
+                            )}
+                          </div>
                         </div>
                       ))
                     )}

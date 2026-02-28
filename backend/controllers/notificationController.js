@@ -136,3 +136,33 @@ module.exports = {
   markAsRead,
   markAllAsRead
 };
+
+// Delete a single notification belonging to the current user
+const deleteNotification = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const { notification_id } = req.params;
+    const supabaseClient = req.supabase;
+
+    const { data: currentUser } = await supabaseClient
+      .from('users')
+      .select('id')
+      .eq('auth_id', authId)
+      .single();
+
+    const { error } = await supabaseClient
+      .from('notifications')
+      .delete()
+      .eq('id', notification_id)
+      .eq('user_id', currentUser.id);
+
+    if (error) throw error;
+
+    res.status(200).json({ message: 'Notification deleted' });
+  } catch (error) {
+    errorHandler(res, error, 'Failed to delete notification');
+  }
+};
+
+// Export delete handler
+module.exports.deleteNotification = deleteNotification;
