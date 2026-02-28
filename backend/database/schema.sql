@@ -192,3 +192,37 @@ CREATE TRIGGER library_paper_count_trigger
     AFTER INSERT OR DELETE ON library_papers
     FOR EACH ROW
     EXECUTE FUNCTION update_library_paper_count();
+
+    -- USER FOLLOWS TABLE
+CREATE TABLE user_follows (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    follower_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    following_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    
+    -- Prevent duplicate follows
+    UNIQUE(follower_id, following_id),
+    
+    -- Prevent self-follow
+    CHECK (follower_id != following_id)
+);
+
+CREATE INDEX idx_user_follows_follower ON user_follows(follower_id);
+CREATE INDEX idx_user_follows_following ON user_follows(following_id);
+CREATE INDEX idx_user_follows_created ON user_follows(created_at);
+
+-- NOTIFICATIONS TABLE
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    type VARCHAR(50) NOT NULL CHECK (type IN ('follow', 'new_publication', 'follow_back')),
+    actor_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    reference_id UUID,  -- paper_id or other reference
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read);
