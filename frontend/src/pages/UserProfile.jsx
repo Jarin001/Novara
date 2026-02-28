@@ -78,6 +78,16 @@ const UserProfile = () => {
   const [citationLoading, setCitationLoading] = useState(false);
   const [citationError, setCitationError] = useState(null);
 
+  // Follow functionality state
+  const [followStatus, setFollowStatus] = useState({
+    isFollowing: false,
+    isFollower: false,
+    followerCount: 0,
+    followingCount: 0
+  });
+  const [followLoading, setFollowLoading] = useState(false);
+  const [followMessage, setFollowMessage] = useState('');
+
   // Save modal state (from ResultsPage)
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveItem, setSaveItem] = useState(null);
@@ -192,6 +202,80 @@ const UserProfile = () => {
   };
 
   /**
+   * Fetch follow status for viewing other users' profiles
+   */
+  const fetchFollowStatus = async (targetUserId) => {
+    try {
+      const token = localStorage.getItem('access_token');
+      if (!token) return;
+
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/follow-status`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch follow status');
+      }
+
+      const data = await response.json();
+      setFollowStatus(data);
+    } catch (error) {
+      console.error('Error fetching follow status:', error);
+    }
+  };
+
+  /**
+   * Handle follow/unfollow action
+   */
+  const handleFollowToggle = async () => {
+    if (!userId || followLoading) return;
+
+    setFollowLoading(true);
+    setFollowMessage('');
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/users/${userId}/${followStatus.isFollowing ? 'unfollow' : 'follow'}`;
+      const method = followStatus.isFollowing ? 'DELETE' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to update follow status');
+      }
+
+      // Update local state
+      setFollowStatus(prev => ({
+        ...prev,
+        isFollowing: !prev.isFollowing,
+        followerCount: prev.isFollowing ? prev.followerCount - 1 : prev.followerCount + 1
+      }));
+
+      setFollowMessage(followStatus.isFollowing ? 'Unfollowed successfully' : 'Following!');
+      setTimeout(() => setFollowMessage(''), 3000);
+
+    } catch (error) {
+      console.error('Error toggling follow:', error);
+      setFollowMessage(error.message || 'Failed to update follow status');
+      setTimeout(() => setFollowMessage(''), 3000);
+    } finally {
+      setFollowLoading(false);
+    }
+  };
+
+  /**
    * Fetch public user profile (for viewing others)
    * Optionally sends auth token if user is logged in (backend uses it to detect own profile)
    */
@@ -288,6 +372,12 @@ const UserProfile = () => {
               totalPapers: publicProfile.totalPapers || 0,
               mostCitedPapers: publicProfile.mostCitedPapers || [],
             }));
+
+            // Fetch follow status if user is logged in
+            const token = localStorage.getItem('access_token');
+            if (token) {
+              await fetchFollowStatus(userId);
+            }
           }
           
         } else {
@@ -1117,7 +1207,7 @@ const UserProfile = () => {
                       </div>
                     )}
 
-                    <div className="d-flex gap-3 align-items-center">
+                    <div className="d-flex gap-3 align-items-center flex-wrap">
                       {/* Edit Profile button - ONLY FOR OWN PROFILE */}
                       {isOwnProfile && (
                         <button
@@ -1129,13 +1219,100 @@ const UserProfile = () => {
                           <span>{updateLoading ? 'Updating...' : 'Edit Profile'}</span>
                         </button>
                       )}
+
+                      {/* Follow/Unfollow button - ONLY FOR OTHER PROFILES */}
+                      {!isOwnProfile && localStorage.getItem('access_token') && (
+                        <div className="d-flex align-items-center gap-3">
+                          <button
+                            onClick={handleFollowToggle}
+                            disabled={followLoading}
+                            style={{
+                              padding: '10px 24px',
+                              backgroundColor: followStatus.isFollowing ? '#fff' : '#3E513E',
+                              color: followStatus.isFollowing ? '#3E513E' : '#fff',
+                              border: followStatus.isFollowing ? '2px solid #3E513E' : 'none',
+                              borderRadius: '6px',
+                              cursor: followLoading ? 'not-allowed' : 'pointer',
+                              fontSize: '14px',
+                              fontWeight: '600',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              transition: 'all 0.2s',
+                              opacity: followLoading ? 0.6 : 1
+                            }}
+                          >
+                            {followLoading ? (
+                              <>
+                                <div style={{
+                                  width: '14px',
+                                  height: '14px',
+                                  border: '2px solid currentColor',
+                                  borderTopColor: 'transparent',
+                                  borderRadius: '50%',
+                                  animation: 'spin 0.6s linear infinite'
+                                }} />
+                                <span>{followStatus.isFollowing ? 'Unfollowing...' : 'Following...'}</span>
+                              </>
+                            ) : (
+                              <>
+                                {followStatus.isFollowing ? (
+                                  <>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M20 7L9 18L4 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    <span>Following</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                      <path d="M12 5V19M5 12H19" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                    </svg>
+                                    <span>Follow</span>
+                                  </>
+                                )}
+                              </>
+                            )}
+                          </button>
+
+                          {/* Follower/Following Counts */}
+                          <div className="d-flex gap-3" style={{ fontSize: '14px', color: '#666' }}>
+                            <div>
+                              <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followerCount}</span>
+                              {' '}Follower{followStatus.followerCount !== 1 ? 's' : ''}
+                            </div>
+                            <div>
+                              <span style={{ fontWeight: '600', color: '#333' }}>{followStatus.followingCount}</span>
+                              {' '}Following
+                            </div>
+                          </div>
+                        </div>
+                      )}
                       
+                      {/* Follow success/error message */}
+                      {followMessage && (
+                        <span style={{
+                          fontSize: '13px',
+                          color: followMessage.includes('success') || followMessage.includes('Following') ? '#0b8043' : '#d32f2f',
+                          fontWeight: '600'
+                        }}>
+                          {followMessage}
+                        </span>
+                      )}
+
                       {userData.joinedDate && (
                         <span className="text-muted small">
                           Member since {userData.joinedDate}
                         </span>
                       )}
                     </div>
+
+                    {/* Add keyframe animation for loading spinner */}
+                    <style>{`
+                      @keyframes spin {
+                        to { transform: rotate(360deg); }
+                      }
+                    `}</style>
                   </div>
                 </div>
               </div>
