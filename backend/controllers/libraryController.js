@@ -1,4 +1,4 @@
-const { errorHandler } = require('../utils/errorHandler');
+const { errorHandler } = require("../utils/errorHandler");
 
 /**
  * Create a new library
@@ -10,28 +10,28 @@ exports.createLibrary = async (req, res) => {
     const { name, description, is_public = false } = req.body;
 
     if (!name || name.trim().length === 0) {
-      return res.status(400).json({ message: 'Library name is required' });
+      return res.status(400).json({ message: "Library name is required" });
     }
 
     // Get user ID
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Create library
     const { data: library, error: createError } = await supabase
-      .from('libraries')
+      .from("libraries")
       .insert({
         created_by_user_id: userData.id,
         name: name.trim(),
         description: description?.trim() || null,
-        is_public
+        is_public,
       })
       .select()
       .single();
@@ -39,23 +39,21 @@ exports.createLibrary = async (req, res) => {
     if (createError) throw createError;
 
     // Create user_libraries entry for creator
-    const { error: linkError } = await supabase
-      .from('user_libraries')
-      .insert({
-        user_id: userData.id,
-        library_id: library.id,
-        role: 'creator'
-      });
+    const { error: linkError } = await supabase.from("user_libraries").insert({
+      user_id: userData.id,
+      library_id: library.id,
+      role: "creator",
+    });
 
     if (linkError) throw linkError;
 
     res.status(201).json({
-      message: 'Library created successfully',
-      library
+      message: "Library created successfully",
+      library,
     });
   } catch (err) {
-    console.error('Error creating library:', err);
-    errorHandler(res, err, 'Failed to create library');
+    console.error("Error creating library:", err);
+    errorHandler(res, err, "Failed to create library");
   }
 };
 
@@ -69,19 +67,20 @@ exports.getUserLibraries = async (req, res) => {
 
     // Get user ID
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Get all libraries user has access to
     const { data: userLibraries, error: librariesError } = await supabase
-      .from('user_libraries')
-      .select(`
+      .from("user_libraries")
+      .select(
+        `
         role,
         libraries (
           id,
@@ -93,9 +92,10 @@ exports.getUserLibraries = async (req, res) => {
           updated_at,
           created_by_user_id
         )
-      `)
-      .eq('user_id', userData.id)
-      .order('created_at', { ascending: false });
+      `,
+      )
+      .eq("user_id", userData.id)
+      .order("created_at", { ascending: false });
 
     if (librariesError) throw librariesError;
 
@@ -103,14 +103,14 @@ exports.getUserLibraries = async (req, res) => {
     const myLibraries = [];
     const sharedLibraries = [];
 
-    userLibraries.forEach(ul => {
+    userLibraries.forEach((ul) => {
       const library = {
         ...ul.libraries,
         role: ul.role,
-        is_owner: ul.libraries.created_by_user_id === userData.id
+        is_owner: ul.libraries.created_by_user_id === userData.id,
       };
 
-      if (ul.role === 'creator') {
+      if (ul.role === "creator") {
         myLibraries.push(library);
       } else {
         sharedLibraries.push(library);
@@ -119,11 +119,11 @@ exports.getUserLibraries = async (req, res) => {
 
     res.json({
       my_libraries: myLibraries,
-      shared_with_me: sharedLibraries
+      shared_with_me: sharedLibraries,
     });
   } catch (err) {
-    console.error('Error fetching libraries:', err);
-    errorHandler(res, err, 'Failed to fetch libraries');
+    console.error("Error fetching libraries:", err);
+    errorHandler(res, err, "Failed to fetch libraries");
   }
 };
 
@@ -138,24 +138,24 @@ exports.getLibrary = async (req, res) => {
 
     // Get user ID
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Get library
     const { data: library, error: libraryError } = await supabase
-      .from('libraries')
-      .select('*')
-      .eq('id', library_id)
+      .from("libraries")
+      .select("*")
+      .eq("id", library_id)
       .single();
 
     if (libraryError || !library) {
-      return res.status(404).json({ message: 'Library not found' });
+      return res.status(404).json({ message: "Library not found" });
     }
 
     // Check access
@@ -164,27 +164,27 @@ exports.getLibrary = async (req, res) => {
 
     if (!isCreator && !isPublic) {
       const { data: collaborator } = await supabase
-        .from('user_libraries')
-        .select('role')
-        .eq('library_id', library_id)
-        .eq('user_id', userData.id)
+        .from("user_libraries")
+        .select("role")
+        .eq("library_id", library_id)
+        .eq("user_id", userData.id)
         .single();
 
       if (!collaborator) {
-        return res.status(403).json({ message: 'Access denied' });
+        return res.status(403).json({ message: "Access denied" });
       }
 
       library.role = collaborator.role;
     } else {
-      library.role = isCreator ? 'creator' : null;
+      library.role = isCreator ? "creator" : null;
     }
 
     library.is_owner = isCreator;
 
     res.json({ library });
   } catch (err) {
-    console.error('Error fetching library:', err);
-    errorHandler(res, err, 'Failed to fetch library');
+    console.error("Error fetching library:", err);
+    errorHandler(res, err, "Failed to fetch library");
   }
 };
 
@@ -200,24 +200,24 @@ exports.updateLibrary = async (req, res) => {
 
     // Get user ID
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Verify access (both creator and collaborator can update)
     const { data: library, error: libraryError } = await supabase
-      .from('libraries')
-      .select('created_by_user_id')
-      .eq('id', library_id)
+      .from("libraries")
+      .select("created_by_user_id")
+      .eq("id", library_id)
       .single();
 
     if (libraryError || !library) {
-      return res.status(404).json({ message: 'Library not found' });
+      return res.status(404).json({ message: "Library not found" });
     }
 
     const isCreator = library.created_by_user_id === userData.id;
@@ -225,46 +225,47 @@ exports.updateLibrary = async (req, res) => {
 
     if (!isCreator) {
       const { data: collaborator } = await supabase
-        .from('user_libraries')
-        .select('id')
-        .eq('library_id', library_id)
-        .eq('user_id', userData.id)
+        .from("user_libraries")
+        .select("id")
+        .eq("library_id", library_id)
+        .eq("user_id", userData.id)
         .single();
 
       hasAccess = !!collaborator;
     }
 
     if (!hasAccess) {
-      return res.status(403).json({ message: 'Access denied' });
+      return res.status(403).json({ message: "Access denied" });
     }
 
     // Build update object
     const updates = {};
     if (name !== undefined) updates.name = name.trim();
-    if (description !== undefined) updates.description = description?.trim() || null;
+    if (description !== undefined)
+      updates.description = description?.trim() || null;
     if (is_public !== undefined) updates.is_public = is_public;
 
     if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ message: 'No fields to update' });
+      return res.status(400).json({ message: "No fields to update" });
     }
 
     // Update library
     const { data: updatedLibrary, error: updateError } = await supabase
-      .from('libraries')
+      .from("libraries")
       .update(updates)
-      .eq('id', library_id)
+      .eq("id", library_id)
       .select()
       .single();
 
     if (updateError) throw updateError;
 
     res.json({
-      message: 'Library updated successfully',
-      library: updatedLibrary
+      message: "Library updated successfully",
+      library: updatedLibrary,
     });
   } catch (err) {
-    console.error('Error updating library:', err);
-    errorHandler(res, err, 'Failed to update library');
+    console.error("Error updating library:", err);
+    errorHandler(res, err, "Failed to update library");
   }
 };
 
@@ -279,101 +280,119 @@ exports.deleteLibrary = async (req, res) => {
 
     // Get user ID
     const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (userError || !userData) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     // Verify user is the creator (ONLY creator can delete)
     const { data: library, error: libraryError } = await supabase
-      .from('libraries')
-      .select('created_by_user_id')
-      .eq('id', library_id)
+      .from("libraries")
+      .select("created_by_user_id")
+      .eq("id", library_id)
       .single();
 
     if (libraryError || !library) {
-      return res.status(404).json({ message: 'Library not found' });
+      return res.status(404).json({ message: "Library not found" });
     }
 
     if (library.created_by_user_id !== userData.id) {
-      return res.status(403).json({ 
-        message: 'Only the library owner can delete this library' 
+      return res.status(403).json({
+        message: "Only the library owner can delete this library",
       });
     }
 
     // Delete library (CASCADE will handle related records)
     const { error: deleteError } = await supabase
-      .from('libraries')
+      .from("libraries")
       .delete()
-      .eq('id', library_id);
+      .eq("id", library_id);
 
     if (deleteError) throw deleteError;
 
-    res.json({ message: 'Library deleted successfully' });
+    res.json({ message: "Library deleted successfully" });
   } catch (err) {
-    console.error('Error deleting library:', err);
-    errorHandler(res, err, 'Failed to delete library');
+    console.error("Error deleting library:", err);
+    errorHandler(res, err, "Failed to delete library");
   }
 };
 
-
-
 //-------------------------------------LIBRARY SHARE-------------------------------------
-
 
 /**
  * Share library with another user (sends notification)
  */
 exports.shareLibrary = async (req, res) => {
   try {
-    const authId = req.user.id;  // sender auth_id
+    const authId = req.user.id; // sender auth_id
     const supabaseClient = req.supabase;
     const { library_id } = req.params;
-    const { recipient_id } = req.body;  // user to share with
+    const { recipient_id } = req.body; // user to share with
 
     if (!recipient_id) {
       return res.status(400).json({ message: "Recipient ID is required" });
     }
 
+    // Check if recipient already has access
+    const { data: existingAccess } = await supabaseClient
+      .from("user_libraries")
+      .select("id")
+      .eq("user_id", recipient_id)
+      .eq("library_id", library_id)
+      .single();
+
+    if (existingAccess) {
+      return res
+        .status(400)
+        .json({ message: "Library is already shared with ${recipient.name}" });
+    }
+
+    // Optional: prevent sharing with yourself
+    if (recipient_id === sender.id) {
+      return res
+        .status(400)
+        .json({ message: "Cannot share library with yourself" });
+    }
+
     // Get sender user ID
     const { data: sender } = await supabaseClient
-      .from('users')
-      .select('id, name, profile_picture_url')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id, name, profile_picture_url")
+      .eq("auth_id", authId)
       .single();
 
     if (!sender) return res.status(404).json({ message: "Sender not found" });
 
     // Get library info
     const { data: library } = await supabaseClient
-      .from('libraries')
-      .select('id, name')
-      .eq('id', library_id)
+      .from("libraries")
+      .select("id, name")
+      .eq("id", library_id)
       .single();
 
     if (!library) return res.status(404).json({ message: "Library not found" });
 
     // Create notification for recipient
     const { error: notifError } = await supabaseClient
-      .from('notifications')
+      .from("notifications")
       .insert({
-        user_id: recipient_id,        // recipient
-        actor_id: sender.id,          // sender
-        reference_id: library.id,     // library ID
-        type: 'library_share',
-        message: `${sender.name} shared a library "${library.name}" with you.`
+        user_id: recipient_id, // recipient
+        actor_id: sender.id, // sender
+        reference_id: library.id, // library ID
+        type: "library_share",
+        message: `${sender.name} shared a library "${library.name}" with you.`,
       });
 
     if (notifError) throw notifError;
 
-    res.status(200).json({ message: 'Library shared and notification sent' });
+    res.status(200).json({ message: "Library shared and notification sent" });
   } catch (err) {
     console.error(err);
-    errorHandler(res, err, 'Failed to share library');
+    errorHandler(res, err, "Failed to share library");
   }
 };
 
@@ -388,37 +407,37 @@ exports.acceptSharedLibrary = async (req, res) => {
 
     // Get recipient user ID
     const { data: recipient } = await supabaseClient
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (!recipient) return res.status(404).json({ message: "User not found" });
 
     // Add recipient to user_libraries as collaborator
     const { error: insertError } = await supabaseClient
-      .from('user_libraries')
+      .from("user_libraries")
       .insert({
         user_id: recipient.id,
         library_id,
-        role: 'collaborator',
-        invited_by_user_id: notification.actor_id
+        role: "collaborator",
+        invited_by_user_id: notification.actor_id,
       });
 
     if (insertError) throw insertError;
 
     // Mark notification as read
     await supabaseClient
-      .from('notifications')
+      .from("notifications")
       .update({ is_read: true })
-      .eq('user_id', recipient.id)
-      .eq('reference_id', library_id)
-      .eq('type', 'library_share');
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share");
 
-    res.status(200).json({ message: 'Library share accepted' });
+    res.status(200).json({ message: "Library share accepted" });
   } catch (err) {
     console.error(err);
-    errorHandler(res, err, 'Failed to accept shared library');
+    errorHandler(res, err, "Failed to accept shared library");
   }
 };
 
@@ -433,24 +452,24 @@ exports.declineSharedLibrary = async (req, res) => {
 
     // Get recipient user ID
     const { data: recipient } = await supabaseClient
-      .from('users')
-      .select('id')
-      .eq('auth_id', authId)
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
       .single();
 
     if (!recipient) return res.status(404).json({ message: "User not found" });
 
     // Mark notification as read
     await supabaseClient
-      .from('notifications')
+      .from("notifications")
       .update({ is_read: true })
-      .eq('user_id', recipient.id)
-      .eq('reference_id', library_id)
-      .eq('type', 'library_share');
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share");
 
-    res.status(200).json({ message: 'Library share declined' });
+    res.status(200).json({ message: "Library share declined" });
   } catch (err) {
     console.error(err);
-    errorHandler(res, err, 'Failed to decline shared library');
+    errorHandler(res, err, "Failed to decline shared library");
   }
 };
