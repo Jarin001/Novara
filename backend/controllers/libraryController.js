@@ -377,3 +377,48 @@ exports.shareLibrary = async (req, res) => {
   }
 };
 
+/**
+ * Accept shared library
+ */
+exports.acceptSharedLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+
+    // Get recipient user ID
+    const { data: recipient } = await supabaseClient
+      .from('users')
+      .select('id')
+      .eq('auth_id', authId)
+      .single();
+
+    if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    // Add recipient to user_libraries as collaborator
+    const { error: insertError } = await supabaseClient
+      .from('user_libraries')
+      .insert({
+        user_id: recipient.id,
+        library_id,
+        role: 'collaborator',
+        invited_by_user_id: notification.actor_id
+      });
+
+    if (insertError) throw insertError;
+
+    // Mark notification as read
+    await supabaseClient
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', recipient.id)
+      .eq('reference_id', library_id)
+      .eq('type', 'library_share');
+
+    res.status(200).json({ message: 'Library share accepted' });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, 'Failed to accept shared library');
+  }
+};
+
