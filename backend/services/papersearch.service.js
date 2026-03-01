@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { resolvePdfUrl } = require("./pdfResolver.service");
 
 const BASE_URL = "https://api.semanticscholar.org/graph/v1/paper/search";
 
@@ -12,7 +13,9 @@ const FIELDS = [
   "fieldsOfStudy",
   "citationCount",
   "abstract",
-  "citationStyles"
+  "citationStyles",
+  "externalIds",
+  "openAccessPdf"
 ].join(",");
 
 exports.searchPapers = async ({
@@ -55,18 +58,29 @@ exports.searchPapers = async ({
   }
 
  
-  const formattedPapers = papers.map(paper => ({
-    paperId: paper.paperId,
-    title: paper.title,
-    authors: paper.authors?.map(a => ({ authorId: a.authorId, name: a.name })) || [],
-    year: paper.year,
-    venue:paper.venue || [],
-    publicationDate: paper.publicationDate,
-    fieldsOfStudy: paper.fieldsOfStudy || [],
-    citationCount: paper.citationCount || 0,
-    abstract: paper.abstract || [],
-    bibtex: paper.citationStyles?.bibtex || []
-  }));
+const formattedPapers = await Promise.all(
+  papers.map(async (paper) => {
+    const pdf = await resolvePdfUrl(paper);
+
+    return {
+      paperId: paper.paperId,
+      title: paper.title,
+      authors: paper.authors?.map(a => ({
+        authorId: a.authorId,
+        name: a.name
+      })) || [],
+      year: paper.year,
+      venue: paper.venue || [],
+      publicationDate: paper.publicationDate,
+      fieldsOfStudy: paper.fieldsOfStudy || [],
+      citationCount: paper.citationCount || 0,
+      abstract: paper.abstract || [],
+      bibtex: paper.citationStyles?.bibtex || [],
+      pdfUrl: pdf.url,
+      pdfSource: pdf.status
+    };
+  })
+);
 
   return {
     total: response.data.total,
