@@ -57,19 +57,7 @@ const followUser = async (req, res) => {
 
     if (followError) throw followError;
 
-    // Create notification for the followed user
-    const { error: notificationError } = await supabaseClient
-      .from('notifications')
-      .insert({
-        user_id: followingUserId,
-        type: 'follow',
-        actor_id: currentUser.id,
-        message: `${currentUser.name} has followed you`
-      });
-
-    if (notificationError) console.error('Notification error:', notificationError);
-
-    // Check if this is a follow back
+    // Check if this is a follow back (target user already follows current user)
     const { data: isFollowBack } = await supabaseClient
       .from('user_follows')
       .select('id')
@@ -77,16 +65,31 @@ const followUser = async (req, res) => {
       .eq('following_id', currentUser.id)
       .single();
 
+    // Send appropriate notification based on whether it's a follow back
     if (isFollowBack) {
-      // Create follow back notification
-      await supabaseClient
+      // This is a follow back - send "follow_back" notification to original follower
+      const { error: notificationError } = await supabaseClient
         .from('notifications')
         .insert({
-          user_id: currentUser.id,
+          user_id: followingUserId,  // Person who originally followed us
           type: 'follow_back',
-          actor_id: followingUserId,
-          message: `${targetUser.name} followed you back`
+          actor_id: currentUser.id,
+          message: `${currentUser.name} followed you back`
         });
+
+      if (notificationError) console.error('Notification error:', notificationError);
+    } else {
+      // This is a new follow - send regular "follow" notification
+      const { error: notificationError } = await supabaseClient
+        .from('notifications')
+        .insert({
+          user_id: followingUserId,
+          type: 'follow',
+          actor_id: currentUser.id,
+          message: `${currentUser.name} has followed you`
+        });
+
+      if (notificationError) console.error('Notification error:', notificationError);
     }
 
     res.status(201).json({

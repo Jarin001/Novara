@@ -37,8 +37,29 @@ const getNotifications = async (req, res) => {
 
     if (error) throw error;
 
+    // For each notification with an actor, check if current user is following them
+    const notificationsWithFollowStatus = await Promise.all(
+      (notifications || []).map(async (notification) => {
+        if (notification.actor && notification.actor.id) {
+          // Check if current user follows this actor
+          const { data: followData } = await supabaseClient
+            .from('user_follows')
+            .select('id')
+            .eq('follower_id', currentUser.id)
+            .eq('following_id', notification.actor.id)
+            .single();
+
+          return {
+            ...notification,
+            isFollowing: !!followData  // Add isFollowing flag
+          };
+        }
+        return notification;
+      })
+    );
+
     res.status(200).json({
-      notifications: notifications || []
+      notifications: notificationsWithFollowStatus
     });
   } catch (error) {
     errorHandler(res, error, 'Failed to fetch notifications');
@@ -130,14 +151,7 @@ const markAllAsRead = async (req, res) => {
   }
 };
 
-module.exports = {
-  getNotifications,
-  getUnreadCount,
-  markAsRead,
-  markAllAsRead
-};
-
-// Delete a single notification belonging to the current user
+// Delete a notification
 const deleteNotification = async (req, res) => {
   try {
     const authId = req.user.id;
@@ -158,11 +172,18 @@ const deleteNotification = async (req, res) => {
 
     if (error) throw error;
 
-    res.status(200).json({ message: 'Notification deleted' });
+    res.status(200).json({
+      message: 'Notification deleted successfully'
+    });
   } catch (error) {
     errorHandler(res, error, 'Failed to delete notification');
   }
 };
 
-// Export delete handler
-module.exports.deleteNotification = deleteNotification;
+module.exports = {
+  getNotifications,
+  getUnreadCount,
+  markAsRead,
+  markAllAsRead,
+  deleteNotification
+};

@@ -523,7 +523,21 @@ const Navbar = () => {
                           onMouseEnter={(e) => e.currentTarget.style.backgroundColor = notification.is_read ? "#f9f9f9" : "#e6f3ff"}
                           onMouseLeave={(e) => e.currentTarget.style.backgroundColor = notification.is_read ? "#fff" : "#f0f8ff"}
                         >
-                          {/* Actor Profile Picture */}
+                          {/* Unread dot on left when unread */}
+                          {!notification.is_read && (
+                            <div
+                              style={{
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                backgroundColor: '#3E513E',
+                                flexShrink: 0,
+                                marginTop: '6px',
+                              }}
+                            />
+                          )}
+
+                        {/* Actor Profile Picture */}
                           {notification.actor && (
                             <div
                               style={{
@@ -574,20 +588,19 @@ const Navbar = () => {
                               )}
                             </div>
                           )}
-
                           {/* Notification Content */}
                           <div style={{ flex: 1, minWidth: 0 }}>
-                            <div
-                              style={{
-                                fontSize: "14px",
-                                color: "#333",
-                                marginBottom: "4px",
-                                lineHeight: "1.4",
-                              }}
-                            >
-                              {notification.message}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px', lineHeight: '1.4' }}>
+                              <div
+                                style={{
+                                  fontSize: '14px',
+                                  color: '#333',
+                                }}
+                              >
+                                {notification.message}
+                              </div>
                             </div>
-                            <div style={{ fontSize: "12px", color: "#999", marginBottom: "8px" }}>
+                            <div style={{ fontSize: '12px', color: '#999', marginBottom: '8px' }}>
                               {formatNotificationTime(notification.created_at)}
                             </div>
                             
@@ -597,29 +610,29 @@ const Navbar = () => {
                                 onClick={(e) => handleFollowBackFromNotification(e, notification)}
                                 disabled={followingFromNotif[notification.actor.id]}
                                 style={{
-                                  padding: "6px 12px",
-                                  backgroundColor: "#3E513E",
-                                  color: "#fff",
-                                  border: "none",
-                                  borderRadius: "4px",
-                                  fontSize: "12px",
-                                  fontWeight: "600",
-                                  cursor: followingFromNotif[notification.actor.id] ? "not-allowed" : "pointer",
+                                  padding: '6px 12px',
+                                  backgroundColor: '#3E513E',
+                                  color: '#fff',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: '600',
+                                  cursor: followingFromNotif[notification.actor.id] ? 'not-allowed' : 'pointer',
                                   opacity: followingFromNotif[notification.actor.id] ? 0.6 : 1,
-                                  transition: "all 0.2s"
+                                  transition: 'all 0.2s'
                                 }}
                                 onMouseEnter={(e) => {
                                   if (!followingFromNotif[notification.actor.id]) {
-                                    e.target.style.backgroundColor = "#2d3f2d";
+                                    e.target.style.backgroundColor = '#2d3f2d';
                                   }
                                 }}
                                 onMouseLeave={(e) => {
                                   if (!followingFromNotif[notification.actor.id]) {
-                                    e.target.style.backgroundColor = "#3E513E";
+                                    e.target.style.backgroundColor = '#3E513E';
                                   }
                                 }}
                               >
-                                {followingFromNotif[notification.actor.id] ? "Following..." : "Follow Back"}
+                                {followingFromNotif[notification.actor.id] ? 'Following...' : 'Follow Back'}
                               </button>
                             )}
                           </div>
@@ -658,18 +671,6 @@ const Navbar = () => {
                               </svg>
                             </button>
 
-                            {/* Unread Indicator */}
-                            {!notification.is_read && (
-                              <div
-                                style={{
-                                  width: "8px",
-                                  height: "8px",
-                                  borderRadius: "50%",
-                                  backgroundColor: "#3E513E",
-                                  flexShrink: 0,
-                                }}
-                              />
-                            )}
                           </div>
                         </div>
                       ))
