@@ -1,5 +1,6 @@
 const axios = require("axios");
 const { extractKeywords } = require("./keywordExtraction.service");
+const { resolvePdfUrl } = require("./pdfResolver.service");
 
 const BASE_URL = "https://api.semanticscholar.org/graph/v1/paper";
 
@@ -55,22 +56,6 @@ function formatPaperId(paperId) {
   return trimmedId;
 }
 
-// Validate that a URL points to a PDF file
-
-const isValidPdfUrl = async (url) => {
-  try {
-    const response = await axios.head(url, {
-      maxRedirects: 5,
-      timeout: 15000,
-      validateStatus: (status) => status >= 200 && status < 400
-    });
-
-    const contentType = response.headers["content-type"] || "";
-    return contentType.toLowerCase().startsWith("application/pdf");
-  } catch {
-    return false;
-  }
-};
 
 /**
  * Fetch paper details
@@ -91,19 +76,7 @@ exports.getPaperDetails = async (paperId) => {
     const paper = response.data;
 
 
-    if (paper.openAccessPdf?.url) {
-      const valid = await isValidPdfUrl(paper.openAccessPdf.url);
-      if (!valid) {
-        paper.openAccessPdf = null;
-      }
-    }
-
-
-    //Fallback
-
-    if (!paper.openAccessPdf || !paper.openAccessPdf.url) {
-      paper.openAccessPdf = await fetchPdfFallback(paper);
-    }
+    paper.openAccessPdf = await resolvePdfUrl(paper);
 
     // Keywords
     let keywords = [];
@@ -132,62 +105,5 @@ exports.getPaperDetails = async (paperId) => {
 };
 
 
-//Fallback function
-
-const fetchPdfFallback = async (paper) => {
-  const pdfFallback = {
-    url: null,
-    status: "UNAVAILABLE",
-    license: null,
-    disclaimer: null
-  };
-
-  const ext = paper.externalIds || {};
-  const candidates = [];
-
-  // ArXiv
-  if (ext.ArXiv) {
-    candidates.push({
-      url: `https://arxiv.org/pdf/${ext.ArXiv}.pdf`,
-      status: "ARXIV"
-    });
-  }
-
-  // PubMed Central
-  if (ext.PMCID) {
-    candidates.push({
-      url: `https://www.ncbi.nlm.nih.gov/pmc/articles/${ext.PMCID}/pdf/`,
-      status: "PMC"
-    });
-  }
-
-  // ACL Anthology
-  if (ext.ACL) {
-    candidates.push({
-      url: `https://aclanthology.org/${ext.ACL}.pdf`,
-      status: "ACL"
-    });
-  }
-
-  // BioRxiv
-  if (ext.BIORXIV) {
-    candidates.push({
-      url: `https://www.biorxiv.org/content/${ext.BIORXIV}.full.pdf`,
-      status: "BIORXIV"
-    });
-  }
-
-
-  for (const candidate of candidates) {
-    const valid = await isValidPdfUrl(candidate.url);
-    if (valid) {
-      pdfFallback.url = candidate.url;
-      pdfFallback.status = candidate.status;
-      return pdfFallback;
-    }
-  }
-
-  return pdfFallback;
-};
 
 exports.formatPaperId = formatPaperId;
