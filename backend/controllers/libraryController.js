@@ -320,3 +320,60 @@ exports.deleteLibrary = async (req, res) => {
   }
 };
 
+
+
+//-------------------------------------LIBRARY SHARE-------------------------------------
+
+
+/**
+ * Share library with another user (sends notification)
+ */
+exports.shareLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;  // sender auth_id
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+    const { recipient_id } = req.body;  // user to share with
+
+    if (!recipient_id) {
+      return res.status(400).json({ message: "Recipient ID is required" });
+    }
+
+    // Get sender user ID
+    const { data: sender } = await supabaseClient
+      .from('users')
+      .select('id, name, profile_picture_url')
+      .eq('auth_id', authId)
+      .single();
+
+    if (!sender) return res.status(404).json({ message: "Sender not found" });
+
+    // Get library info
+    const { data: library } = await supabaseClient
+      .from('libraries')
+      .select('id, name')
+      .eq('id', library_id)
+      .single();
+
+    if (!library) return res.status(404).json({ message: "Library not found" });
+
+    // Create notification for recipient
+    const { error: notifError } = await supabaseClient
+      .from('notifications')
+      .insert({
+        user_id: recipient_id,        // recipient
+        actor_id: sender.id,          // sender
+        reference_id: library.id,     // library ID
+        type: 'library_share',
+        message: `${sender.name} shared a library "${library.name}" with you.`
+      });
+
+    if (notifError) throw notifError;
+
+    res.status(200).json({ message: 'Library shared and notification sent' });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, 'Failed to share library');
+  }
+};
+
