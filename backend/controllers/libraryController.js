@@ -422,3 +422,35 @@ exports.acceptSharedLibrary = async (req, res) => {
   }
 };
 
+/**
+ * Decline shared library
+ */
+exports.declineSharedLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+
+    // Get recipient user ID
+    const { data: recipient } = await supabaseClient
+      .from('users')
+      .select('id')
+      .eq('auth_id', authId)
+      .single();
+
+    if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    // Mark notification as read
+    await supabaseClient
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', recipient.id)
+      .eq('reference_id', library_id)
+      .eq('type', 'library_share');
+
+    res.status(200).json({ message: 'Library share declined' });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, 'Failed to decline shared library');
+  }
+};
