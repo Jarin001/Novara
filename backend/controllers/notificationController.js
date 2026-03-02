@@ -37,11 +37,31 @@ const getNotifications = async (req, res) => {
 
     if (error) throw error;
 
+    // For new_publication notifications, fetch s2_paper_id
+    const publicationNotifs = (notifications || []).filter(
+      n => n.type === 'new_publication' && n.reference_id
+    );
+
+    if (publicationNotifs.length > 0) {
+      const paperIds = publicationNotifs.map(n => n.reference_id);
+      const { data: papers } = await supabaseClient
+        .from('papers')
+        .select('id, s2_paper_id')
+        .in('id', paperIds);
+
+      const paperMap = Object.fromEntries(papers.map(p => [p.id, p.s2_paper_id]));
+
+      notifications.forEach(n => {
+        if (n.type === 'new_publication' && n.reference_id) {
+          n.s2_paper_id = paperMap[n.reference_id] || null;
+        }
+      });
+    }
+
     // For each notification with an actor, check if current user is following them
     const notificationsWithFollowStatus = await Promise.all(
       (notifications || []).map(async (notification) => {
         if (notification.actor && notification.actor.id) {
-          // Check if current user follows this actor
           const { data: followData } = await supabaseClient
             .from('user_follows')
             .select('id')
@@ -51,7 +71,7 @@ const getNotifications = async (req, res) => {
 
           return {
             ...notification,
-            isFollowing: !!followData  // Add isFollowing flag
+            isFollowing: !!followData
           };
         }
         return notification;

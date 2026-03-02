@@ -140,9 +140,9 @@ const Navbar = () => {
     // Navigate based on notification type
     if (notification.type === 'follow' || notification.type === 'follow_back') {
       navigate(`/user/${notification.actor.id}`);
-    } else if (notification.type === 'new_publication' && notification.reference_id) {
-      navigate(`/paper/${notification.reference_id}`);
-    }
+  } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
+    navigate(`/paper/${notification.s2_paper_id}`);
+  }
 
     setNotificationDropdownOpen(false);
   };
