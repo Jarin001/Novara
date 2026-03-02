@@ -18,7 +18,8 @@ class PaperService {
           venue: paperData.venue,
           year: paperData.year || null,
           citation_count: paperData.citation_count,
-          fields_of_study: paperData.fields_of_study
+          fields_of_study: paperData.fields_of_study,
+          pdf_url: paperData.pdf_url || null 
         },
         { onConflict: 's2_paper_id' }
       )
@@ -166,7 +167,8 @@ class PaperService {
           venue,
           year,
           citation_count,
-          fields_of_study
+          fields_of_study,
+          pdf_url
         )
       `)
       .eq('library_id', libraryId)
