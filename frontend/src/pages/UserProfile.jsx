@@ -753,7 +753,7 @@ const UserProfile = () => {
     
     try {
       console.log(`Fetching citations for paper: ${paperIdToUse}`);
-      const response = await fetch(`http://localhost:5000/api/citations/${paperIdToUse}`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperIdToUse}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -959,7 +959,7 @@ const UserProfile = () => {
 
   const fetchPaperBibtex = async (paperId) => {
     try {
-      const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
       if (response.ok) {
         const data = await response.json();
         const bibtexFormat = data.data?.find(f => f.id === 'bibtex');
