@@ -700,7 +700,12 @@ const openSave = async (item) => {
     return;
   }
   
-  setSaveItem(item);
+  // Ensure pdf_url is set on saveItem (include camelCase pdfUrl from search service)
+  const saveItemWithPdf = {
+    ...item,
+    pdf_url: item.pdf_url || item.pdfUrl || item.openAccessPdf?.url || ''
+  };
+  setSaveItem(saveItemWithPdf);
   setSelectedLibraries([]);
   setPaperInLibraries([]);
   setSaveOpen(true);
@@ -720,7 +725,7 @@ const openSave = async (item) => {
     
     // Store the internal paper ID in saveItem for later use
     const enhancedSaveItem = {
-      ...item,
+      ...saveItemWithPdf,
       internalPaperId: result.internalPaperId // Add internal ID to saveItem
     };
     setSaveItem(enhancedSaveItem);
@@ -799,7 +804,8 @@ const handleSaveToLibraries = async () => {
         return { name: a || '', affiliation: '' };
       }),
       reading_status: 'unread',
-      user_note: ''
+      user_note: '',
+      pdf_url: saveItem.pdf_url || saveItem.pdfUrl || saveItem.openAccessPdf?.url || ''
     };
 
     console.log("Updating paper in libraries");
