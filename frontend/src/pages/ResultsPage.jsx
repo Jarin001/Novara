@@ -49,7 +49,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -253,7 +253,7 @@ const ResultsPage = () => {
       papersToPrefetch.forEach(async (paper) => {
         if (paper.paperId && !citationCache.has(paper.paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paper.paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];

@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -151,7 +151,7 @@ const CitationsPage = () => {
         console.log(`Fetching paper details for: ${paperId}`);
         
         // First, get the paper details to know the citation count
-        const paperResponse = await fetch(`http://localhost:5000/api/papers/${paperId}`);
+        const paperResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
         if (!paperResponse.ok) {
           throw new Error(`Failed to fetch paper details: ${paperResponse.status}`);
         }
@@ -165,7 +165,7 @@ const CitationsPage = () => {
         // Then fetch citations using the paper-citations controller
         if (citationCount > 0) {
           const response = await fetch(
-            `http://localhost:5000/api/papers/${paperId}/citations?citationCount=${citationCount}&limit=100`
+            `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/citations?citationCount=${citationCount}&limit=100`
           );
           
           console.log(`Citations response status: ${response.status}`);
@@ -257,7 +257,7 @@ const CitationsPage = () => {
         const paperId = paper.paperId;
         if (paperId && !citationCache.has(paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];

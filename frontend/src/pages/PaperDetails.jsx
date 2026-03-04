@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -192,7 +192,7 @@ const PaperDetails = () => {
         setPaperError(null);
         console.log(`Fetching paper details for paperId: ${paperId}`);
         
-        const url = `http://localhost:5000/api/papers/${paperId}`;
+        const url = `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`;
         console.log(`Request URL: ${url}`);
         
         const response = await fetch(url);
@@ -467,7 +467,7 @@ const PaperDetails = () => {
       
       console.log("Sending question to AI backend:", { pdfUrl, question: userMessage });
       
-      const response = await fetch('http://localhost:5000/api/paper-ai/ask', {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/paper-ai/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -519,7 +519,7 @@ const PaperDetails = () => {
       
       console.log("Extracting keywords for paper:", paper.title);
       
-      const response = await fetch('http://localhost:5000/api/keywords/extract', {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/keywords/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

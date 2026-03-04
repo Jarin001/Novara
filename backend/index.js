@@ -12,6 +12,8 @@ const authRoutes = require('./routes/authRoutes');
 const followRoutes = require('./routes/followRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
+const annotationRoutes = require('./routes/annotation.route');
+
 const app = express();
 
 // Middleware
@@ -71,11 +73,14 @@ app.use('/api/citations', citationRoutes);
 app.use("/api/paper-ai", paperAiRoutes);
 
 // Bibtex routes
+
 app.use('/api/library-bibtex', libraryBibtexRoute);
 app.use('/api/all-library-bibtex', allPaperBibtexRoute);
 
 app.use('/api/users', followRoutes);
 app.use('/api/notifications', notificationRoutes);
+// Annotations route (must be before 404 handler)
+app.use('/api/annotations', annotationRoutes);
 
 // 404 handler - must come after all routes
 app.use((req, res) => {
@@ -89,7 +94,34 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+
+const server = require('http').createServer(app);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+app.use('/api/annotations', annotationRoutes);
+
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('joinPaper', ({ paperId }) => {
+    socket.join(paperId);
+  });
+
+  socket.on('annotationChanged', ({ paperId, annotation }) => {
+    io.to(paperId).emit('annotationUpdate', annotation);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+server.listen(PORT, () => {
   console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Available endpoints:`);
   console.log(`  - Auth: http://localhost:${PORT}/api/auth`);
@@ -97,4 +129,5 @@ app.listen(PORT, () => {
   console.log(`  - Papers: http://localhost:${PORT}/api/papers`);
   console.log(`  - Libraries: http://localhost:${PORT}/api/libraries`);
   console.log(`  - User Papers: http://localhost:${PORT}/api/user/papers`);
+  console.log(`  - Annotations: http://localhost:${PORT}/api/annotations`);
 });

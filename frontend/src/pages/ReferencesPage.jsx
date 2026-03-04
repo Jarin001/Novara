@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -150,7 +150,7 @@ const ReferencesPage = () => {
         console.log(`Fetching references for paper: ${paperId}`);
         
         // First, get the paper details to know the reference count
-        const paperResponse = await fetch(`http://localhost:5000/api/papers/${paperId}`);
+        const paperResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
         if (!paperResponse.ok) {
           const errorText = await paperResponse.text();
           console.error(`Paper details error (${paperResponse.status}):`, errorText);
@@ -164,7 +164,7 @@ const ReferencesPage = () => {
         
         // Then fetch references using the paper-references controller
         const response = await fetch(
-          `http://localhost:5000/api/papers/${paperId}/references?referenceCount=${referenceCount}&limit=100`
+          `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/references?referenceCount=${referenceCount}&limit=100`
         );
         
         console.log(`References response status: ${response.status}`);
@@ -259,7 +259,7 @@ const ReferencesPage = () => {
         const refPaperId = ref.paperId || ref.id;
         if (refPaperId && !citationCache.has(refPaperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${refPaperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${refPaperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];

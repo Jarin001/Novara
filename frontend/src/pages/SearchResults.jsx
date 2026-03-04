@@ -53,7 +53,7 @@ const SearchResults = () => {
         
         if (searchType === "authors") {
           // Use author autocomplete endpoint
-          endpoint = `http://localhost:5000/api/author-autocomplete?query=${encodeURIComponent(q)}`;
+          const endpoint = `${process.env.REACT_APP_BACKEND_URL}/api/author-autocomplete?query=${encodeURIComponent(q)}`;
           dataProcessor = (data) => {
             // Transform author data to match suggestion format
             return (data.authors || []).map(author => ({
@@ -66,7 +66,7 @@ const SearchResults = () => {
           };
         } else {
           // Use paper autocomplete endpoint (original)
-          endpoint = `http://localhost:5000/api/autocomplete?query=${encodeURIComponent(q)}`;
+          const endpoint = `${process.env.REACT_APP_BACKEND_URL}/api/autocomplete?query=${encodeURIComponent(q)}`;
           dataProcessor = (data) => data.matches || [];
         }
         

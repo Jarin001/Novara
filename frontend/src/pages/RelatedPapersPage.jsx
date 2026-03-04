@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -149,7 +149,7 @@ const RelatedPapersPage = () => {
         setRelatedError(null);
         console.log(`Fetching related papers for: ${paperId}`);
         
-        const response = await fetch(`http://localhost:5000/api/papers/${paperId}/related?limit=100`);
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/related?limit=100`);
         console.log(`Related papers response status: ${response.status}`);
         
         if (response.ok) {
@@ -198,7 +198,7 @@ const RelatedPapersPage = () => {
         const paperId = paper.paperId || paper.id;
         if (paperId && !citationCache.has(paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];
