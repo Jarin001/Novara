@@ -745,7 +745,8 @@ const PaperDetails = () => {
           return { name: a || '', affiliation: '' };
         }),
         reading_status: 'unread',
-        user_note: ''
+        user_note: '',
+        pdf_url: paper.openAccessPdf?.url || paper.pdfUrl || ''  // ADDED: PDF URL from paper object
       };
 
       console.log("Updating paper in libraries");
