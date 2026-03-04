@@ -383,7 +383,7 @@ const CitationsPage = () => {
     setCiteItem(item);
     
     try {
-      // Use cached citations (same as ResultsPage)
+      // Use cached citations
       const citations = await fetchPaperCitationsWithCache(item.paperId);
       console.log("Citations (cached/fetched):", citations);
       setCiteFormats(citations);
@@ -677,7 +677,13 @@ const CitationsPage = () => {
       return;
     }
     
-    setSaveItem(item);
+    // Create enhanced item with pdf_url (like ResultsPage)
+    const saveItemWithPdf = {
+      ...item,
+      pdf_url: item.pdf_url || item.pdfUrl || item.openAccessPdf?.url || ''
+    };
+    
+    setSaveItem(saveItemWithPdf);
     setSelectedLibraries([]);
     setPaperInLibraries([]);
     setSaveOpen(true);
@@ -698,7 +704,7 @@ const CitationsPage = () => {
       
       // Store the internal paper ID in saveItem for later use
       const enhancedSaveItem = {
-        ...item,
+        ...saveItemWithPdf,
         internalPaperId: result.internalPaperId // Add internal ID to saveItem
       };
       setSaveItem(enhancedSaveItem);
@@ -722,7 +728,7 @@ const CitationsPage = () => {
     setCheckingPaperInLibraries(false);
   };
 
-  // UPDATED SAVE PAPER TO LIBRARIES - FIXED DATA STRUCTURE
+  // UPDATED SAVE PAPER TO LIBRARIES - FIXED DATA STRUCTURE WITH PDF_URL
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -777,7 +783,8 @@ const CitationsPage = () => {
           return { name: a || '', affiliation: '' };
         }),
         reading_status: 'unread',
-        user_note: ''
+        user_note: '',
+        pdf_url: saveItem.pdf_url || saveItem.openAccessPdf?.url || saveItem.pdfUrl || ''  // ADDED PDF URL
       };
 
       console.log("Updating paper in libraries");
