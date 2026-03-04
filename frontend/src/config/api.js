@@ -5,6 +5,7 @@ export const API_ENDPOINTS = {
   // Search endpoints
   PAPER_SEARCH: `${API_BASE_URL}/api/papers`,
   AUTOCOMPLETE: `${API_BASE_URL}/api/autocomplete`,
+  AUTHOR_AUTOCOMPLETE: `${API_BASE_URL}/api/author-autocomplete`,
   
   // Paper details
   PAPER_DETAILS: `${API_BASE_URL}/api/papers`,
