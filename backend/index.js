@@ -9,6 +9,8 @@ const paperRoutes = require('./routes/paperRoutes');
 const libraryRoutes = require('./routes/libraryRoutes');
 const userPapersRoutes = require('./routes/userPapersRoutes');
 const authRoutes = require('./routes/authRoutes');
+const followRoutes = require('./routes/followRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -71,6 +73,9 @@ app.use("/api/paper-ai", paperAiRoutes);
 // Bibtex routes
 app.use('/api/library-bibtex', libraryBibtexRoute);
 app.use('/api/all-library-bibtex', allPaperBibtexRoute);
+
+app.use('/api/users', followRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler - must come after all routes
 app.use((req, res) => {

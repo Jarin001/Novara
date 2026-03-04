@@ -99,8 +99,29 @@ exports.getUserLibraries = async (req, res) => {
 
     if (librariesError) throw librariesError;
 
-    // Separate into owned and shared
+    // For creator-owned libraries, check which ones have been shared with other users
+    const ownedLibraryIds = userLibraries
+      .filter(ul => ul.role === 'creator')
+      .map(ul => ul.libraries.id);
+
+    // Fetch collaborator counts for all owned libraries in one query
+    const sharedLibraryIds = new Set();
+    if (ownedLibraryIds.length > 0) {
+      const { data: collaborators, error: collabError } = await supabase
+        .from('user_libraries')
+        .select('library_id')
+        .in('library_id', ownedLibraryIds)
+        .neq('user_id', userData.id)
+        .eq('role', 'collaborator');
+
+      if (collabError) throw collabError;
+
+      collaborators?.forEach(c => sharedLibraryIds.add(c.library_id));
+    }
+
+    // Separate into three buckets
     const myLibraries = [];
+    const sharedWithOthers = [];
     const sharedLibraries = [];
 
     userLibraries.forEach(ul => {
@@ -111,7 +132,11 @@ exports.getUserLibraries = async (req, res) => {
       };
 
       if (ul.role === 'creator') {
-        myLibraries.push(library);
+        if (sharedLibraryIds.has(library.id)) {
+          sharedWithOthers.push(library);
+        } else {
+          myLibraries.push(library);
+        }
       } else {
         sharedLibraries.push(library);
       }
@@ -119,6 +144,7 @@ exports.getUserLibraries = async (req, res) => {
 
     res.json({
       my_libraries: myLibraries,
+      shared_with_others: sharedWithOthers,
       shared_with_me: sharedLibraries
     });
   } catch (err) {
@@ -126,6 +152,7 @@ exports.getUserLibraries = async (req, res) => {
     errorHandler(res, err, 'Failed to fetch libraries');
   }
 };
+
 
 /**
  * Get a single library
