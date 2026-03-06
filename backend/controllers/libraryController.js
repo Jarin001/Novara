@@ -337,6 +337,15 @@ exports.shareLibrary = async (req, res) => {
       return res.status(400).json({ message: "Recipient ID is required" });
     }
 
+    // Get sender user ID
+    const { data: sender } = await supabaseClient
+      .from("users")
+      .select("id, name, profile_picture_url")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!sender) return res.status(404).json({ message: "Sender not found" });
+
     // Check if recipient already has access
     const { data: existingAccess } = await supabaseClient
       .from("user_libraries")
@@ -358,14 +367,6 @@ exports.shareLibrary = async (req, res) => {
         .json({ message: "Cannot share library with yourself" });
     }
 
-    // Get sender user ID
-    const { data: sender } = await supabaseClient
-      .from("users")
-      .select("id, name, profile_picture_url")
-      .eq("auth_id", authId)
-      .single();
-
-    if (!sender) return res.status(404).json({ message: "Sender not found" });
 
     // Get library info
     const { data: library } = await supabaseClient
@@ -395,51 +396,6 @@ exports.shareLibrary = async (req, res) => {
     errorHandler(res, err, "Failed to share library");
   }
 };
-
-/**
- * Accept shared library
- */
-// exports.acceptSharedLibrary = async (req, res) => {
-//   try {
-//     const authId = req.user.id;
-//     const supabaseClient = req.supabase;
-//     const { library_id } = req.params;
-
-//     // Get recipient user ID
-//     const { data: recipient } = await supabaseClient
-//       .from("users")
-//       .select("id")
-//       .eq("auth_id", authId)
-//       .single();
-
-//     if (!recipient) return res.status(404).json({ message: "User not found" });
-
-//     // Add recipient to user_libraries as collaborator
-//     const { error: insertError } = await supabaseClient
-//       .from("user_libraries")
-//       .insert({
-//         user_id: recipient.id,
-//         library_id,
-//         role: "collaborator",
-//         invited_by_user_id: notification.actor_id,
-//       });
-
-//     if (insertError) throw insertError;
-
-//     // Mark notification as read
-//     await supabaseClient
-//       .from("notifications")
-//       .update({ is_read: true })
-//       .eq("user_id", recipient.id)
-//       .eq("reference_id", library_id)
-//       .eq("type", "library_share");
-
-//     res.status(200).json({ message: "Library share accepted" });
-//   } catch (err) {
-//     console.error(err);
-//     errorHandler(res, err, "Failed to accept shared library");
-//   }
-// };
 
 /**
  * Accept shared library
