@@ -10,4 +10,9 @@ router.get(
   libraryBibtexController.getLibraryBibtex
 );
 
+router.get(
+  '/:libraryId/citations',
+  libraryBibtexController.getLibraryCitationKeys
+);
+
 module.exports = router;
