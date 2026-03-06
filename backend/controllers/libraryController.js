@@ -399,6 +399,51 @@ exports.shareLibrary = async (req, res) => {
 /**
  * Accept shared library
  */
+// exports.acceptSharedLibrary = async (req, res) => {
+//   try {
+//     const authId = req.user.id;
+//     const supabaseClient = req.supabase;
+//     const { library_id } = req.params;
+
+//     // Get recipient user ID
+//     const { data: recipient } = await supabaseClient
+//       .from("users")
+//       .select("id")
+//       .eq("auth_id", authId)
+//       .single();
+
+//     if (!recipient) return res.status(404).json({ message: "User not found" });
+
+//     // Add recipient to user_libraries as collaborator
+//     const { error: insertError } = await supabaseClient
+//       .from("user_libraries")
+//       .insert({
+//         user_id: recipient.id,
+//         library_id,
+//         role: "collaborator",
+//         invited_by_user_id: notification.actor_id,
+//       });
+
+//     if (insertError) throw insertError;
+
+//     // Mark notification as read
+//     await supabaseClient
+//       .from("notifications")
+//       .update({ is_read: true })
+//       .eq("user_id", recipient.id)
+//       .eq("reference_id", library_id)
+//       .eq("type", "library_share");
+
+//     res.status(200).json({ message: "Library share accepted" });
+//   } catch (err) {
+//     console.error(err);
+//     errorHandler(res, err, "Failed to accept shared library");
+//   }
+// };
+
+/**
+ * Accept shared library
+ */
 exports.acceptSharedLibrary = async (req, res) => {
   try {
     const authId = req.user.id;
@@ -408,11 +453,27 @@ exports.acceptSharedLibrary = async (req, res) => {
     // Get recipient user ID
     const { data: recipient } = await supabaseClient
       .from("users")
-      .select("id")
+      .select("id, name, profile_picture_url")
       .eq("auth_id", authId)
       .single();
 
     if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    // First, get the notification to find who shared it
+    const { data: notification } = await supabaseClient
+      .from("notifications")
+      .select("actor_id")
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share")
+      .single();
+
+    // Get library name
+    const { data: library } = await supabaseClient
+      .from("libraries")
+      .select("name")
+      .eq("id", library_id)
+      .single();
 
     // Add recipient to user_libraries as collaborator
     const { error: insertError } = await supabaseClient
@@ -421,10 +482,21 @@ exports.acceptSharedLibrary = async (req, res) => {
         user_id: recipient.id,
         library_id,
         role: "collaborator",
-        invited_by_user_id: notification.actor_id,
+        invited_by_user_id: notification?.actor_id || null,
       });
 
     if (insertError) throw insertError;
+
+    // Notify the sender that the invitation was accepted
+    if (notification?.actor_id) {
+      await supabaseClient.from("notifications").insert({
+        user_id: notification.actor_id, // sender receives notification
+        actor_id: recipient.id, // recipient performed the action
+        reference_id: library_id,
+        type: "library_accept",
+        message: `${recipient.name} accepted your invitation to collaborate in "${library.name}".`,
+      });
+    }
 
     // Mark notification as read
     await supabaseClient
