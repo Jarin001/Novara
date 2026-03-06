@@ -2103,6 +2103,30 @@
 
 // export default ResearchLibrary;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import React, { useState, useEffect } from "react";
 import invertedCommasIcon from "../images/inverted-commas.png";
 import {
@@ -2129,7 +2153,7 @@ import { useNavigate } from "react-router-dom";
 
 // API Base URL
 const API_BASE_URL =
-  process.env.REACT_APP_BACKEND_URL || "http://localhost:5000";
+  process.env.REACT_APP_BACKEND_URL || "http://localhost:5050";
 
 // Share Library Modal Component
 const ShareLibraryModal = ({
@@ -2695,16 +2719,19 @@ const ShareLibraryModal = ({
 };
 
 const ResearchLibrary = () => {
-  const [libraries, setLibraries] = useState([]);
-  const [sharedLibraries, setSharedLibraries] = useState([]);
-  const [isSharedExpanded, setIsSharedExpanded] = useState(true);
+  const [myLibraries, setMyLibraries] = useState([]);
+  const [sharedWithOthers, setSharedWithOthers] = useState([]);
+  const [sharedWithMe, setSharedWithMe] = useState([]);
+  const [isMyLibrariesExpanded, setIsMyLibrariesExpanded] = useState(true);
+  const [isSharedWithOthersExpanded, setIsSharedWithOthersExpanded] = useState(true);
+  const [isSharedWithMeExpanded, setIsSharedWithMeExpanded] = useState(true);
   const [expandedAbstracts, setExpandedAbstracts] = useState({});
   const [papers, setPapers] = useState([]);
   const [selectedLibrary, setSelectedLibrary] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [sortBy, setSortBy] = useState("dateAdded");
   const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditSidebar, setShowEditSidebar] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState(null);
   const [sharingLibrary, setSharingLibrary] = useState(null);
@@ -2732,65 +2759,149 @@ const ResearchLibrary = () => {
   };
 
   // Fetch all libraries for the user
-  const fetchLibraries = async () => {
-    try {
-      setLoading((prev) => ({ ...prev, libraries: true }));
-      setError("");
+// Fetch all libraries for the user
+const fetchLibraries = async () => {
+  try {
+    console.log("fetchLibraries called");
+    setLoading((prev) => ({ ...prev, libraries: true }));
+    setError("");
 
-      const token = getAuthToken();
-      if (!token) {
-        navigate("/login");
-        return;
-      }
-
-      const response = await fetch(`${API_BASE_URL}/api/libraries`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch libraries");
-      }
-
-      const data = await response.json();
-
-      // Separate into owned and shared libraries
-      const myLibraries = data.my_libraries || [];
-      const sharedLibraries = data.shared_with_me || [];
-
-      setLibraries([
-        { id: "all", name: "All Papers", isDefault: true },
-        ...myLibraries.map((lib) => ({
-          id: lib.id,
-          name: lib.name,
-          isDefault: false,
-          description: lib.description,
-          is_public: lib.is_public,
-          paper_count: lib.paper_count,
-          role: lib.role,
-        })),
-      ]);
-
-      setSharedLibraries(
-        sharedLibraries.map((lib) => ({
-          id: lib.id,
-          name: lib.name,
-          sharedBy: lib.created_by_user_id ? "User" : "Unknown",
-          isShared: true,
-          description: lib.description,
-          role: lib.role,
-        })),
-      );
-    } catch (err) {
-      console.error("Error fetching libraries:", err);
-      setError("Failed to load libraries. Please try again.");
-    } finally {
-      setLoading((prev) => ({ ...prev, libraries: false }));
+    const token = getAuthToken();
+    if (!token) {
+      console.error("No auth token found");
+      navigate("/login");
+      return;
     }
-  };
+    console.log("Auth token found, fetching from:", `${API_BASE_URL}/api/libraries`);
+
+    const response = await fetch(`${API_BASE_URL}/api/libraries`, {
+      method: "GET",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    console.log("Response received, status:", response.status, "ok:", response.ok);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("Backend response error:", response.status, errorText);
+      throw new Error(`Failed to fetch libraries: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log("JSON parsed successfully");
+    
+    if (!data) {
+      console.error("Empty response from backend");
+      throw new Error("Empty response from backend");
+    }
+    
+    console.log("Raw backend response:", JSON.stringify(data, null, 2));
+    console.log("my_libraries:", data.my_libraries);
+    console.log("shared_with_others:", data.shared_with_others);
+    console.log("shared_with_me:", data.shared_with_me);
+    
+    // Process my_libraries (only personal, no collaborators)
+    // Backend returns: id, name, description, created_at, updated_at
+    const myLibs = (data.my_libraries || []).map((lib, idx) => {
+      try {
+        console.log(`Processing myLib ${idx}:`, JSON.stringify(lib));
+        if (!lib || !lib.id) {
+          console.warn(`Skipping myLib ${idx} - no id`);
+          return null;
+        }
+        return {
+          id: lib.id,
+          name: lib.name || "",
+          isDefault: false,
+          description: lib.description || "",
+          is_public: lib.is_public !== undefined ? lib.is_public : false,
+          paper_count: lib.paper_count !== undefined ? lib.paper_count : 0,
+          role: "creator",
+          created_at: lib.created_at,
+          updated_at: lib.updated_at,
+        };
+      } catch (e) {
+        console.error("Error processing my_library:", lib, e);
+        return null;
+      }
+    }).filter(lib => lib !== null);
+
+    // Process shared_with_others (created by me, with collaborators)
+    const sharedOthers = (data.shared_with_others || []).map((lib, idx) => {
+      try {
+        console.log(`Processing sharedOther ${idx}:`, JSON.stringify(lib));
+        if (!lib || !lib.id) {
+          console.warn(`Skipping sharedOther ${idx} - no id`);
+          return null;
+        }
+        return {
+          id: lib.id,
+          name: lib.name || "",
+          isDefault: false,
+          description: lib.description || "",
+          is_public: lib.is_public !== undefined ? lib.is_public : false,
+          paper_count: lib.paper_count !== undefined ? lib.paper_count : 0,
+          role: lib.role || "creator",
+          is_owner: lib.is_owner || true,
+          creator: lib.creator || { user_id: null, name: null },
+          shared_with: lib.shared_with || [],
+          created_at: lib.created_at,
+          updated_at: lib.updated_at,
+        };
+      } catch (e) {
+        console.error("Error processing shared_with_other:", lib, e);
+        return null;
+      }
+    }).filter(lib => lib !== null);
+
+    // Process shared_with_me (where I'm a collaborator)
+    const sharedMe = (data.shared_with_me || []).map((lib, idx) => {
+      try {
+        console.log(`Processing sharedMe ${idx}:`, JSON.stringify(lib));
+        if (!lib || !lib.id) {
+          console.warn(`Skipping sharedMe ${idx} - no id`);
+          return null;
+        }
+        return {
+          id: lib.id,
+          name: lib.name || "",
+          isDefault: false,
+          description: lib.description || "",
+          is_public: lib.is_public !== undefined ? lib.is_public : false,
+          paper_count: lib.paper_count !== undefined ? lib.paper_count : 0,
+          role: lib.role || "collaborator",
+          is_owner: lib.is_owner || false,
+          creator: lib.creator || { user_id: null, name: null },
+          invited_by: lib.invited_by || null,
+          joined_at: lib.joined_at,
+          collaborators: lib.collaborators || [],
+          created_at: lib.created_at,
+          updated_at: lib.updated_at,
+        };
+      } catch (e) {
+        console.error("Error processing shared_with_me:", lib, e);
+        return null;
+      }
+    }).filter(lib => lib !== null);
+    
+    console.log("After mapping - myLibs count:", myLibs.length, "sharedOthers count:", sharedOthers.length, "sharedMe count:", sharedMe.length);
+
+    setMyLibraries(myLibs);
+    setSharedWithOthers(sharedOthers);
+    setSharedWithMe(sharedMe);
+    
+    console.log("State updated successfully");
+  } catch (err) {
+    console.error("Error fetching libraries:", err);
+    console.error("Full error object:", err);
+    setError("Failed to load libraries. Please try again.");
+  } finally {
+    setLoading((prev) => ({ ...prev, libraries: false }));
+  }
+};
 
   // Fetch papers for selected library
   const fetchPapers = async (libraryId) => {
@@ -2936,7 +3047,7 @@ const ResearchLibrary = () => {
 
       const data = await response.json();
 
-      // Add new library to state
+      // Add new library to myLibraries since newly created libraries have no collaborators
       const newLib = {
         id: data.library.id,
         name: data.library.name,
@@ -2945,13 +3056,11 @@ const ResearchLibrary = () => {
         is_public: data.library.is_public,
         paper_count: 0,
         role: "creator",
+        created_at: data.library.created_at,
+        updated_at: data.library.updated_at,
       };
 
-      setLibraries((prev) => [
-        { id: "all", name: "All Papers", isDefault: true },
-        ...prev.filter((lib) => lib.id !== "all"),
-        newLib,
-      ]);
+      setMyLibraries((prev) => [...prev, newLib]);
 
       setNewLibraryName("");
       setNewLibraryDescription("");
@@ -2997,23 +3106,38 @@ const ResearchLibrary = () => {
 
       const data = await response.json();
 
-      // Update library in state
-      setLibraries((prev) =>
-        prev.map((lib) =>
-          lib.id === editingLibrary.id
-            ? {
-                ...lib,
-                name: data.library.name,
-                description: data.library.description,
-              }
-            : lib,
-        ),
-      );
+      // Update library in appropriate array based on role and shared_with status
+      const updatedLib = {
+        ...editingLibrary,
+        name: data.library.name,
+        description: data.library.description,
+      };
+
+      if (editingLibrary.role === "creator") {
+        // Could be in myLibraries or sharedWithOthers
+        setMyLibraries((prev) =>
+          prev.map((lib) =>
+            lib.id === editingLibrary.id ? updatedLib : lib,
+          ),
+        );
+        setSharedWithOthers((prev) =>
+          prev.map((lib) =>
+            lib.id === editingLibrary.id ? updatedLib : lib,
+          ),
+        );
+      } else {
+        // In sharedWithMe
+        setSharedWithMe((prev) =>
+          prev.map((lib) =>
+            lib.id === editingLibrary.id ? updatedLib : lib,
+          ),
+        );
+      }
 
       setNewLibraryName("");
       setNewLibraryDescription("");
       setEditingLibrary(null);
-      setShowEditModal(false);
+      setShowEditSidebar(false);
       setError("");
     } catch (err) {
       console.error("Error updating library:", err);
@@ -3046,8 +3170,10 @@ const ResearchLibrary = () => {
         throw new Error(errorData.message || "Failed to delete library");
       }
 
-      // Remove library from state
-      setLibraries((prev) => prev.filter((lib) => lib.id !== id));
+      // Remove library from all arrays
+      setMyLibraries((prev) => prev.filter((lib) => lib.id !== id));
+      setSharedWithOthers((prev) => prev.filter((lib) => lib.id !== id));
+      setSharedWithMe((prev) => prev.filter((lib) => lib.id !== id));
 
       if (selectedLibrary === id) {
         setSelectedLibrary("all");
@@ -3064,8 +3190,9 @@ const ResearchLibrary = () => {
   const handleShareClick = () => {
     // Find the current library object
     const currentLibrary =
-      libraries.find((l) => l.id === selectedLibrary) ||
-      sharedLibraries.find((l) => l.id === selectedLibrary);
+      myLibraries.find((l) => l.id === selectedLibrary) ||
+      sharedWithOthers.find((l) => l.id === selectedLibrary) ||
+      sharedWithMe.find((l) => l.id === selectedLibrary);
 
     if (currentLibrary) {
       setSharingLibrary(currentLibrary);
@@ -3440,276 +3567,613 @@ const ResearchLibrary = () => {
           marginTop: "64px",
         }}
       >
-        {/* Sidebar */}
-        <div
+{/* Sidebar */}
+<div
+  style={{
+    width: "256px",
+    backgroundColor: "white",
+    borderRight: "1px solid #e5e7eb",
+    display: "flex",
+    flexDirection: "column",
+  }}
+>
+  <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
+    <h2
+      style={{
+        fontSize: "1.0rem",
+        fontWeight: 600,
+        color: "#6b7280",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+        margin: "0",
+        textAlign: "left",
+      }}
+    >
+      Libraries
+    </h2>
+  </div>
+
+  <div style={{ flex: 1, overflowY: "auto" }}>
+    {/* All Papers */}
+    <div
+      key="all"
+      className="library-item"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 16px",
+        cursor: "pointer",
+        backgroundColor: selectedLibrary === "all" ? "#E8EDE8" : "white",
+        borderLeft: selectedLibrary === "all" ? "4px solid #3E513E" : "none",
+      }}
+      onClick={() => setSelectedLibrary("all")}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <FolderOpen
+          size={18}
           style={{
-            width: "256px",
-            backgroundColor: "white",
-            borderRight: "1px solid #e5e7eb",
-            display: "flex",
-            flexDirection: "column",
+            color: selectedLibrary === "all" ? "#3E513E" : "#9ca3af",
+          }}
+        />
+        <span
+          style={{
+            fontSize: "0.875rem",
+            color: selectedLibrary === "all" ? "#3E513E" : "#374151",
+            fontWeight: selectedLibrary === "all" ? 500 : 400,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
-          <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
-            <h2
+          All Papers
+        </span>
+      </div>
+    </div>
+
+    {/* My Libraries Section */}
+    {myLibraries.length > 0 && (
+      <div style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            cursor: "pointer",
+            backgroundColor: "white",
+          }}
+          onClick={() => setIsMyLibrariesExpanded(!isMyLibrariesExpanded)}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flex: 1,
+            }}
+          >
+            {isMyLibrariesExpanded ? (
+              <ChevronDown size={16} />
+            ) : (
+              <ChevronRight size={16} />
+            )}
+            <span
               style={{
-                fontSize: "1.0rem",
-                fontWeight: 600,
-                color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                margin: "0",
-                textAlign: "left",
+                fontSize: "0.875rem",
+                color: "#374151",
+                fontWeight: 500,
               }}
             >
-              Libraries
-            </h2>
+              My Libraries ({myLibraries.length})
+            </span>
           </div>
+        </div>
 
-          <div style={{ flex: 1, overflowY: "auto" }}>
-            {libraries.map((library) => (
+        {isMyLibrariesExpanded &&
+          myLibraries.map((library) => (
+            <div
+              key={library.id}
+              className="library-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px 12px 40px",
+                cursor: "pointer",
+                backgroundColor:
+                  selectedLibrary === library.id ? "#E8EDE8" : "white",
+                borderLeft:
+                  selectedLibrary === library.id
+                    ? "4px solid #3E513E"
+                    : "none",
+              }}
+              onMouseEnter={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "0";
+              }}
+              onClick={() => setSelectedLibrary(library.id)}
+            >
               <div
-                key={library.id}
-                className="library-item"
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "12px 16px",
-                  cursor: "pointer",
-                  backgroundColor:
-                    selectedLibrary === library.id ? "#E8EDE8" : "white",
-                  borderLeft:
-                    selectedLibrary === library.id
-                      ? "4px solid #3E513E"
-                      : "none",
+                  gap: "8px",
+                  flex: 1,
+                  minWidth: 0,
                 }}
-                onMouseEnter={(e) => {
-                  const actions =
-                    e.currentTarget.querySelector(".library-actions");
-                  if (actions && !library.isDefault)
-                    actions.style.opacity = "1";
-                }}
-                onMouseLeave={(e) => {
-                  const actions =
-                    e.currentTarget.querySelector(".library-actions");
-                  if (actions) actions.style.opacity = "0";
-                }}
-                onClick={() => setSelectedLibrary(library.id)}
               >
-                <div
+                <FolderOpen
+                  size={16}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    flex: 1,
-                    minWidth: 0,
+                    color:
+                      selectedLibrary === library.id
+                        ? "#3E513E"
+                        : "#9ca3af",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: "0.875rem",
+                    color:
+                      selectedLibrary === library.id
+                        ? "#3E513E"
+                        : "#374151",
+                    fontWeight:
+                      selectedLibrary === library.id ? 500 : 400,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
                   }}
                 >
-                  <FolderOpen
-                    size={18}
-                    style={{
-                      color:
-                        selectedLibrary === library.id ? "#3E513E" : "#9ca3af",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "0.875rem",
-                      color:
-                        selectedLibrary === library.id ? "#3E513E" : "#374151",
-                      fontWeight: selectedLibrary === library.id ? 500 : 400,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {library.name}{" "}
-                    {library.paper_count !== undefined
-                      ? `(${library.paper_count})`
-                      : ""}
-                  </span>
-                </div>
-
-                {!library.isDefault && (
-                  <div
-                    className="library-actions"
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "4px",
-                      opacity: 0,
-                      transition: "opacity 0.2s",
-                    }}
-                  >
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingLibrary(library);
-                        setNewLibraryName(library.name);
-                        setNewLibraryDescription(library.description || "");
-                        setShowEditModal(true);
-                      }}
-                      style={{
-                        padding: "4px",
-                        border: "none",
-                        background: "transparent",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                      }
-                    >
-                      <Edit2 size={14} style={{ color: "#6b7280" }} />
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteLibrary(library.id);
-                      }}
-                      style={{
-                        padding: "4px",
-                        border: "none",
-                        background: "transparent",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                      onMouseOver={(e) =>
-                        (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                      }
-                      onMouseOut={(e) =>
-                        (e.currentTarget.style.backgroundColor = "transparent")
-                      }
-                    >
-                      <Trash2 size={14} style={{ color: "#6b7280" }} />
-                    </button>
-                  </div>
-                )}
+                  {library.name}
+                </span>
               </div>
-            ))}
 
-            {/* Shared Libraries Section */}
-            {sharedLibraries.length > 0 && (
-              <div style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px" }}>
-                <div
+              <div
+                className="library-actions"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  opacity: 0,
+                  transition: "opacity 0.2s",
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingLibrary(library);
+                    setNewLibraryName(library.name);
+                    setNewLibraryDescription(library.description || "");
+                    setShowEditSidebar(true);
+                  }}
                   style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    padding: "12px 16px",
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
                     cursor: "pointer",
-                    backgroundColor: "white",
                   }}
-                  onClick={() => setIsSharedExpanded(!isSharedExpanded)}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
                 >
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    {isSharedExpanded ? (
-                      <ChevronDown size={16} />
-                    ) : (
-                      <ChevronRight size={16} />
-                    )}
-                    <span
-                      style={{
-                        fontSize: "0.875rem",
-                        color: "#374151",
-                        fontWeight: 500,
-                      }}
-                    >
-                      Shared ({sharedLibraries.length})
-                    </span>
-                  </div>
-                </div>
-
-                {isSharedExpanded &&
-                  sharedLibraries.map((library) => (
-                    <div
-                      key={library.id}
-                      className="library-item"
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "12px 16px 12px 40px",
-                        cursor: "pointer",
-                        backgroundColor:
-                          selectedLibrary === library.id ? "#E8EDE8" : "white",
-                        borderLeft:
-                          selectedLibrary === library.id
-                            ? "4px solid #3E513E"
-                            : "none",
-                      }}
-                      onClick={() => setSelectedLibrary(library.id)}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "column",
-                          flex: 1,
-                          minWidth: 0,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "0.875rem",
-                            color:
-                              selectedLibrary === library.id
-                                ? "#3E513E"
-                                : "#374151",
-                            fontWeight:
-                              selectedLibrary === library.id ? 500 : 400,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {library.name}
-                        </span>
-                        <span style={{ fontSize: "0.75rem", color: "#9ca3af" }}>
-                          by {library.sharedBy}
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                  <Edit2 size={14} style={{ color: "#6b7280" }} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteLibrary(library.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <Trash2 size={14} style={{ color: "#6b7280" }} />
+                </button>
               </div>
-            )}
-          </div>
+            </div>
+          ))}
+      </div>
+    )}
 
-          <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
-            <button
-              onClick={() => setShowNewLibraryModal(true)}
+    {/* Shared with Others Section */}
+    {sharedWithOthers.length > 0 && (
+      <div style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            cursor: "pointer",
+            backgroundColor: "white",
+          }}
+          onClick={() => setIsSharedWithOthersExpanded(!isSharedWithOthersExpanded)}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flex: 1,
+            }}
+          >
+            {isSharedWithOthersExpanded ? (
+              <ChevronDown size={16} />
+            ) : (
+              <ChevronRight size={16} />
+            )}
+            <span
               style={{
-                width: "100%",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px",
-                padding: "8px 16px",
-                color: "white",
-                backgroundColor: "#3E513E",
-                border: "none",
-                borderRadius: "8px",
                 fontSize: "0.875rem",
+                color: "#374151",
                 fontWeight: 500,
-                cursor: "pointer",
               }}
-              onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
-              onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
             >
-              <Plus size={18} />
-              New Library
-            </button>
+              Shared with Others ({sharedWithOthers.length})
+            </span>
           </div>
         </div>
+
+        {isSharedWithOthersExpanded &&
+          sharedWithOthers.map((library) => (
+            <div
+              key={library.id}
+              className="library-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px 12px 40px",
+                cursor: "pointer",
+                backgroundColor:
+                  selectedLibrary === library.id ? "#E8EDE8" : "white",
+                borderLeft:
+                  selectedLibrary === library.id
+                    ? "4px solid #3E513E"
+                    : "none",
+              }}
+              onMouseEnter={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "0";
+              }}
+              onClick={() => setSelectedLibrary(library.id)}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.875rem",
+                    color:
+                      selectedLibrary === library.id
+                        ? "#3E513E"
+                        : "#374151",
+                    fontWeight:
+                      selectedLibrary === library.id ? 500 : 400,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {library.name}
+                </span>
+                {library.shared_with && library.shared_with.length > 0 && (
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#9ca3af",
+                    }}
+                  >
+                    {library.shared_with.length}{" "}
+                    {library.shared_with.length === 1
+                      ? "collaborator"
+                      : "collaborators"}
+                  </span>
+                )}
+              </div>
+
+              <div
+                className="library-actions"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  opacity: 0,
+                  transition: "opacity 0.2s",
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingLibrary(library);
+                    setNewLibraryName(library.name);
+                    setNewLibraryDescription(library.description || "");
+                    setShowEditSidebar(true);
+                  }}
+                  style={{
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <Edit2 size={14} style={{ color: "#6b7280" }} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteLibrary(library.id);
+                  }}
+                  style={{
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <Trash2 size={14} style={{ color: "#6b7280" }} />
+                </button>
+              </div>
+            </div>
+          ))}
+      </div>
+    )}
+
+    {/* Shared with Me Section */}
+    {sharedWithMe.length > 0 && (
+      <div style={{ borderTop: "1px solid #e5e7eb", marginTop: "8px" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "12px 16px",
+            cursor: "pointer",
+            backgroundColor: "white",
+          }}
+          onClick={() => setIsSharedWithMeExpanded(!isSharedWithMeExpanded)}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
+              flex: 1,
+            }}
+          >
+            {isSharedWithMeExpanded ? (
+              <ChevronDown size={16} />
+            ) : (
+              <ChevronRight size={16} />
+            )}
+            <span
+              style={{
+                fontSize: "0.875rem",
+                color: "#374151",
+                fontWeight: 500,
+              }}
+            >
+              Shared with Me ({sharedWithMe.length})
+            </span>
+          </div>
+        </div>
+
+        {isSharedWithMeExpanded &&
+          sharedWithMe.map((library) => (
+            <div
+              key={library.id}
+              className="library-item"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "12px 16px 12px 40px",
+                cursor: "pointer",
+                backgroundColor:
+                  selectedLibrary === library.id ? "#E8EDE8" : "white",
+                borderLeft:
+                  selectedLibrary === library.id
+                    ? "4px solid #3E513E"
+                    : "none",
+              }}
+              onMouseEnter={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "1";
+              }}
+              onMouseLeave={(e) => {
+                const actions =
+                  e.currentTarget.querySelector(".library-actions");
+                if (actions) actions.style.opacity = "0";
+              }}
+              onClick={() => setSelectedLibrary(library.id)}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.875rem",
+                    color:
+                      selectedLibrary === library.id
+                        ? "#3E513E"
+                        : "#374151",
+                    fontWeight:
+                      selectedLibrary === library.id ? 500 : 400,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {library.name}
+                </span>
+                {library.creator && (
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "#9ca3af",
+                    }}
+                  >
+                    by {library.creator.name || "Unknown"}
+                  </span>
+                )}
+              </div>
+
+              <div
+                className="library-actions"
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "4px",
+                  opacity: 0,
+                  transition: "opacity 0.2s",
+                }}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingLibrary(library);
+                    setNewLibraryName(library.name);
+                    setNewLibraryDescription(library.description || "");
+                    setShowEditSidebar(true);
+                  }}
+                  style={{
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                  onMouseOver={(e) =>
+                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                  }
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <Edit2 size={14} style={{ color: "#6b7280" }} />
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDeleteLibrary(library.id);
+                  }}
+                  disabled={library.role === "collaborator"}
+                  style={{
+                    padding: "4px",
+                    border: "none",
+                    background: "transparent",
+                    borderRadius: "4px",
+                    cursor:
+                      library.role === "collaborator"
+                        ? "not-allowed"
+                        : "pointer",
+                    opacity: library.role === "collaborator" ? 0.5 : 1,
+                  }}
+                  onMouseOver={(e) => {
+                    if (library.role !== "collaborator") {
+                      e.currentTarget.style.backgroundColor = "#e5e7eb";
+                    }
+                  }}
+                  onMouseOut={(e) =>
+                    (e.currentTarget.style.backgroundColor = "transparent")
+                  }
+                >
+                  <Trash2 size={14} style={{ color: "#6b7280" }} />
+                </button>
+              </div>
+            </div>
+          ))}
+      </div>
+    )}
+  </div>
+
+  <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
+    <button
+      onClick={() => setShowNewLibraryModal(true)}
+      style={{
+        width: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        padding: "8px 16px",
+        color: "white",
+        backgroundColor: "#3E513E",
+        border: "none",
+        borderRadius: "8px",
+        fontSize: "0.875rem",
+        fontWeight: 500,
+        cursor: "pointer",
+      }}
+      onMouseOver={(e) => (e.currentTarget.style.opacity = "0.9")}
+      onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+    >
+      <Plus size={18} />
+      New Library
+    </button>
+  </div>
+</div>
 
         {/* Papers List */}
         <div
@@ -3747,9 +4211,9 @@ const ResearchLibrary = () => {
                 >
                   {selectedLibrary === "all"
                     ? "All Papers"
-                    : libraries.find((l) => l.id === selectedLibrary)?.name ||
-                      sharedLibraries.find((l) => l.id === selectedLibrary)
-                        ?.name ||
+                    : myLibraries.find((l) => l.id === selectedLibrary)?.name ||
+                      sharedWithOthers.find((l) => l.id === selectedLibrary)?.name ||
+                      sharedWithMe.find((l) => l.id === selectedLibrary)?.name ||
                       "Library"}
                 </h2>
               </div>
@@ -3784,8 +4248,9 @@ const ResearchLibrary = () => {
                     navigate("/bibtex", {
                       state: {
                         selectedLibrary,
-                        libraries,
-                        sharedLibraries,
+                        myLibraries,
+                        sharedWithOthers,
+                        sharedWithMe,
                         papers,
                       },
                     })
@@ -3934,10 +4399,13 @@ const ResearchLibrary = () => {
                               libraryName:
                                 selectedLibrary === "all"
                                   ? "All Papers"
-                                  : libraries.find(
+                                  : myLibraries.find(
                                       (l) => l.id === selectedLibrary,
                                     )?.name ||
-                                    sharedLibraries.find(
+                                    sharedWithOthers.find(
+                                      (l) => l.id === selectedLibrary,
+                                    )?.name ||
+                                    sharedWithMe.find(
                                       (l) => l.id === selectedLibrary,
                                     )?.name,
                             },
@@ -4656,50 +5124,66 @@ const ResearchLibrary = () => {
         </div>
       )}
 
-      {/* Edit Library Modal */}
-      {showEditModal && editingLibrary && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1050,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "8px",
-              padding: "20px",
-              width: "90%",
-              maxWidth: "500px",
-              boxShadow: "0 4px 20px rgba(0, 0, 0, 0.15)",
-            }}
-          >
+      {/* Edit Library Sidebar */}
+      <div
+        style={{
+          position: "fixed",
+          inset: 0,
+          backgroundColor: showEditSidebar ? "rgba(0, 0, 0, 0.5)" : "rgba(0, 0, 0, 0)",
+          transition: "background-color 0.3s ease",
+          zIndex: showEditSidebar ? 1049 : -1,
+          pointerEvents: showEditSidebar ? "auto" : "none",
+        }}
+        onClick={() => {
+          setShowEditSidebar(false);
+          setEditingLibrary(null);
+          setNewLibraryName("");
+          setNewLibraryDescription("");
+        }}
+      />
+
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          height: "100vh",
+          width: "420px",
+          backgroundColor: "white",
+          boxShadow: "-2px 0 8px rgba(0, 0, 0, 0.15)",
+          transition: "transform 0.3s ease",
+          transform: showEditSidebar ? "translateX(0)" : "translateX(100%)",
+          zIndex: 1050,
+          overflow: "auto",
+          display: "flex",
+          flexDirection: "column",
+        }}
+      >
+        {showEditSidebar && editingLibrary && (
+          <>
+            {/* Header */}
             <div
               style={{
+                padding: "20px",
+                borderBottom: "1px solid #e5e7eb",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: "20px",
               }}
             >
-              <h3
+              <h2
                 style={{
-                  fontSize: "18px",
+                  fontSize: "1.25rem",
                   fontWeight: 600,
                   color: "#111827",
                   margin: 0,
                 }}
               >
                 Edit Library
-              </h3>
+              </h2>
               <button
                 onClick={() => {
-                  setShowEditModal(false);
+                  setShowEditSidebar(false);
                   setEditingLibrary(null);
                   setNewLibraryName("");
                   setNewLibraryDescription("");
@@ -4714,66 +5198,282 @@ const ResearchLibrary = () => {
                   alignItems: "center",
                   justifyContent: "center",
                 }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#f3f4f6")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "transparent")
+                }
               >
-                <X size={20} style={{ color: "#6b7280" }} />
+                <X size={24} style={{ color: "#6b7280" }} />
               </button>
             </div>
-            <input
-              type="text"
-              value={newLibraryName}
-              onChange={(e) => setNewLibraryName(e.target.value)}
-              placeholder="Enter library name"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                marginBottom: "12px",
-                outline: "none",
-              }}
-              onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
-            />
-            <textarea
-              value={newLibraryDescription}
-              onChange={(e) => setNewLibraryDescription(e.target.value)}
-              placeholder="Enter optional description"
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                border: "1px solid #d1d5db",
-                borderRadius: "6px",
-                fontSize: "14px",
-                marginBottom: "20px",
-                outline: "none",
-                resize: "vertical",
-                minHeight: "80px",
-              }}
-            />
+
+            {/* Content */}
             <div
               style={{
+                flex: 1,
+                padding: "24px",
+                overflow: "auto",
+              }}
+            >
+              {/* Library Info Card */}
+              <div
+                style={{
+                  backgroundColor: "#f9fafb",
+                  borderRadius: "8px",
+                  padding: "16px",
+                  marginBottom: "24px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    color: "#64748b",
+                    marginBottom: "4px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Library Info
+                </p>
+                <div style={{ marginBottom: "12px" }}>
+                  <p
+                    style={{
+                      fontSize: "0.875rem",
+                      color: "#6b7280",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    Role
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "1rem",
+                      color: "#111827",
+                      fontWeight: 500,
+                      margin: 0,
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {editingLibrary.role === "creator"
+                      ? "Owner"
+                      : "Collaborator"}
+                  </p>
+                </div>
+
+                {editingLibrary.role === "collaborator" && (
+                  <>
+                    {editingLibrary.creator && (
+                      <div style={{ marginBottom: "12px" }}>
+                        <p
+                          style={{
+                            fontSize: "0.875rem",
+                            color: "#6b7280",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Created by
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "1rem",
+                            color: "#111827",
+                            fontWeight: 500,
+                            margin: 0,
+                          }}
+                        >
+                          {editingLibrary.creator.name || "Unknown"}
+                        </p>
+                      </div>
+                    )}
+                    {editingLibrary.joined_at && (
+                      <div>
+                        <p
+                          style={{
+                            fontSize: "0.875rem",
+                            color: "#6b7280",
+                            marginBottom: "4px",
+                          }}
+                        >
+                          Joined
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "1rem",
+                            color: "#111827",
+                            fontWeight: 500,
+                            margin: 0,
+                          }}
+                        >
+                          {new Date(editingLibrary.joined_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {editingLibrary.role === "creator" && editingLibrary.shared_with && editingLibrary.shared_with.length > 0 && (
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Shared with
+                    </p>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+                      {editingLibrary.shared_with.map((collab) => (
+                        <span
+                          key={collab.user_id}
+                          style={{
+                            fontSize: "0.875rem",
+                            backgroundColor: "#e0e7ff",
+                            color: "#4f46e5",
+                            padding: "4px 8px",
+                            borderRadius: "4px",
+                          }}
+                        >
+                          {collab.name || "Unknown"}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {editingLibrary.role === "collaborator" && editingLibrary.collaborators && editingLibrary.collaborators.length > 0 && (
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "0.875rem",
+                        color: "#6b7280",
+                        marginBottom: "8px",
+                      }}
+                    >
+                      Collaborators
+                    </p>
+                    <div style={{ fontSize: "0.875rem", color: "#374151" }}>
+                      {editingLibrary.collaborators.map((collab) => (
+                        <div key={collab.user_id} style={{ marginBottom: "4px" }}>
+                          {collab.name || "Unknown"}{" "}
+                          {collab.role === "creator" && (
+                            <span
+                              style={{
+                                fontSize: "0.75rem",
+                                backgroundColor: "#f0fdf4",
+                                color: "#16a34a",
+                                padding: "2px 6px",
+                                borderRadius: "2px",
+                                marginLeft: "4px",
+                              }}
+                            >
+                              Owner
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Edit Fields */}
+              <div>
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#374151",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Library Name <span style={{ color: "#ef4444" }}>*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newLibraryName}
+                  onChange={(e) => setNewLibraryName(e.target.value)}
+                  placeholder="Enter library name"
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    marginBottom: "16px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                  }}
+                  onKeyPress={(e) => e.key === "Enter" && handleEditLibrary()}
+                />
+
+                <label
+                  style={{
+                    display: "block",
+                    fontSize: "0.875rem",
+                    fontWeight: 500,
+                    color: "#374151",
+                    marginBottom: "8px",
+                  }}
+                >
+                  Description
+                </label>
+                <textarea
+                  value={newLibraryDescription}
+                  onChange={(e) => setNewLibraryDescription(e.target.value)}
+                  placeholder="Enter optional description"
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "6px",
+                    fontSize: "0.875rem",
+                    marginBottom: "20px",
+                    outline: "none",
+                    resize: "vertical",
+                    minHeight: "80px",
+                    boxSizing: "border-box",
+                  }}
+                />
+              </div>
+            </div>
+
+            {/* Footer Buttons */}
+            <div
+              style={{
+                padding: "20px",
+                borderTop: "1px solid #e5e7eb",
                 display: "flex",
-                justifyContent: "flex-end",
                 gap: "12px",
               }}
             >
               <button
                 onClick={() => {
-                  setShowEditModal(false);
+                  setShowEditSidebar(false);
                   setEditingLibrary(null);
                   setNewLibraryName("");
                   setNewLibraryDescription("");
                 }}
                 style={{
+                  flex: 1,
                   padding: "10px 16px",
                   color: "#6b7280",
                   backgroundColor: "#f3f4f6",
                   border: "1px solid #d1d5db",
                   borderRadius: "6px",
-                  fontSize: "14px",
+                  fontSize: "0.875rem",
                   fontWeight: 500,
                   cursor: "pointer",
                 }}
+                onMouseOver={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#e5e7eb")
+                }
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.backgroundColor = "#f3f4f6")
+                }
               >
                 Cancel
               </button>
@@ -4781,6 +5481,7 @@ const ResearchLibrary = () => {
                 onClick={handleEditLibrary}
                 disabled={!newLibraryName.trim()}
                 style={{
+                  flex: 1,
                   padding: "10px 16px",
                   color: "white",
                   backgroundColor: newLibraryName.trim()
@@ -4788,17 +5489,25 @@ const ResearchLibrary = () => {
                     : "#9ca3af",
                   border: "none",
                   borderRadius: "6px",
-                  fontSize: "14px",
+                  fontSize: "0.875rem",
                   fontWeight: 500,
                   cursor: newLibraryName.trim() ? "pointer" : "not-allowed",
                 }}
+                onMouseOver={(e) => {
+                  if (newLibraryName.trim()) {
+                    e.currentTarget.style.opacity = "0.9";
+                  }
+                }}
+                onMouseOut={(e) =>
+                  (e.currentTarget.style.opacity = "1")
+                }
               >
                 Save Changes
               </button>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {/* Share Library Modal */}
       <ShareLibraryModal
