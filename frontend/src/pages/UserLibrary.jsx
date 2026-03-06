@@ -3844,133 +3844,152 @@ const fetchLibraries = async () => {
           </div>
         </div>
 
-        {isSharedWithOthersExpanded &&
-          sharedWithOthers.map((library) => (
-            <div
-              key={library.id}
-              className="library-item"
+{isSharedWithOthersExpanded &&
+  sharedWithOthers.map((library) => (
+    <div
+      key={library.id}
+      className="library-item"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 16px 12px 40px",
+        cursor: "pointer",
+        backgroundColor:
+          selectedLibrary === library.id ? "#E8EDE8" : "white",
+        borderLeft:
+          selectedLibrary === library.id
+            ? "4px solid #3E513E"
+            : "none",
+      }}
+      onMouseEnter={(e) => {
+        const actions =
+          e.currentTarget.querySelector(".library-actions");
+        if (actions) actions.style.opacity = "1";
+      }}
+      onMouseLeave={(e) => {
+        const actions =
+          e.currentTarget.querySelector(".library-actions");
+        if (actions) actions.style.opacity = "0";
+      }}
+      onClick={() => setSelectedLibrary(library.id)}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <FolderOpen
+          size={16}
+          style={{
+            color:
+              selectedLibrary === library.id
+                ? "#3E513E"
+                : "#9ca3af",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.875rem",
+              color:
+                selectedLibrary === library.id
+                  ? "#3E513E"
+                  : "#374151",
+              fontWeight:
+                selectedLibrary === library.id ? 500 : 400,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {library.name}
+          </span>
+          {library.shared_with && library.shared_with.length > 0 && (
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 16px 12px 40px",
-                cursor: "pointer",
-                backgroundColor:
-                  selectedLibrary === library.id ? "#E8EDE8" : "white",
-                borderLeft:
-                  selectedLibrary === library.id
-                    ? "4px solid #3E513E"
-                    : "none",
+                fontSize: "0.75rem",
+                color: "#9ca3af",
               }}
-              onMouseEnter={(e) => {
-                const actions =
-                  e.currentTarget.querySelector(".library-actions");
-                if (actions) actions.style.opacity = "1";
-              }}
-              onMouseLeave={(e) => {
-                const actions =
-                  e.currentTarget.querySelector(".library-actions");
-                if (actions) actions.style.opacity = "0";
-              }}
-              onClick={() => setSelectedLibrary(library.id)}
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.875rem",
-                    color:
-                      selectedLibrary === library.id
-                        ? "#3E513E"
-                        : "#374151",
-                    fontWeight:
-                      selectedLibrary === library.id ? 500 : 400,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {library.name}
-                </span>
-                {library.shared_with && library.shared_with.length > 0 && (
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    {library.shared_with.length}{" "}
-                    {library.shared_with.length === 1
-                      ? "collaborator"
-                      : "collaborators"}
-                  </span>
-                )}
-              </div>
+              {library.shared_with.length}{" "}
+              {library.shared_with.length === 1
+                ? "collaborator"
+                : "collaborators"}
+            </span>
+          )}
+        </div>
+      </div>
 
-              <div
-                className="library-actions"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  opacity: 0,
-                  transition: "opacity 0.2s",
-                }}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingLibrary(library);
-                    setNewLibraryName(library.name);
-                    setNewLibraryDescription(library.description || "");
-                    setShowEditSidebar(true);
-                  }}
-                  style={{
-                    padding: "4px",
-                    border: "none",
-                    background: "transparent",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                >
-                  <Edit2 size={14} style={{ color: "#6b7280" }} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteLibrary(library.id);
-                  }}
-                  style={{
-                    padding: "4px",
-                    border: "none",
-                    background: "transparent",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                >
-                  <Trash2 size={14} style={{ color: "#6b7280" }} />
-                </button>
-              </div>
-            </div>
-          ))}
+      <div
+        className="library-actions"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          opacity: 0,
+          transition: "opacity 0.2s",
+        }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingLibrary(library);
+            setNewLibraryName(library.name);
+            setNewLibraryDescription(library.description || "");
+            setShowEditSidebar(true);
+          }}
+          style={{
+            padding: "4px",
+            border: "none",
+            background: "transparent",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.backgroundColor = "#e5e7eb")
+          }
+          onMouseOut={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
+        >
+          <Edit2 size={14} style={{ color: "#6b7280" }} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteLibrary(library.id);
+          }}
+          style={{
+            padding: "4px",
+            border: "none",
+            background: "transparent",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.backgroundColor = "#e5e7eb")
+          }
+          onMouseOut={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
+        >
+          <Trash2 size={14} style={{ color: "#6b7280" }} />
+        </button>
+      </div>
+    </div>
+  ))}
       </div>
     )}
 
@@ -4013,137 +4032,156 @@ const fetchLibraries = async () => {
           </div>
         </div>
 
-        {isSharedWithMeExpanded &&
-          sharedWithMe.map((library) => (
-            <div
-              key={library.id}
-              className="library-item"
+{isSharedWithMeExpanded &&
+  sharedWithMe.map((library) => (
+    <div
+      key={library.id}
+      className="library-item"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        padding: "12px 16px 12px 40px",
+        cursor: "pointer",
+        backgroundColor:
+          selectedLibrary === library.id ? "#E8EDE8" : "white",
+        borderLeft:
+          selectedLibrary === library.id
+            ? "4px solid #3E513E"
+            : "none",
+      }}
+      onMouseEnter={(e) => {
+        const actions =
+          e.currentTarget.querySelector(".library-actions");
+        if (actions) actions.style.opacity = "1";
+      }}
+      onMouseLeave={(e) => {
+        const actions =
+          e.currentTarget.querySelector(".library-actions");
+        if (actions) actions.style.opacity = "0";
+      }}
+      onClick={() => setSelectedLibrary(library.id)}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+          flex: 1,
+          minWidth: 0,
+        }}
+      >
+        <FolderOpen
+          size={16}
+          style={{
+            color:
+              selectedLibrary === library.id
+                ? "#3E513E"
+                : "#9ca3af",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: "0.875rem",
+              color:
+                selectedLibrary === library.id
+                  ? "#3E513E"
+                  : "#374151",
+              fontWeight:
+                selectedLibrary === library.id ? 500 : 400,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {library.name}
+          </span>
+          {library.creator && (
+            <span
               style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 16px 12px 40px",
-                cursor: "pointer",
-                backgroundColor:
-                  selectedLibrary === library.id ? "#E8EDE8" : "white",
-                borderLeft:
-                  selectedLibrary === library.id
-                    ? "4px solid #3E513E"
-                    : "none",
+                fontSize: "0.75rem",
+                color: "#9ca3af",
               }}
-              onMouseEnter={(e) => {
-                const actions =
-                  e.currentTarget.querySelector(".library-actions");
-                if (actions) actions.style.opacity = "1";
-              }}
-              onMouseLeave={(e) => {
-                const actions =
-                  e.currentTarget.querySelector(".library-actions");
-                if (actions) actions.style.opacity = "0";
-              }}
-              onClick={() => setSelectedLibrary(library.id)}
             >
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  flex: 1,
-                  minWidth: 0,
-                }}
-              >
-                <span
-                  style={{
-                    fontSize: "0.875rem",
-                    color:
-                      selectedLibrary === library.id
-                        ? "#3E513E"
-                        : "#374151",
-                    fontWeight:
-                      selectedLibrary === library.id ? 500 : 400,
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {library.name}
-                </span>
-                {library.creator && (
-                  <span
-                    style={{
-                      fontSize: "0.75rem",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    by {library.creator.name || "Unknown"}
-                  </span>
-                )}
-              </div>
+              by {library.creator.name || "Unknown"}
+            </span>
+          )}
+        </div>
+      </div>
 
-              <div
-                className="library-actions"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "4px",
-                  opacity: 0,
-                  transition: "opacity 0.2s",
-                }}
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setEditingLibrary(library);
-                    setNewLibraryName(library.name);
-                    setNewLibraryDescription(library.description || "");
-                    setShowEditSidebar(true);
-                  }}
-                  style={{
-                    padding: "4px",
-                    border: "none",
-                    background: "transparent",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                  onMouseOver={(e) =>
-                    (e.currentTarget.style.backgroundColor = "#e5e7eb")
-                  }
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                >
-                  <Edit2 size={14} style={{ color: "#6b7280" }} />
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteLibrary(library.id);
-                  }}
-                  disabled={library.role === "collaborator"}
-                  style={{
-                    padding: "4px",
-                    border: "none",
-                    background: "transparent",
-                    borderRadius: "4px",
-                    cursor:
-                      library.role === "collaborator"
-                        ? "not-allowed"
-                        : "pointer",
-                    opacity: library.role === "collaborator" ? 0.5 : 1,
-                  }}
-                  onMouseOver={(e) => {
-                    if (library.role !== "collaborator") {
-                      e.currentTarget.style.backgroundColor = "#e5e7eb";
-                    }
-                  }}
-                  onMouseOut={(e) =>
-                    (e.currentTarget.style.backgroundColor = "transparent")
-                  }
-                >
-                  <Trash2 size={14} style={{ color: "#6b7280" }} />
-                </button>
-              </div>
-            </div>
-          ))}
+      <div
+        className="library-actions"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "4px",
+          opacity: 0,
+          transition: "opacity 0.2s",
+        }}
+      >
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setEditingLibrary(library);
+            setNewLibraryName(library.name);
+            setNewLibraryDescription(library.description || "");
+            setShowEditSidebar(true);
+          }}
+          style={{
+            padding: "4px",
+            border: "none",
+            background: "transparent",
+            borderRadius: "4px",
+            cursor: "pointer",
+          }}
+          onMouseOver={(e) =>
+            (e.currentTarget.style.backgroundColor = "#e5e7eb")
+          }
+          onMouseOut={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
+        >
+          <Edit2 size={14} style={{ color: "#6b7280" }} />
+        </button>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDeleteLibrary(library.id);
+          }}
+          disabled={library.role === "collaborator"}
+          style={{
+            padding: "4px",
+            border: "none",
+            background: "transparent",
+            borderRadius: "4px",
+            cursor:
+              library.role === "collaborator"
+                ? "not-allowed"
+                : "pointer",
+            opacity: library.role === "collaborator" ? 0.5 : 1,
+          }}
+          onMouseOver={(e) => {
+            if (library.role !== "collaborator") {
+              e.currentTarget.style.backgroundColor = "#e5e7eb";
+            }
+          }}
+          onMouseOut={(e) =>
+            (e.currentTarget.style.backgroundColor = "transparent")
+          }
+        >
+          <Trash2 size={14} style={{ color: "#6b7280" }} />
+        </button>
+      </div>
+    </div>
+  ))}
       </div>
     )}
   </div>
