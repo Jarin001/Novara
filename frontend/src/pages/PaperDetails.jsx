@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -192,7 +192,7 @@ const PaperDetails = () => {
         setPaperError(null);
         console.log(`Fetching paper details for paperId: ${paperId}`);
         
-        const url = `http://localhost:5000/api/papers/${paperId}`;
+        const url = `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`;
         console.log(`Request URL: ${url}`);
         
         const response = await fetch(url);
@@ -467,7 +467,7 @@ const PaperDetails = () => {
       
       console.log("Sending question to AI backend:", { pdfUrl, question: userMessage });
       
-      const response = await fetch('http://localhost:5000/api/paper-ai/ask', {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/paper-ai/ask`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -519,7 +519,7 @@ const PaperDetails = () => {
       
       console.log("Extracting keywords for paper:", paper.title);
       
-      const response = await fetch('http://localhost:5000/api/keywords/extract', {
+      const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/keywords/extract`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -745,7 +745,8 @@ const PaperDetails = () => {
           return { name: a || '', affiliation: '' };
         }),
         reading_status: 'unread',
-        user_note: ''
+        user_note: '',
+        pdf_url: paper.openAccessPdf?.url || paper.pdfUrl || ''  // ADDED: PDF URL from paper object
       };
 
       console.log("Updating paper in libraries");
@@ -1273,7 +1274,7 @@ const PaperDetails = () => {
               )}
             </div>
 
-            {/* Action Buttons - Ordered: PDF, Save, Cite */}
+            {/* Action Buttons - Ordered: PDF, Save, Cite, PDF Viewer */}
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
               {/* Citations Count with inverted commas icon */}
               <span style={{ 
@@ -1401,6 +1402,27 @@ const PaperDetails = () => {
                   style={{ width: 12, height: 12 }}
                 />
                 Cite
+              </button>
+
+              {/* PDF Viewer Button */}
+              <button 
+                onClick={() => navigate(`/pdf-viewer/${paperId}`, { state: { pdfUrl } })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  background: "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: "#333",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap"
+                }}
+              >
+                PDF Viewer
               </button>
             </div>
           </div>

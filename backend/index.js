@@ -12,6 +12,8 @@ const authRoutes = require('./routes/authRoutes');
 const followRoutes = require('./routes/followRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
+const annotationRoutes = require('./routes/annotation.route');
+
 const app = express();
 
 // Middleware
@@ -71,11 +73,60 @@ app.use('/api/citations', citationRoutes);
 app.use("/api/paper-ai", paperAiRoutes);
 
 // Bibtex routes
+
 app.use('/api/library-bibtex', libraryBibtexRoute);
 app.use('/api/all-library-bibtex', allPaperBibtexRoute);
 
 app.use('/api/users', followRoutes);
 app.use('/api/notifications', notificationRoutes);
+
+app.use('/api/annotations', annotationRoutes);
+
+
+
+
+const PORT = process.env.PORT || 5000;
+
+const server = require('http').createServer(app);
+const io = require('socket.io')(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE']
+  }
+});
+
+
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  socket.on('joinPaper', ({ paperId }) => {
+    socket.join(paperId);
+  });
+
+  socket.on('annotationChanged', ({ paperId, annotation }) => {
+    io.to(paperId).emit('annotationUpdate', annotation);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+// PDF Proxy - bypasses CORS restrictions on external PDF URLs
+app.get('/api/pdf-proxy', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL parameter is required' });
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).json({ error: 'Failed to fetch PDF' });
+    const buffer = await response.arrayBuffer();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch PDF' });
+  }
+});
 
 // 404 handler - must come after all routes
 app.use((req, res) => {
@@ -88,8 +139,9 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Something went wrong!' });
 });
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => {
+
+
+server.listen(PORT, () => {
   console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Available endpoints:`);
   console.log(`  - Auth: http://localhost:${PORT}/api/auth`);
@@ -97,4 +149,5 @@ app.listen(PORT, () => {
   console.log(`  - Papers: http://localhost:${PORT}/api/papers`);
   console.log(`  - Libraries: http://localhost:${PORT}/api/libraries`);
   console.log(`  - User Papers: http://localhost:${PORT}/api/user/papers`);
+  console.log(`  - Annotations: http://localhost:${PORT}/api/annotations`);
 });

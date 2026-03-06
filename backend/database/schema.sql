@@ -41,7 +41,8 @@ CREATE TABLE papers (
     year INTEGER,
     citation_count INTEGER DEFAULT 0,
     fields_of_study TEXT[],
-    venue TEXT
+    venue TEXT,
+    pdf_url TEXT
 );
 
 CREATE INDEX idx_papers_s2_paper_id ON papers(s2_paper_id);

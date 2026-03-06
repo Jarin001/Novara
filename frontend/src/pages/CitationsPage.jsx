@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -151,7 +151,7 @@ const CitationsPage = () => {
         console.log(`Fetching paper details for: ${paperId}`);
         
         // First, get the paper details to know the citation count
-        const paperResponse = await fetch(`http://localhost:5000/api/papers/${paperId}`);
+        const paperResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
         if (!paperResponse.ok) {
           throw new Error(`Failed to fetch paper details: ${paperResponse.status}`);
         }
@@ -165,7 +165,7 @@ const CitationsPage = () => {
         // Then fetch citations using the paper-citations controller
         if (citationCount > 0) {
           const response = await fetch(
-            `http://localhost:5000/api/papers/${paperId}/citations?citationCount=${citationCount}&limit=100`
+            `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/citations?citationCount=${citationCount}&limit=100`
           );
           
           console.log(`Citations response status: ${response.status}`);
@@ -257,7 +257,7 @@ const CitationsPage = () => {
         const paperId = paper.paperId;
         if (paperId && !citationCache.has(paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];
@@ -383,7 +383,7 @@ const CitationsPage = () => {
     setCiteItem(item);
     
     try {
-      // Use cached citations (same as ResultsPage)
+      // Use cached citations
       const citations = await fetchPaperCitationsWithCache(item.paperId);
       console.log("Citations (cached/fetched):", citations);
       setCiteFormats(citations);
@@ -677,7 +677,13 @@ const CitationsPage = () => {
       return;
     }
     
-    setSaveItem(item);
+    // Create enhanced item with pdf_url (like ResultsPage)
+    const saveItemWithPdf = {
+      ...item,
+      pdf_url: item.pdf_url || item.pdfUrl || item.openAccessPdf?.url || ''
+    };
+    
+    setSaveItem(saveItemWithPdf);
     setSelectedLibraries([]);
     setPaperInLibraries([]);
     setSaveOpen(true);
@@ -698,7 +704,7 @@ const CitationsPage = () => {
       
       // Store the internal paper ID in saveItem for later use
       const enhancedSaveItem = {
-        ...item,
+        ...saveItemWithPdf,
         internalPaperId: result.internalPaperId // Add internal ID to saveItem
       };
       setSaveItem(enhancedSaveItem);
@@ -722,7 +728,7 @@ const CitationsPage = () => {
     setCheckingPaperInLibraries(false);
   };
 
-  // UPDATED SAVE PAPER TO LIBRARIES - FIXED DATA STRUCTURE
+  // UPDATED SAVE PAPER TO LIBRARIES - FIXED DATA STRUCTURE WITH PDF_URL
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -777,7 +783,8 @@ const CitationsPage = () => {
           return { name: a || '', affiliation: '' };
         }),
         reading_status: 'unread',
-        user_note: ''
+        user_note: '',
+        pdf_url: saveItem.pdf_url || saveItem.openAccessPdf?.url || saveItem.pdfUrl || ''  // ADDED PDF URL
       };
 
       console.log("Updating paper in libraries");
