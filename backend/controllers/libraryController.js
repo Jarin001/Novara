@@ -354,18 +354,32 @@ exports.shareLibrary = async (req, res) => {
       .eq("library_id", library_id)
       .single();
 
-    if (existingAccess) {
-      return res
-        .status(400)
-        .json({ message: "Library is already shared with ${recipient.name}" });
-    }
+    // if (existingAccess) {
+    //   return res
+    //     .status(400)
+    //     .json({ message: "Library is already shared with ${recipient.name}" });
+    // }
 
-    // Optional: prevent sharing with yourself
+        // Optional: prevent sharing with yourself
     if (recipient_id === sender.id) {
       return res
         .status(400)
-        .json({ message: "Cannot share library with yourself" });
+        .json({ message: "You already have access to this library." });
     }
+
+    if (existingAccess) {
+  // Get recipient info to show their name
+  const { data: recipient } = await supabaseClient
+    .from("users")
+    .select("name")
+    .eq("id", recipient_id)
+    .single();
+    
+  return res
+    .status(400)
+    .json({ message: `Library is already shared with ${recipient?.name || 'this user'}` });
+}
+
 
 
     // Get library info
