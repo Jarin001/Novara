@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { resolvePdfUrl } = require("./pdfResolver.service");
 
 const BASE_PAPER_URL = "https://api.semanticscholar.org/graph/v1/paper";
 
@@ -10,7 +11,9 @@ const FIELDS = [
   "publicationDate",
   "fieldsOfStudy",
   "citationCount",
-  "abstract"
+  "abstract",
+  "externalIds",
+  "openAccessPdf"
 ].join(",");
 
 exports.getPaperRelations = async ({
@@ -71,19 +74,29 @@ exports.getPaperRelations = async ({
     papers.sort((a, b) => (b.citationCount || 0) - (a.citationCount || 0));
   }
 
-  const formatted = papers.map(p => ({
-    paperId: p.paperId,
-    title: p.title,
-    authors: p.authors?.map(a => ({
-      authorId: a.authorId,
-      name: a.name
-    })) || [],
-    year: p.year,
-    publicationDate: p.publicationDate,
-    fieldsOfStudy: p.fieldsOfStudy || [],
-    citationCount: p.citationCount || 0,
-    abstract: p.abstract || ""   
-  }));
+  
+
+const formatted = await Promise.all(
+  papers.map(async (p) => {
+    const pdf = await resolvePdfUrl(p);
+
+    return {
+      paperId: p.paperId,
+      title: p.title,
+      authors: p.authors?.map(a => ({
+        authorId: a.authorId,
+        name: a.name
+      })) || [],
+      year: p.year,
+      publicationDate: p.publicationDate,
+      fieldsOfStudy: p.fieldsOfStudy || [],
+      citationCount: p.citationCount || 0,
+      abstract: p.abstract || "",
+      pdfUrl: pdf.url,
+      pdfSource: pdf.status
+    };
+  })
+);
 
   return {
     total: totalCount,
