@@ -139,6 +139,7 @@ exports.getLibraryPapers = async (req, res) => {
       last_read_at: lp.last_read_at,
       ...lp.papers,
       authors: authorsMap[lp.papers.id] || [],
+      pdf_url: lp.papers.pdf_url || '', 
       abstract: contentMap[lp.papers.id]?.abstract || '',
       bibtex: contentMap[lp.papers.id]?.bibtex || '',
       user_note: noteMap[lp.papers.id.toString()]?.userNote || ''
