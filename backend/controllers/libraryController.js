@@ -116,7 +116,7 @@ exports.getUserLibraries = async (req, res) => {
           library_id,
           user_id,
           created_at,
-          users (
+          users!user_libraries_user_id_fkey (
             id,
             name
           )
@@ -148,7 +148,7 @@ exports.getUserLibraries = async (req, res) => {
           library_id,
           user_id,
           role,
-          users (
+          users!user_libraries_user_id_fkey (
             id,
             name
           )
