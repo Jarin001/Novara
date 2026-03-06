@@ -79,19 +79,11 @@ app.use('/api/all-library-bibtex', allPaperBibtexRoute);
 
 app.use('/api/users', followRoutes);
 app.use('/api/notifications', notificationRoutes);
-// Annotations route (must be before 404 handler)
+
 app.use('/api/annotations', annotationRoutes);
 
-// 404 handler - must come after all routes
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
 
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
+
 
 const PORT = process.env.PORT || 5000;
 
@@ -103,7 +95,6 @@ const io = require('socket.io')(server, {
   }
 });
 
-app.use('/api/annotations', annotationRoutes);
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -120,6 +111,35 @@ io.on('connection', (socket) => {
     console.log('User disconnected:', socket.id);
   });
 });
+
+// PDF Proxy - bypasses CORS restrictions on external PDF URLs
+app.get('/api/pdf-proxy', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL parameter is required' });
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return res.status(response.status).json({ error: 'Failed to fetch PDF' });
+    const buffer = await response.arrayBuffer();
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to fetch PDF' });
+  }
+});
+
+// 404 handler - must come after all routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
+
+
 
 server.listen(PORT, () => {
   console.log(`Server running at: http://localhost:${PORT}`);

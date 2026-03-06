@@ -1274,7 +1274,7 @@ const PaperDetails = () => {
               )}
             </div>
 
-            {/* Action Buttons - Ordered: PDF, Save, Cite */}
+            {/* Action Buttons - Ordered: PDF, Save, Cite, PDF Viewer */}
             <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
               {/* Citations Count with inverted commas icon */}
               <span style={{ 
@@ -1402,6 +1402,27 @@ const PaperDetails = () => {
                   style={{ width: 12, height: 12 }}
                 />
                 Cite
+              </button>
+
+              {/* PDF Viewer Button */}
+              <button 
+                onClick={() => navigate(`/pdf-viewer/${paperId}`, { state: { pdfUrl } })}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  padding: "6px 10px",
+                  background: "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: "#333",
+                  cursor: "pointer",
+                  fontWeight: 500,
+                  whiteSpace: "nowrap"
+                }}
+              >
+                PDF Viewer
               </button>
             </div>
           </div>

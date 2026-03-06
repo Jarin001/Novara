@@ -135,7 +135,7 @@ const ReferencesPage = () => {
     loadCitationCacheFromStorage();
   }, []);
 
-  // Fetch references from backend
+  // ========== UPDATED fetchReferences function (mirrors CitationsPage) ==========
   useEffect(() => {
     if (!paperId) {
       setReferencesError('No paper ID provided');
@@ -143,17 +143,15 @@ const ReferencesPage = () => {
       return;
     }
 
-    const fetchReferences = async () => {
+    const fetchPaperDetailsAndReferences = async () => {
       try {
         setReferencesLoading(true);
         setReferencesError(null);
-        console.log(`Fetching references for paper: ${paperId}`);
+        console.log(`Fetching paper details for: ${paperId}`);
         
         // First, get the paper details to know the reference count
         const paperResponse = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
         if (!paperResponse.ok) {
-          const errorText = await paperResponse.text();
-          console.error(`Paper details error (${paperResponse.status}):`, errorText);
           throw new Error(`Failed to fetch paper details: ${paperResponse.status}`);
         }
         
@@ -163,73 +161,83 @@ const ReferencesPage = () => {
         console.log(`Paper has ${referenceCount} references, now fetching references...`);
         
         // Then fetch references using the paper-references controller
-        const response = await fetch(
-          `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/references?referenceCount=${referenceCount}&limit=100`
-        );
-        
-        console.log(`References response status: ${response.status}`);
-        
-        if (response.ok) {
-          const data = await response.json();
-          console.log("References raw data:", data);
+        if (referenceCount > 0) {
+          const response = await fetch(
+            `${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/references?referenceCount=${referenceCount}&limit=100`
+          );
           
-          // Handle different response formats
-          let referencesArray = [];
+          console.log(`References response status: ${response.status}`);
           
-          if (data.data && Array.isArray(data.data)) {
-            referencesArray = data.data;
-          } else if (data.references && Array.isArray(data.references)) {
-            referencesArray = data.references;
-          } else if (Array.isArray(data)) {
-            referencesArray = data;
-          } else if (data.citedPapers && Array.isArray(data.citedPapers)) {
-            referencesArray = data.citedPapers;
-          } else {
-            console.warn("Unexpected response format:", data);
-            referencesArray = [];
-          }
-          
-          // Format and validate the references
-          const formattedReferences = referencesArray.map((ref, index) => {
-            // Safely extract authors - handle both string and object formats
-            let authorsArray = [];
-            if (Array.isArray(ref.authors)) {
-              authorsArray = ref.authors.map(author => {
-                if (typeof author === 'object') {
-                  return author.name || author.authorName || author.fullName || '';
-                }
-                return author || '';
-              }).filter(name => name); // Remove empty names
-            } else if (typeof ref.authors === 'string') {
-              authorsArray = [ref.authors];
-            } else if (ref.author) {
-              authorsArray = [ref.author];
+          if (response.ok) {
+            const data = await response.json();
+            console.log("References raw data:", data);
+            
+            // Handle different response formats (same as CitationsPage)
+            let referencesArray = [];
+            if (data.data && Array.isArray(data.data)) {
+              referencesArray = data.data;
+            } else if (Array.isArray(data)) {
+              referencesArray = data;
+            } else if (data.references && Array.isArray(data.references)) {
+              referencesArray = data.references;
+            } else if (data.citedPapers && Array.isArray(data.citedPapers)) {
+              referencesArray = data.citedPapers;
+            } else if (data.papers && Array.isArray(data.papers)) {
+              referencesArray = data.papers;
             }
             
-            return {
-              ...ref,
-              id: ref.paperId || ref.id || `ref-${index}`,
-              title: ref.title || 'No title available',
-              authors: authorsArray,
-              year: ref.year || ref.date || 0,
-              venue: ref.venue || ref.journal || ref.publicationVenue || 'Unknown',
-              abstract: ref.abstract || 'No abstract available',
-              fieldsOfStudy: Array.isArray(ref.fieldsOfStudy) ? ref.fieldsOfStudy : 
-                           Array.isArray(ref.fields) ? ref.fields : [],
-              citationCount: ref.citationCount || 0,
-              paperId: ref.paperId || ref.id || `ref-${index}`
-            };
-          });
-          
-          console.log("Formatted references:", formattedReferences);
-          setReferences(formattedReferences);
-          setTotalResults(formattedReferences.length);
-          // Reset expanded abstracts when references change
-          setExpandedAbstracts({});
+            // Process the references to ensure consistent ID format
+            const processedReferences = referencesArray.map((ref, index) => {
+              // Extract authors - handle both string and object formats (like CitationsPage)
+              let authorsArray = [];
+              if (Array.isArray(ref.authors)) {
+                authorsArray = ref.authors.map(author => {
+                  if (typeof author === 'object') {
+                    return {
+                      name: author.name || author.authorName || author.fullName || '',
+                      affiliation: author.affiliation || ''
+                    };
+                  }
+                  return { name: author || '', affiliation: '' };
+                }).filter(author => author.name);
+              } else if (typeof ref.authors === 'string') {
+                authorsArray = [{ name: ref.authors, affiliation: '' }];
+              } else if (ref.author) {
+                authorsArray = [{ name: ref.author, affiliation: '' }];
+              }
+              
+              return {
+                ...ref,
+                // Ensure paperId is the main ID
+                paperId: ref.paperId || ref.id || `ref-${index}`,
+                // Ensure fieldsOfStudy is an array
+                fieldsOfStudy: Array.isArray(ref.fieldsOfStudy) ? ref.fieldsOfStudy : 
+                              ref.fields ? (Array.isArray(ref.fields) ? ref.fields : []) : [],
+                // Processed authors array
+                authors: authorsArray,
+                // Ensure title exists
+                title: ref.title || 'No title available',
+                year: ref.year || ref.date || 0,
+                venue: ref.venue || ref.journal || ref.publicationVenue || 'Unknown',
+                abstract: ref.abstract || 'No abstract available',
+                citationCount: ref.citationCount || 0
+              };
+            });
+            
+            console.log("Processed references:", processedReferences);
+            setReferences(processedReferences);
+            setTotalResults(processedReferences.length);
+            setExpandedAbstracts({});
+          } else {
+            const errorText = await response.text();
+            console.error(`Error (${response.status}):`, errorText);
+            setReferencesError(`Failed to load references (${response.status})`);
+            setReferences([]);
+            setTotalResults(0);
+            setExpandedAbstracts({});
+          }
         } else {
-          const errorText = await response.text();
-          console.error(`Error (${response.status}):`, errorText);
-          setReferencesError(`Failed to load references (${response.status}): ${errorText}`);
+          // Paper has no references
           setReferences([]);
           setTotalResults(0);
           setExpandedAbstracts({});
@@ -245,8 +253,9 @@ const ReferencesPage = () => {
       }
     };
 
-    fetchReferences();
+    fetchPaperDetailsAndReferences();
   }, [paperId]);
+  // ========== END of updated fetch function ==========
 
   // Pre-fetch citations for first few references
   useEffect(() => {
