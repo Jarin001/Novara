@@ -1174,7 +1174,7 @@ const PDFViewer = () => {
   const applyAnnotation = async (type, sel) => {
     if (!sel) return;
     setSelection(null);
-    const saved = await saveAnnotation(type, sel, '');
+    const saved = await saveAnnotation(type, sel, noteEditText);
     if (!saved) return;
     if (type === 'note') {
       setOpenNoteId(saved._id);
@@ -1206,23 +1206,27 @@ const PDFViewer = () => {
   /* ─────────────────────────────────────────────────────────
      Save note edit
   ───────────────────────────────────────────────────────── */
-  const saveNoteEdit = async (id) => {
+  const saveNoteEdit = async (id,text) => {
     try {
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: noteEditText }),
+        body: JSON.stringify({ content: text }),
       });
       if (res.ok) {
         const updated = await res.json();
-        setAnnotations(prev => prev.map(a => a._id === id ? updated : a));
+        setAnnotations(prev => 
+          prev.map(a => 
+            a._id === id ? { ...a, content: text } : a
+          )
+        );
         socket?.emit('annotationChanged', { paperId, annotation: updated });
       } else {
-        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
+        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
       }
     } catch (err) {
       console.error('Error updating note', err);
-      setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
+      setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
     }
     setEditingNoteId(null);
     setShowNoteMenu(false);
@@ -1360,7 +1364,17 @@ const PDFViewer = () => {
                       {isEditing ? (
                         <textarea
                           autoFocus value={noteEditText}
-                          onChange={(e) => setNoteEditText(e.target.value)}
+                          onChange={(e) =>{
+                            const text = e.target.value;
+                            setNoteEditText(text);
+
+                            setAnnotations(prev =>
+                              prev.map(a =>
+                                a._id === ann._id ? { ...a, content: text } : a )
+                            );
+                          }}
+
+                          
                           style={{ width: '100%', minHeight: 100, border: 'none', background: 'transparent', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', color: '#333', boxSizing: 'border-box' }}
                           placeholder="Enter your comment here..."
                         />
@@ -1375,7 +1389,7 @@ const PDFViewer = () => {
                     {isEditing && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 10px' }}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); saveNoteEdit(ann._id); }}
+                          onClick={(e) => { e.stopPropagation();  saveNoteEdit(ann._id, noteEditText);}}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#555' }}
                           title="Save"
                         >✓</button>
