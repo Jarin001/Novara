@@ -830,6 +830,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import io from 'socket.io-client';
 import Navbar from '../components/Navbar';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -855,6 +856,9 @@ const navBtn = (disabled) => ({
   cursor: disabled ? 'not-allowed' : 'pointer',
   fontWeight: 'bold',
   lineHeight: 1,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 });
 
 /* ─── Note icon SVG ──────────────────────────────────────── */
@@ -914,6 +918,12 @@ const PDFViewer = () => {
   const [socket, setSocket]       = useState(null);
   const [userColor, setUserColor] = useState('#FFFF00');
 
+  /* ── track exact rendered page size (in pixels) ── */
+  const [renderedPageSize, setRenderedPageSize] = useState({ width: 0, height: 0 });
+
+  /* ── optional ResizeObserver to detect overlay size changes ── */
+  const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
+
   // Keep a ref to location.state so saveAnnotation always reads the latest
   // value without needing it in its dependency array.
   const locationStateRef = useRef(location.state);
@@ -940,6 +950,7 @@ const PDFViewer = () => {
     setShowNoteMenu(false);
     setEditingNoteId(null);
     setNoteEditText('');
+    setRenderedPageSize({ width: 0, height: 0 });
 
     const state = locationStateRef.current;
 
@@ -974,7 +985,7 @@ const PDFViewer = () => {
         }
       })();
     }
-  }, [paperId]); // ← ONLY paperId, not location.state
+  }, [paperId]);
 
   /* ─────────────────────────────────────────────────────────
      User color from localStorage
@@ -1052,6 +1063,31 @@ const PDFViewer = () => {
     if (!isFullscreen) containerRef.current.requestFullscreen();
     else document.exitFullscreen();
   }, [isFullscreen]);
+
+  /* ─────────────────────────────────────────────────────────
+     ResizeObserver to detect overlay size changes
+  ───────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setPageSize({ width, height });
+      }
+    });
+
+    if (overlayRef.current) {
+      observer.observe(overlayRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [pdfUrl]);
+
+  /* ─────────────────────────────────────────────────────────
+     Reset rendered page size when page or scale changes
+  ───────────────────────────────────────────────────────── */
+  useEffect(() => {
+    setRenderedPageSize({ width: 0, height: 0 });
+  }, [pageNumber, scale]);
 
   /* ─────────────────────────────────────────────────────────
      Keyboard nav
@@ -1168,7 +1204,6 @@ const PDFViewer = () => {
       return null;
     }
 
-    // Read from ref so this always has the latest state value
     const libraryId = locationStateRef.current?.libraryId || 'unknown';
     const dbPaperId = locationStateRef.current?.paperId   || null;
 
@@ -1264,6 +1299,88 @@ const PDFViewer = () => {
   const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages);
 
   /* ─────────────────────────────────────────────────────────
+     Callback to get exact rendered page dimensions
+  ───────────────────────────────────────────────────────── */
+  const onPageRenderSuccess = (page) => {
+    const viewport = page.getViewport({ scale });
+    setRenderedPageSize({ width: viewport.width, height: viewport.height });
+  };
+
+  /* ─────────────────────────────────────────────────────────
+     Download annotated PDF — only highlights (including note areas)
+     No note text or squares are drawn.
+  ───────────────────────────────────────────────────────── */
+  const downloadAnnotatedPDF = async () => {
+    if (!pdfUrl) {
+      showToast('No PDF available to download.');
+      return;
+    }
+
+    showToast('Preparing PDF with annotations...');
+
+    try {
+      // 1. Fetch the original PDF as arrayBuffer
+      const response = await fetch(pdfUrl);
+      if (!response.ok) throw new Error('Failed to fetch PDF');
+      const pdfBytes = await response.arrayBuffer();
+
+      // 2. Load PDF with pdf-lib
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pages = pdfDoc.getPages();
+
+      // 3. For each annotation, apply only the highlight rectangle
+      for (const ann of annotations) {
+        if (ann.isDeleted) continue;
+        const pageIndex = ann.pageNumber - 1;
+        if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+        const page = pages[pageIndex];
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+
+        // Convert percentage position to absolute points
+        const x = ann.position.x * pageWidth;
+        const y = pageHeight - ann.position.y * pageHeight; // flip Y
+        const w = ann.position.width * pageWidth;
+        const h = ann.position.height * pageHeight;
+
+        // Parse color (#RRGGBB) to RGB components
+        const colorHex = ann.color || '#FFFF00';
+        const r = parseInt(colorHex.slice(1,3), 16) / 255;
+        const g = parseInt(colorHex.slice(3,5), 16) / 255;
+        const b = parseInt(colorHex.slice(5,7), 16) / 255;
+
+        // Draw semi-transparent rectangle for both highlights and notes
+        page.drawRectangle({
+          x,
+          y: y - h, // rectangle from bottom-left
+          width: w,
+          height: h,
+          color: rgb(r, g, b),
+          opacity: 0.45,
+          blendMode: 'Multiply',
+        });
+      }
+
+      // 4. Save the modified PDF
+      const modifiedPdfBytes = await pdfDoc.save();
+
+      // 5. Trigger download
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `annotated-${paperId || 'document'}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      showToast('PDF downloaded with annotations!');
+    } catch (err) {
+      console.error('Error generating annotated PDF:', err);
+      showToast('Failed to generate annotated PDF.');
+    }
+  };
+
+  /* ─────────────────────────────────────────────────────────
      Render annotations
   ───────────────────────────────────────────────────────── */
   const renderAnnotations = () =>
@@ -1327,6 +1444,7 @@ const PDFViewer = () => {
                   onMouseDown={(e) => e.stopPropagation()}
                   style={{ position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, zIndex: 300, pointerEvents: 'auto', width: 340 }}
                 >
+                  {/* Note popup content (same as before) */}
                   <div style={{
                     background: `color-mix(in srgb, ${ann.color || '#FFFF00'} 10%, white)`,
                     border: '1px solid rgba(0,0,0,0.15)',
@@ -1528,6 +1646,13 @@ const PDFViewer = () => {
 
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
             <button onClick={toggleFullscreen} style={navBtn(false)} title="Fullscreen">⛶</button>
+            <button onClick={downloadAnnotatedPDF} style={navBtn(false)} title="Download PDF with annotations (highlights only)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
             <button disabled={pageNumber <= 1} onClick={() => setPageNumber(p => p - 1)} style={navBtn(pageNumber <= 1)} title="Previous page (←)">◀</button>
             <span style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>{pageNumber} / {numPages}</span>
             <button disabled={pageNumber >= numPages} onClick={() => setPageNumber(p => p + 1)} style={navBtn(pageNumber >= numPages)} title="Next page (→)">▶</button>
@@ -1545,7 +1670,7 @@ const PDFViewer = () => {
         >
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <Document
-              key={pdfUrl}  // ← forces react-pdf to fully remount when URL changes
+              key={pdfUrl}
               file={pdfUrl}
               onLoadSuccess={onDocumentLoadSuccess}
               loading="Loading PDF..."
@@ -1555,6 +1680,7 @@ const PDFViewer = () => {
                 scale={scale}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
+                onRenderSuccess={onPageRenderSuccess}
               />
             </Document>
 
@@ -1562,7 +1688,8 @@ const PDFViewer = () => {
               ref={overlayRef}
               style={{
                 position: 'absolute', top: 0, left: 0,
-                width: '100%', height: '100%',
+                width: renderedPageSize.width ? `${renderedPageSize.width}px` : '100%',
+                height: renderedPageSize.height ? `${renderedPageSize.height}px` : '100%',
                 cursor: 'crosshair', userSelect: 'none',
               }}
               onMouseDown={handleOverlayMouseDown}
