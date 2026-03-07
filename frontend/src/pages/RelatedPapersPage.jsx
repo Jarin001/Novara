@@ -45,7 +45,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -149,7 +149,7 @@ const RelatedPapersPage = () => {
         setRelatedError(null);
         console.log(`Fetching related papers for: ${paperId}`);
         
-        const response = await fetch(`http://localhost:5000/api/papers/${paperId}/related?limit=100`);
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}/related?limit=100`);
         console.log(`Related papers response status: ${response.status}`);
         
         if (response.ok) {
@@ -198,7 +198,7 @@ const RelatedPapersPage = () => {
         const paperId = paper.paperId || paper.id;
         if (paperId && !citationCache.has(paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];
@@ -529,7 +529,13 @@ const RelatedPapersPage = () => {
       return;
     }
     
-    setSaveItem(item);
+    // Create enhanced item with pdf_url (like ResultsPage)
+    const saveItemWithPdf = {
+      ...item,
+      pdf_url: item.pdf_url || item.pdfUrl || item.openAccessPdf?.url || ''
+    };
+    
+    setSaveItem(saveItemWithPdf);
     setSelectedLibraries([]);
     setPaperInLibraries([]);
     setSaveOpen(true);
@@ -549,7 +555,7 @@ const RelatedPapersPage = () => {
       
       // Store the internal paper ID in saveItem for later use
       const enhancedSaveItem = {
-        ...item,
+        ...saveItemWithPdf,
         internalPaperId: result.internalPaperId // Add internal ID to saveItem
       };
       setSaveItem(enhancedSaveItem);
@@ -573,7 +579,7 @@ const RelatedPapersPage = () => {
     setCheckingPaperInLibraries(false);
   };
 
-  // UPDATED SAVE PAPER TO LIBRARIES - MATCHING RESULTS PAGE
+  // UPDATED SAVE PAPER TO LIBRARIES - MATCHING RESULTS PAGE WITH PDF_URL
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -627,7 +633,8 @@ const RelatedPapersPage = () => {
           return { name: a || '', affiliation: '' };
         }),
         reading_status: 'unread',
-        user_note: ''
+        user_note: '',
+        pdf_url: saveItem.pdf_url || saveItem.openAccessPdf?.url || saveItem.pdfUrl || ''  // ADDED PDF URL
       };
 
       console.log("Updating paper in libraries");

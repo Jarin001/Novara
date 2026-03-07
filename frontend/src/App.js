@@ -26,6 +26,7 @@ import Bibtex from "./pages/Bibtex";
 import LoginRegister from "./pages/LoginRegister";
 import VerifyEmail from "./pages/VerifyEmail"; 
 import Authors from "./pages/Authors";  
+import PDFViewer from "./pages/PDFViewer";  
 
 // Search routing helper
 function SearchRouteSwitch() {
@@ -57,10 +58,12 @@ function App() {
           <Route path="/references/:paperId" element={<ReferencesPage />} />
           <Route path="/related/:paperId" element={<RelatedPapersPage />} />
           <Route path="/bibtex" element={<Bibtex />} />
+          <Route path="/pdf-viewer/:paperId" element={<PDFViewer />} />  {/* <-- NEW ROUTE */}
 
           {/* User routes */}
           <Route path="/profile" element={<UserProfile />} />
           <Route path="/profile/:userId" element={<UserProfile />} />
+          <Route path="/user/:userId" element={<UserProfile />} />
           <Route path="/author/:userId" element={<UserProfile />} />
           <Route path="/library" element={<UserLibrary />} />
         </Routes>

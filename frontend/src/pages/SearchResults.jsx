@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { API_ENDPOINTS } from "../config/api";
 import Navbar from "../components/Navbar";
 import { useLocation, useNavigate } from "react-router-dom";
 
@@ -17,6 +18,7 @@ const SearchResults = () => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loading, setLoading] = useState(false);
   const searchContainerRef = useRef(null);
+  const [hasUserInteracted, setHasUserInteracted] = useState(false);
 
   useEffect(() => {
     setQ(initial);
@@ -37,7 +39,7 @@ const SearchResults = () => {
 
   // Autocomplete handler with 1 second delay
   useEffect(() => {
-    if (q.trim().length < 2) {
+    if (!hasUserInteracted || q.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
@@ -46,54 +48,38 @@ const SearchResults = () => {
     const timer = setTimeout(async () => {
       try {
         setLoading(true);
-        console.log(`Fetching autocomplete for: "${q}" (type: ${searchType})`);
-        
         let endpoint;
         let dataProcessor;
-        
         if (searchType === "authors") {
-          // Use author autocomplete endpoint
-          endpoint = `http://localhost:5000/api/author-autocomplete?query=${encodeURIComponent(q)}`;
-          dataProcessor = (data) => {
-            // Transform author data to match suggestion format
-            return (data.authors || []).map(author => ({
-              id: author.id,
-              name: author.name,
-              affiliation: author.affiliation || "",
-              profile_picture_url: author.profile_picture_url,
-              type: "author"
-            }));
-          };
+          endpoint = `${API_ENDPOINTS.AUTHOR_AUTOCOMPLETE}?query=${encodeURIComponent(q)}`;
+          dataProcessor = (data) => (data.authors || []).map(author => ({
+            id: author.id,
+            name: author.name,
+            affiliation: author.affiliation || "",
+            profile_picture_url: author.profile_picture_url,
+            type: "author"
+          }));
         } else {
-          // Use paper autocomplete endpoint (original)
-          endpoint = `http://localhost:5000/api/autocomplete?query=${encodeURIComponent(q)}`;
+          endpoint = `${API_ENDPOINTS.AUTOCOMPLETE}?query=${encodeURIComponent(q)}`;
           dataProcessor = (data) => data.matches || [];
         }
-        
         const response = await fetch(endpoint);
-        
         if (response.ok) {
           const data = await response.json();
-          console.log("Autocomplete response:", data);
           const processedSuggestions = dataProcessor(data);
           setSuggestions(processedSuggestions);
           setShowSuggestions(true);
         } else {
-          console.error("Autocomplete response not ok:", response.status);
-          const errorData = await response.json();
-          console.error("Error details:", errorData);
           setSuggestions([]);
         }
       } catch (error) {
-        console.error("Autocomplete error:", error);
         setSuggestions([]);
       } finally {
         setLoading(false);
       }
-    }, 1000); // Wait 1 second before sending request
-
+    }, 1000);
     return () => clearTimeout(timer);
-  }, [q, searchType]);
+  }, [q, searchType, hasUserInteracted]);
 
   const onSubmit = (e) => {
     if (e && e.preventDefault) e.preventDefault();
@@ -171,7 +157,10 @@ const SearchResults = () => {
                 type="text"
                 placeholder={searchType === "authors" ? "Search for authors..." : "Search for articles..."}
                 value={q}
-                onChange={(e) => setQ(e.target.value)}
+                onChange={(e) => {
+                  setQ(e.target.value);
+                  setHasUserInteracted(true);
+                }}
                 onFocus={() => q.trim().length >= 2 && setShowSuggestions(true)}
                 style={{ 
                   flex: 1, 

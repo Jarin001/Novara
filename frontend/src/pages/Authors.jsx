@@ -27,8 +27,8 @@ const Authors = () => {
         setError(null);
         
         const url = searchQuery.trim() 
-          ? `http://localhost:5000/api/users/search?query=${encodeURIComponent(searchQuery.trim())}`
-          : 'http://localhost:5000/api/users/search?query=';
+          ? `${process.env.REACT_APP_BACKEND_URL}/api/users/search?query=${encodeURIComponent(searchQuery.trim())}`
+          : `${process.env.REACT_APP_BACKEND_URL}/api/users/search?query=`;
         
         const response = await fetch(url);
         

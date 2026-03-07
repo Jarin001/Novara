@@ -49,7 +49,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
 
   try {
     console.log(`Fetching citations for paper: ${paperId}`);
-    const response = await fetch(`http://localhost:5000/api/citations/${paperId}`);
+    const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperId}`);
     
     if (response.ok) {
       const data = await response.json();
@@ -253,7 +253,7 @@ const ResultsPage = () => {
       papersToPrefetch.forEach(async (paper) => {
         if (paper.paperId && !citationCache.has(paper.paperId)) {
           try {
-            const response = await fetch(`http://localhost:5000/api/citations/${paper.paperId}`);
+            const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paper.paperId}`);
             if (response.ok) {
               const data = await response.json();
               const citations = data.data || [];
@@ -700,7 +700,12 @@ const openSave = async (item) => {
     return;
   }
   
-  setSaveItem(item);
+  // Ensure pdf_url is set on saveItem (include camelCase pdfUrl from search service)
+  const saveItemWithPdf = {
+    ...item,
+    pdf_url: item.pdf_url || item.pdfUrl || item.openAccessPdf?.url || ''
+  };
+  setSaveItem(saveItemWithPdf);
   setSelectedLibraries([]);
   setPaperInLibraries([]);
   setSaveOpen(true);
@@ -720,7 +725,7 @@ const openSave = async (item) => {
     
     // Store the internal paper ID in saveItem for later use
     const enhancedSaveItem = {
-      ...item,
+      ...saveItemWithPdf,
       internalPaperId: result.internalPaperId // Add internal ID to saveItem
     };
     setSaveItem(enhancedSaveItem);
@@ -799,7 +804,8 @@ const handleSaveToLibraries = async () => {
         return { name: a || '', affiliation: '' };
       }),
       reading_status: 'unread',
-      user_note: ''
+      user_note: '',
+      pdf_url: saveItem.pdf_url || saveItem.pdfUrl || saveItem.openAccessPdf?.url || ''
     };
 
     console.log("Updating paper in libraries");

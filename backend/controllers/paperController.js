@@ -2,10 +2,44 @@ const paperDetailsService = require('../services/paperdetails.service');
 const PaperService = require('../services/paperService');
 const AuthorService = require('../services/authorService');
 
-/**
- * Step 1: Preview paper details from API
- * This function remains unchanged as it only fetches from external API
- */
+// Helper function to notify followers
+const notifyFollowersOfNewPaper = async (userId, paperId, paperTitle, supabaseClient) => {
+  try {
+    // Get all followers
+    const { data: followers } = await supabaseClient
+      .from('user_follows')
+      .select('follower_id, follower:users!user_follows_follower_id_fkey(id, name)')
+      .eq('following_id', userId);
+
+    if (!followers || followers.length === 0) return;
+
+    // Get author name
+    const { data: author } = await supabaseClient
+      .from('users')
+      .select('name')
+      .eq('id', userId)
+      .single();
+
+    // Create notifications for all followers
+    const notifications = followers.map(f => ({
+      user_id: f.follower_id,
+      type: 'new_publication',
+      actor_id: userId,
+      reference_id: paperId,
+      message: `${author.name} published a new paper: ${paperTitle}`
+    }));
+
+    await supabaseClient
+      .from('notifications')
+      .insert(notifications);
+
+  } catch (error) {
+    console.error('Error notifying followers:', error);
+  }
+};
+
+ //Preview paper details from API
+ 
 exports.fetchPaperPreview = async (req, res) => {
   try {
     const { paperId } = req.body;
@@ -200,7 +234,8 @@ exports.addUserPublication = async (req, res) => {
 
       console.log('Paper successfully added to user publications');
 
-   
+      await notifyFollowersOfNewPaper(userData.id, paper.id, paper.title, supabase);
+
       res.status(201).json({
         message: 'Paper added to your publications successfully',
         publication: {

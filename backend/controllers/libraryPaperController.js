@@ -19,6 +19,7 @@ exports.savePaperToLibrary = async (req, res) => {
       published_year,
       citation_count,
       fields_of_study,
+      pdf_url,
       abstract,
       bibtex,
       authors = [], 
@@ -44,7 +45,8 @@ exports.savePaperToLibrary = async (req, res) => {
       venue,
       year: published_year,
       citation_count,
-      fields_of_study
+      fields_of_study,
+      pdf_url
     });
 
     // Handle authors
