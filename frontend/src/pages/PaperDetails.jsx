@@ -1404,26 +1404,7 @@ const PaperDetails = () => {
                 Cite
               </button>
 
-              {/* PDF Viewer Button */}
-              <button 
-                onClick={() => navigate(`/pdf-viewer/${paperId}`, { state: { pdfUrl } })}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 10px",
-                  background: "#fff",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 4,
-                  fontSize: 12,
-                  color: "#333",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                  whiteSpace: "nowrap"
-                }}
-              >
-                PDF Viewer
-              </button>
+            
             </div>
           </div>
 
