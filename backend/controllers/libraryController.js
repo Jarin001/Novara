@@ -440,3 +440,198 @@ exports.deleteLibrary = async (req, res) => {
     errorHandler(res, err, 'Failed to delete library');
   }
 };
+
+//-------------------------------------LIBRARY SHARE-------------------------------------
+
+/**
+ * Share library with another user (sends notification)
+ */
+exports.shareLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id; // sender auth_id
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+    const { recipient_id } = req.body; // user to share with
+
+    if (!recipient_id) {
+      return res.status(400).json({ message: "Recipient ID is required" });
+    }
+
+    // Get sender user ID
+    const { data: sender } = await supabaseClient
+      .from("users")
+      .select("id, name, profile_picture_url")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!sender) return res.status(404).json({ message: "Sender not found" });
+
+    // Check if recipient already has access
+    const { data: existingAccess } = await supabaseClient
+      .from("user_libraries")
+      .select("id")
+      .eq("user_id", recipient_id)
+      .eq("library_id", library_id)
+      .single();
+
+    // if (existingAccess) {
+    //   return res
+    //     .status(400)
+    //     .json({ message: "Library is already shared with ${recipient.name}" });
+    // }
+
+        // Optional: prevent sharing with yourself
+    if (recipient_id === sender.id) {
+      return res
+        .status(400)
+        .json({ message: "You already have access to this library." });
+    }
+
+    if (existingAccess) {
+  // Get recipient info to show their name
+  const { data: recipient } = await supabaseClient
+    .from("users")
+    .select("name")
+    .eq("id", recipient_id)
+    .single();
+    
+  return res
+    .status(400)
+    .json({ message: `Library is already shared with ${recipient?.name || 'this user'}` });
+}
+
+
+
+    // Get library info
+    const { data: library } = await supabaseClient
+      .from("libraries")
+      .select("id, name")
+      .eq("id", library_id)
+      .single();
+
+    if (!library) return res.status(404).json({ message: "Library not found" });
+
+    // Create notification for recipient
+    const { error: notifError } = await supabaseClient
+      .from("notifications")
+      .insert({
+        user_id: recipient_id, // recipient
+        actor_id: sender.id, // sender
+        reference_id: library.id, // library ID
+        type: "library_share",
+        message: `${sender.name} shared a library "${library.name}" with you.`,
+      });
+
+    if (notifError) throw notifError;
+
+    res.status(200).json({ message: "Library shared and notification sent" });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, "Failed to share library");
+  }
+};
+
+/**
+ * Accept shared library
+ */
+exports.acceptSharedLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+
+    // Get recipient user ID
+    const { data: recipient } = await supabaseClient
+      .from("users")
+      .select("id, name, profile_picture_url")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    // First, get the notification to find who shared it
+    const { data: notification } = await supabaseClient
+      .from("notifications")
+      .select("actor_id")
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share")
+      .single();
+
+    // Get library name
+    const { data: library } = await supabaseClient
+      .from("libraries")
+      .select("name")
+      .eq("id", library_id)
+      .single();
+
+    // Add recipient to user_libraries as collaborator
+    const { error: insertError } = await supabaseClient
+      .from("user_libraries")
+      .insert({
+        user_id: recipient.id,
+        library_id,
+        role: "collaborator",
+        invited_by_user_id: notification?.actor_id || null,
+      });
+
+    if (insertError) throw insertError;
+
+    // Notify the sender that the invitation was accepted
+    if (notification?.actor_id) {
+      await supabaseClient.from("notifications").insert({
+        user_id: notification.actor_id, // sender receives notification
+        actor_id: recipient.id, // recipient performed the action
+        reference_id: library_id,
+        type: "library_accept",
+        message: `${recipient.name} accepted your invitation to collaborate in "${library.name}".`,
+      });
+    }
+
+    // Mark notification as read
+    await supabaseClient
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share");
+
+    res.status(200).json({ message: "Library share accepted" });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, "Failed to accept shared library");
+  }
+};
+
+/**
+ * Decline shared library
+ */
+exports.declineSharedLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabaseClient = req.supabase;
+    const { library_id } = req.params;
+
+    // Get recipient user ID
+    const { data: recipient } = await supabaseClient
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!recipient) return res.status(404).json({ message: "User not found" });
+
+    // Mark notification as read
+    await supabaseClient
+      .from("notifications")
+      .update({ is_read: true })
+      .eq("user_id", recipient.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share");
+
+    res.status(200).json({ message: "Library share declined" });
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, "Failed to decline shared library");
+  }
+};

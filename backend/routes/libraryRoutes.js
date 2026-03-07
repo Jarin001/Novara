@@ -8,7 +8,10 @@ const {
   getUserLibraries,
   getLibrary,
   updateLibrary,
-  deleteLibrary
+  deleteLibrary,
+  shareLibrary,             
+  acceptSharedLibrary,      
+  declineSharedLibrary 
 } = require('../controllers/libraryController');
 
 const {
@@ -28,6 +31,12 @@ router.get('/', getUserLibraries);                  // Get all user's libraries 
 router.get('/:library_id', getLibrary);             // Get single library
 router.put('/:library_id', updateLibrary);          // Update library 
 router.delete('/:library_id', deleteLibrary);       // Delete library (ONLY owner)
+
+
+// Library sharing
+router.post('/:library_id/share', shareLibrary);         // Share library with another user
+router.post('/:library_id/accept', acceptSharedLibrary); // Accept shared library
+router.post('/:library_id/decline', declineSharedLibrary); // Decline shared library
 
 // Library papers management
 router.post('/:library_id/papers', savePaperToLibrary);           // Add paper to library
