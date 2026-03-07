@@ -358,7 +358,7 @@ const PaperDetails = () => {
     }
   };
 
-  // Check authentication and fetch user libraries
+  // ================== UPDATED useEffect for fetching libraries ==================
   useEffect(() => {
     const checkAuthAndFetchLibraries = async () => {
       try {
@@ -382,14 +382,35 @@ const PaperDetails = () => {
           const data = await response.json();
           console.log('User libraries fetched:', data);
           setIsAuthenticated(true);
-          // Extract library data from the response - handle both formats
           let libraries = [];
+
+          // My libraries (owned, not shared) → role 'creator'
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
-            libraries = data.my_libraries.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }));
+            libraries = data.my_libraries.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }));
           }
+
+          // Libraries owned and shared with others → role 'creator'
+          if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
+            libraries = [...libraries, ...data.shared_with_others.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }))];
+          }
+
+          // Libraries shared with me → role from backend (e.g., 'collaborator')
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
-            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: lib.role 
+            }))];
           }
+
           setUserLibraries(libraries);
         } else if (response.status === 401) {
           setIsAuthenticated(false);
@@ -409,6 +430,7 @@ const PaperDetails = () => {
 
     checkAuthAndFetchLibraries();
   }, []);
+  // ===============================================================================
 
   // Auto-scroll to bottom of chat when new messages are added
   useEffect(() => {
@@ -691,7 +713,7 @@ const PaperDetails = () => {
     });
   };
 
-  // UPDATED FUNCTION: Save paper to libraries - SAME AS RESULTS PAGE
+  // ================== UPDATED handleSaveToLibraries with abstract fix ==================
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -718,6 +740,11 @@ const PaperDetails = () => {
 
       // Get BibTeX for the paper - USING CACHE
       const s2PaperId = paper.paperId || paper.id; // This is the s2_paper_id
+      if (!s2PaperId) {
+        alert('Cannot save paper: missing paper ID');
+        return;
+      }
+
       const paperInternalId = internalPaperId; // This is the internal DB paper_id
       let bibtexData = '';
       
@@ -728,12 +755,17 @@ const PaperDetails = () => {
       // Prepare paper data according to your backend's savePaperToLibrary endpoint
       const paperData = {
         s2_paper_id: s2PaperId || '',
-        title: paper.title || '',
+        title: paper.title || 'Untitled',
         venue: Array.isArray(paper.venue) ? paper.venue[0] : paper.venue || '',
         published_year: paper.year || new Date().getFullYear(),
         citation_count: paper.citationCount || 0,
         fields_of_study: paper.fieldsOfStudy || [],
-        abstract: paper.abstract || '',
+        // Ensure abstract is a string, not an array
+        abstract: (() => {
+          if (typeof paper.abstract === 'string') return paper.abstract;
+          if (Array.isArray(paper.abstract)) return paper.abstract[0] || '';
+          return '';
+        })(),
         bibtex: bibtexData || '',
         authors: (paper.authors || []).map(a => { 
           if (typeof a === 'object') {
@@ -791,9 +823,27 @@ const PaperDetails = () => {
                 addedCount++;
                 console.log(`✓ Paper added to library ${library.name}`);
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to add to library ${library.name}:`, errorData);
-                failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Handle 409 Conflict as success (paper already exists)
+                if (response.status === 409) {
+                  console.log(`Paper already exists in library ${library.name}, counting as added.`);
+                  addedCount++;
+                } else {
+                  // Try to parse error response safely
+                  let errorMessage = 'Unknown error';
+                  try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                  } catch (parseError) {
+                    // If response is not JSON, get text
+                    try {
+                      errorMessage = await response.text();
+                    } catch (textError) {
+                      errorMessage = `HTTP ${response.status}`;
+                    }
+                  }
+                  console.error(`Failed to add to library ${library.name}:`, errorMessage);
+                  failedAdditions.push(`${library.name}: ${errorMessage}`);
+                }
               }
             } catch (error) {
               console.error(`Error adding to library ${library.name}:`, error);
@@ -842,12 +892,25 @@ const PaperDetails = () => {
                   if (fallbackResponse.ok) {
                     removedCount++;
                     console.log(`✓ Paper removed from library ${library.name} (using s2_paper_id)`);
+                  } else {
+                    console.log(`Fallback removal also failed, skipping.`);
                   }
                 }
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to remove from library ${library.name}:`, errorData);
-                failedRemovals.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Parse error message safely
+                let errorMessage = 'Unknown error';
+                try {
+                  const errorData = await response.json();
+                  errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                } catch (parseError) {
+                  try {
+                    errorMessage = await response.text();
+                  } catch (textError) {
+                    errorMessage = `HTTP ${response.status}`;
+                  }
+                }
+                console.error(`Failed to remove from library ${library.name}:`, errorMessage);
+                failedRemovals.push(`${library.name}: ${errorMessage}`);
               }
             } catch (error) {
               console.error(`Error removing from library ${library.name}:`, error);
@@ -895,6 +958,7 @@ const PaperDetails = () => {
       alert('Error updating libraries: ' + error.message);
     }
   };
+  // =====================================================================================
 
   const handleCreateLibrary = async () => {
     if (!newLibraryName.trim()) return;
@@ -1404,26 +1468,7 @@ const PaperDetails = () => {
                 Cite
               </button>
 
-              {/* PDF Viewer Button */}
-              <button 
-                onClick={() => navigate(`/pdf-viewer/${paperId}`, { state: { pdfUrl } })}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: 6,
-                  padding: "6px 10px",
-                  background: "#fff",
-                  border: "1px solid #e0e0e0",
-                  borderRadius: 4,
-                  fontSize: 12,
-                  color: "#333",
-                  cursor: "pointer",
-                  fontWeight: 500,
-                  whiteSpace: "nowrap"
-                }}
-              >
-                PDF Viewer
-              </button>
+            
             </div>
           </div>
 

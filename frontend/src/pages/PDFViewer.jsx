@@ -825,12 +825,12 @@
 
 // export default PDFViewer;
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import io from 'socket.io-client';
 import Navbar from '../components/Navbar';
+import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
 
 pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -856,6 +856,9 @@ const navBtn = (disabled) => ({
   cursor: disabled ? 'not-allowed' : 'pointer',
   fontWeight: 'bold',
   lineHeight: 1,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 });
 
 /* ─── Note icon SVG ──────────────────────────────────────── */
@@ -894,7 +897,7 @@ const PDFViewer = () => {
   const [annotations, setAnnotations]   = useState([]);
   const [currentTool, setCurrentTool]   = useState('highlight');
   const [currentColor, setCurrentColor] = useState('#FFFF00');
-  const [selectedAnnotation, setSelectedAnnotation] = useState(null); // highlight delete popup
+  const [selectedAnnotation, setSelectedAnnotation] = useState(null);
 
   /* ── toast ── */
   const [toast, setToast] = useState('');
@@ -911,46 +914,92 @@ const PDFViewer = () => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteEditText, setNoteEditText]   = useState('');
 
-  /* ── socket + user (from old page) ── */
-  const [socket, setSocket]     = useState(null);
-  const [userId, setUserId]     = useState(null);
+  /* ── socket + user ── */
+  const [socket, setSocket]       = useState(null);
   const [userColor, setUserColor] = useState('#FFFF00');
 
+  /* ── track exact rendered page size (in pixels) ── */
+  const [renderedPageSize, setRenderedPageSize] = useState({ width: 0, height: 0 });
+
+  /* ── optional ResizeObserver to detect overlay size changes ── */
+  const [pageSize, setPageSize] = useState({ width: 0, height: 0 });
+
+  // Keep a ref to location.state so saveAnnotation always reads the latest
+  // value without needing it in its dependency array.
+  const locationStateRef = useRef(location.state);
+  useEffect(() => {
+    locationStateRef.current = location.state;
+  }, [location.state]);
+
   /* ─────────────────────────────────────────────────────────
-     PDF URL
+     PDF URL — depends ONLY on paperId so that navigating
+     between papers always resets and re-fetches correctly.
+     location.state is read via ref to avoid stale closure.
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (location.state?.pdfUrl) {
-      setPdfUrl(`${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(location.state.pdfUrl)}`);
+    // Reset all per-paper state every time paperId changes
+    setPdfUrl('');
+    setLoading(true);
+    setError(null);
+    setNumPages(null);
+    setPageNumber(1);
+    setAnnotations([]);
+    setSelection(null);
+    setSelectedAnnotation(null);
+    setOpenNoteId(null);
+    setShowNoteMenu(false);
+    setEditingNoteId(null);
+    setNoteEditText('');
+    setRenderedPageSize({ width: 0, height: 0 });
+
+    const state = locationStateRef.current;
+
+    if (state?.pdfUrl) {
+      console.log('[PDFViewer] Using pdfUrl from navigation state:', state.pdfUrl);
+      setPdfUrl(
+        `${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(state.pdfUrl)}`
+      );
       setLoading(false);
     } else {
+      console.log('[PDFViewer] No pdfUrl in state, fetching from API for paperId:', paperId);
       (async () => {
         try {
           const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
           if (res.ok) {
             const data = await res.json();
             const url = data.openAccessPdf?.url;
-            if (url) setPdfUrl(`${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`);
-            else setError('No PDF available for this paper.');
-          } else setError('Failed to fetch paper details.');
-        } catch { setError('Error fetching paper details.'); }
-        finally { setLoading(false); }
+            if (url) {
+              setPdfUrl(
+                `${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`
+              );
+            } else {
+              setError('No PDF available for this paper.');
+            }
+          } else {
+            setError('Failed to fetch paper details.');
+          }
+        } catch {
+          setError('Error fetching paper details.');
+        } finally {
+          setLoading(false);
+        }
       })();
     }
-  }, [location.state, paperId]);
+  }, [paperId]);
 
   /* ─────────────────────────────────────────────────────────
-     User from localStorage (old page logic)
+     User color from localStorage
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        setUserId(user.id);
-        const hash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const colors = ['#FFB6C1', '#ADD8E6', '#90EE90', '#FFD700', '#FFA07A', '#E0B0FF'];
-        setUserColor(colors[hash % colors.length]);
+        if (user?.id) {
+          const hash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const colors = ['#FFB6C1', '#ADD8E6', '#90EE90', '#FFD700', '#FFA07A', '#E0B0FF'];
+          setUserColor(colors[hash % colors.length]);
+        }
       } catch (e) {
         console.error('Error parsing user data', e);
       }
@@ -958,7 +1007,7 @@ const PDFViewer = () => {
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Socket (old page logic)
+     Socket — reconnects when paperId changes
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const newSocket = io(process.env.REACT_APP_BACKEND_URL);
@@ -988,7 +1037,7 @@ const PDFViewer = () => {
   }, [paperId]);
 
   /* ─────────────────────────────────────────────────────────
-     Fetch existing annotations (old page logic)
+     Fetch existing annotations — re-fetches when paperId changes
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     if (!paperId) return;
@@ -1008,11 +1057,37 @@ const PDFViewer = () => {
     document.addEventListener('fullscreenchange', h);
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
+
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (!isFullscreen) containerRef.current.requestFullscreen();
     else document.exitFullscreen();
   }, [isFullscreen]);
+
+  /* ─────────────────────────────────────────────────────────
+     ResizeObserver to detect overlay size changes
+  ───────────────────────────────────────────────────────── */
+  useEffect(() => {
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        setPageSize({ width, height });
+      }
+    });
+
+    if (overlayRef.current) {
+      observer.observe(overlayRef.current);
+    }
+
+    return () => observer.disconnect();
+  }, [pdfUrl]);
+
+  /* ─────────────────────────────────────────────────────────
+     Reset rendered page size when page or scale changes
+  ───────────────────────────────────────────────────────── */
+  useEffect(() => {
+    setRenderedPageSize({ width: 0, height: 0 });
+  }, [pageNumber, scale]);
 
   /* ─────────────────────────────────────────────────────────
      Keyboard nav
@@ -1102,22 +1177,48 @@ const PDFViewer = () => {
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Save annotation to backend + socket (old page logic)
+     Save annotation
   ───────────────────────────────────────────────────────── */
   const saveAnnotation = async (type, position, content = '') => {
-    if (!userId) {
+    const token = localStorage.getItem('access_token');
+    let currentUserId = null;
+
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        currentUserId = payload.sub;
+      } catch (e) {
+        console.error('Failed to parse access token', e);
+      }
+    }
+
+    if (!currentUserId) {
       showToast('Please log in to annotate.');
       return null;
     }
+
+    const libraryId = locationStateRef.current?.libraryId || 'unknown';
+    const dbPaperId = locationStateRef.current?.paperId   || null;
+
     const annotationData = {
-      paperId, userId, pageNumber,
-      type, position, content,
+      paperId,
+      userId: currentUserId,
+      libraryId,
+      dbPaperId,
+      pageNumber,
+      type,
+      position,
+      content,
       color: currentColor,
     };
+
     try {
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations`, {
         method: 'POST',
@@ -1135,14 +1236,13 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Apply annotation (calls backend save)
+     Apply annotation
   ───────────────────────────────────────────────────────── */
   const applyAnnotation = async (type, sel) => {
     if (!sel) return;
     setSelection(null);
-    const saved = await saveAnnotation(type, sel, '');
+    const saved = await saveAnnotation(type, sel, noteEditText);
     if (!saved) return;
-    // Auto-open note popup right after creating
     if (type === 'note') {
       setOpenNoteId(saved._id);
       setEditingNoteId(saved._id);
@@ -1152,7 +1252,7 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Delete annotation (backend + socket, old page logic)
+     Delete annotation
   ───────────────────────────────────────────────────────── */
   const deleteAnnotation = async (id) => {
     try {
@@ -1171,27 +1271,25 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Save note edit (update content via backend)
+     Save note edit
   ───────────────────────────────────────────────────────── */
-  const saveNoteEdit = async (id) => {
+  const saveNoteEdit = async (id, text) => {
     try {
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: noteEditText }),
+        body: JSON.stringify({ content: text }),
       });
       if (res.ok) {
         const updated = await res.json();
-        setAnnotations(prev => prev.map(a => a._id === id ? updated : a));
+        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
         socket?.emit('annotationChanged', { paperId, annotation: updated });
       } else {
-        // Optimistic update if no PATCH endpoint
-        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
+        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
       }
     } catch (err) {
       console.error('Error updating note', err);
-      // Optimistic fallback
-      setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
+      setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
     }
     setEditingNoteId(null);
     setShowNoteMenu(false);
@@ -1199,6 +1297,88 @@ const PDFViewer = () => {
   };
 
   const onDocumentLoadSuccess = ({ numPages }) => setNumPages(numPages);
+
+  /* ─────────────────────────────────────────────────────────
+     Callback to get exact rendered page dimensions
+  ───────────────────────────────────────────────────────── */
+  const onPageRenderSuccess = (page) => {
+    const viewport = page.getViewport({ scale });
+    setRenderedPageSize({ width: viewport.width, height: viewport.height });
+  };
+
+  /* ─────────────────────────────────────────────────────────
+     Download annotated PDF — only highlights (including note areas)
+     No note text or squares are drawn.
+  ───────────────────────────────────────────────────────── */
+  const downloadAnnotatedPDF = async () => {
+    if (!pdfUrl) {
+      showToast('No PDF available to download.');
+      return;
+    }
+
+    showToast('Preparing PDF with annotations...');
+
+    try {
+      // 1. Fetch the original PDF as arrayBuffer
+      const response = await fetch(pdfUrl);
+      if (!response.ok) throw new Error('Failed to fetch PDF');
+      const pdfBytes = await response.arrayBuffer();
+
+      // 2. Load PDF with pdf-lib
+      const pdfDoc = await PDFDocument.load(pdfBytes);
+      const pages = pdfDoc.getPages();
+
+      // 3. For each annotation, apply only the highlight rectangle
+      for (const ann of annotations) {
+        if (ann.isDeleted) continue;
+        const pageIndex = ann.pageNumber - 1;
+        if (pageIndex < 0 || pageIndex >= pages.length) continue;
+
+        const page = pages[pageIndex];
+        const { width: pageWidth, height: pageHeight } = page.getSize();
+
+        // Convert percentage position to absolute points
+        const x = ann.position.x * pageWidth;
+        const y = pageHeight - ann.position.y * pageHeight; // flip Y
+        const w = ann.position.width * pageWidth;
+        const h = ann.position.height * pageHeight;
+
+        // Parse color (#RRGGBB) to RGB components
+        const colorHex = ann.color || '#FFFF00';
+        const r = parseInt(colorHex.slice(1,3), 16) / 255;
+        const g = parseInt(colorHex.slice(3,5), 16) / 255;
+        const b = parseInt(colorHex.slice(5,7), 16) / 255;
+
+        // Draw semi-transparent rectangle for both highlights and notes
+        page.drawRectangle({
+          x,
+          y: y - h, // rectangle from bottom-left
+          width: w,
+          height: h,
+          color: rgb(r, g, b),
+          opacity: 0.45,
+          blendMode: 'Multiply',
+        });
+      }
+
+      // 4. Save the modified PDF
+      const modifiedPdfBytes = await pdfDoc.save();
+
+      // 5. Trigger download
+      const blob = new Blob([modifiedPdfBytes], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `annotated-${paperId || 'document'}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+
+      showToast('PDF downloaded with annotations!');
+    } catch (err) {
+      console.error('Error generating annotated PDF:', err);
+      showToast('Failed to generate annotated PDF.');
+    }
+  };
 
   /* ─────────────────────────────────────────────────────────
      Render annotations
@@ -1209,7 +1389,6 @@ const PDFViewer = () => {
       .map(ann => {
         const { x, y, width, height } = ann.position;
 
-        /* ── Highlight ── */
         if (ann.type === 'highlight') return (
           <div key={ann._id}
             onClick={(e) => { e.stopPropagation(); setSelectedAnnotation(ann); setOpenNoteId(null); }}
@@ -1224,14 +1403,12 @@ const PDFViewer = () => {
           />
         );
 
-        /* ── Note ── */
         if (ann.type === 'note') {
           const isOpen    = openNoteId === ann._id;
           const isEditing = editingNoteId === ann._id;
 
           return (
             <React.Fragment key={ann._id}>
-              {/* Highlight behind selected area */}
               <div style={{
                 position: 'absolute',
                 left: `${x * 100}%`, top: `${y * 100}%`,
@@ -1241,7 +1418,6 @@ const PDFViewer = () => {
                 pointerEvents: 'none',
               }} />
 
-              {/* Note icon */}
               <div
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1263,12 +1439,12 @@ const PDFViewer = () => {
                 <NoteIcon color={ann.color || '#FFFF00'} />
               </div>
 
-              {/* Note popup */}
               {isOpen && (
                 <div
                   onMouseDown={(e) => e.stopPropagation()}
                   style={{ position: 'absolute', left: `${x * 100}%`, top: `${y * 100}%`, zIndex: 300, pointerEvents: 'auto', width: 340 }}
                 >
+                  {/* Note popup content (same as before) */}
                   <div style={{
                     background: `color-mix(in srgb, ${ann.color || '#FFFF00'} 10%, white)`,
                     border: '1px solid rgba(0,0,0,0.15)',
@@ -1276,28 +1452,23 @@ const PDFViewer = () => {
                     boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
                     overflow: 'visible', position: 'relative',
                   }}>
-                    {/* Header bar */}
                     <div style={{
                       display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
                       padding: '8px 10px 0', gap: 8, position: 'relative',
                       background: `color-mix(in srgb, ${ann.color || '#FFFF00'} 60%, white)`,
                       borderRadius: '8px 8px 0 0',
                     }}>
-                      {/* ··· menu */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowNoteMenu(v => !v); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '0 4px', lineHeight: 1, letterSpacing: 1 }}
                         title="Options"
                       >···</button>
-
-                      {/* ✕ close */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenNoteId(null); setShowNoteMenu(false); setEditingNoteId(null); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: '#888', padding: '0 2px', lineHeight: 1 }}
                         title="Close"
                       >✕</button>
 
-                      {/* Dropdown */}
                       {showNoteMenu && (
                         <div
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1324,12 +1495,17 @@ const PDFViewer = () => {
                       )}
                     </div>
 
-                    {/* Body */}
                     <div style={{ padding: '8px 16px 12px', minHeight: 120 }}>
                       {isEditing ? (
                         <textarea
                           autoFocus value={noteEditText}
-                          onChange={(e) => setNoteEditText(e.target.value)}
+                          onChange={(e) => {
+                            const text = e.target.value;
+                            setNoteEditText(text);
+                            setAnnotations(prev =>
+                              prev.map(a => a._id === ann._id ? { ...a, content: text } : a)
+                            );
+                          }}
                           style={{ width: '100%', minHeight: 100, border: 'none', background: 'transparent', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', color: '#333', boxSizing: 'border-box' }}
                           placeholder="Enter your comment here..."
                         />
@@ -1340,11 +1516,10 @@ const PDFViewer = () => {
                       )}
                     </div>
 
-                    {/* Checkmark save */}
                     {isEditing && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 10px' }}>
                         <button
-                          onClick={(e) => { e.stopPropagation(); saveNoteEdit(ann._id); }}
+                          onClick={(e) => { e.stopPropagation(); saveNoteEdit(ann._id, noteEditText); }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#555' }}
                           title="Save"
                         >✓</button>
@@ -1430,7 +1605,6 @@ const PDFViewer = () => {
     <>
       <Navbar />
 
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: 90, left: '50%', transform: 'translateX(-50%)',
@@ -1454,7 +1628,6 @@ const PDFViewer = () => {
           background: '#fff', padding: '12px 20px', borderRadius: 8,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}>
-          {/* Left: tools */}
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', gap: 8, alignItems: 'center' }}>
             <button onClick={() => handleToolClick('highlight')} style={btnBase(currentTool === 'highlight')}>Highlight</button>
             <button onClick={() => handleToolClick('note')}      style={btnBase(currentTool === 'note')}>Note</button>
@@ -1465,16 +1638,21 @@ const PDFViewer = () => {
             />
           </div>
 
-          {/* Center: zoom */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <button onClick={zoomOut} disabled={scale <= MIN_SCALE} style={navBtn(scale <= MIN_SCALE)}>−</button>
             <span style={{ fontSize: 12, color: '#333', minWidth: 50, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
             <button onClick={zoomIn}  disabled={scale >= MAX_SCALE} style={navBtn(scale >= MAX_SCALE)}>+</button>
           </div>
 
-          {/* Right: fullscreen + pagination */}
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
             <button onClick={toggleFullscreen} style={navBtn(false)} title="Fullscreen">⛶</button>
+            <button onClick={downloadAnnotatedPDF} style={navBtn(false)} title="Download PDF with annotations (highlights only)">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </button>
             <button disabled={pageNumber <= 1} onClick={() => setPageNumber(p => p - 1)} style={navBtn(pageNumber <= 1)} title="Previous page (←)">◀</button>
             <span style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>{pageNumber} / {numPages}</span>
             <button disabled={pageNumber >= numPages} onClick={() => setPageNumber(p => p + 1)} style={navBtn(pageNumber >= numPages)} title="Next page (→)">▶</button>
@@ -1491,26 +1669,31 @@ const PDFViewer = () => {
           }}
         >
           <div style={{ position: 'relative', display: 'inline-block' }}>
-            <Document file={pdfUrl} onLoadSuccess={onDocumentLoadSuccess} loading="Loading PDF...">
+            <Document
+              key={pdfUrl}
+              file={pdfUrl}
+              onLoadSuccess={onDocumentLoadSuccess}
+              loading="Loading PDF..."
+            >
               <Page
                 pageNumber={pageNumber}
                 scale={scale}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
+                onRenderSuccess={onPageRenderSuccess}
               />
             </Document>
 
-            {/* Drag-to-select overlay */}
             <div
               ref={overlayRef}
               style={{
                 position: 'absolute', top: 0, left: 0,
-                width: '100%', height: '100%',
+                width: renderedPageSize.width ? `${renderedPageSize.width}px` : '100%',
+                height: renderedPageSize.height ? `${renderedPageSize.height}px` : '100%',
                 cursor: 'crosshair', userSelect: 'none',
               }}
               onMouseDown={handleOverlayMouseDown}
             >
-              {/* Live drag preview */}
               {dragPreview && dragPreview.width > 0 && (
                 <div style={{
                   position: 'absolute',
@@ -1521,7 +1704,6 @@ const PDFViewer = () => {
                 }} />
               )}
 
-              {/* Confirmed selection */}
               {selection && (
                 <div style={{
                   position: 'absolute',

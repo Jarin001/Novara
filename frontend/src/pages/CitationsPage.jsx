@@ -305,6 +305,9 @@ const CitationsPage = () => {
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
             libraries = data.my_libraries.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }));
           }
+          if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
+            libraries = [...libraries, ...data.shared_with_others.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
+          }
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
             libraries = [...libraries, ...data.shared_with_me.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
           }
