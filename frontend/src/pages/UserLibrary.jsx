@@ -2934,27 +2934,34 @@ const ResearchLibrary = () => {
       }
 
       const data = await response.json();
+      console.log("Backend response data:", data);
+      console.log("First paper object:", data.papers?.[0]);
 
       // Transform backend data to frontend format
       const transformedPapers =
-        data.papers?.map((paper) => ({
-          id: paper.library_paper_id,
-          dbPaperId: paper.id,
-          s2PaperId: paper.s2_paper_id,
-          title: paper.title,
-          authors: paper.authors || [],
-          venue: paper.venue || "Unknown Venue",
-          date: paper.year ? String(paper.year) : "",
-          citations: paper.citation_count || 0,
-          source: "Database",
-          abstract: paper.abstract || "",
-          libraryId: libraryId,
-          readingStatus: paper.reading_status || "unread",
-          notes: paper.user_note || "",
-          addedDate: new Date(paper.added_at || Date.now()),
-          field: paper.fields_of_study || "",
-          bibtex: paper.bibtex || "",
-        })) || [];
+        data.papers?.map((paper) => {
+          console.log("Processing paper - Full object:", JSON.stringify(paper, null, 2));
+          console.log("PDF URL value:", paper.pdf_url);
+          return {
+            id: paper.library_paper_id,
+            dbPaperId: paper.id,
+            s2PaperId: paper.s2_paper_id,
+            title: paper.title,
+            authors: paper.authors || [],
+            venue: paper.venue || "Unknown Venue",
+            date: paper.year ? String(paper.year) : "",
+            citations: paper.citation_count || 0,
+            source: "Database",
+            abstract: paper.abstract || "",
+            libraryId: libraryId,
+            readingStatus: paper.reading_status || "unread",
+            notes: paper.user_note || "",
+            addedDate: new Date(paper.added_at || Date.now()),
+            field: paper.fields_of_study || "",
+            bibtex: paper.bibtex || "",
+            pdf_url: paper.pdf_url || "",
+          };
+        }) || [];
 
       setPapers(transformedPapers);
     } catch (err) {
@@ -3005,6 +3012,7 @@ const ResearchLibrary = () => {
           addedDate: new Date(paper.first_added_at || Date.now()),
           field: paper.fields_of_study || "",
           bibtex: paper.bibtex || "",
+          pdf_url: paper.pdf_url || "",
         })) || [];
 
       setPapers(transformedPapers);
@@ -4416,7 +4424,9 @@ const ResearchLibrary = () => {
                   gap: "24px",
                 }}
               >
-                {sortedPapers.map((paper) => (
+                {sortedPapers.map((paper) => {
+                  console.log("Rendering paper:", paper.title, "PDF URL:", paper.pdf_url, "Type:", typeof paper.pdf_url);
+                  return (
                   <div
                     key={paper.id}
                     style={{
@@ -4648,142 +4658,226 @@ const ResearchLibrary = () => {
                         )}
                     </p>
 
-                    {/* Bottom Actions */}
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        marginTop: "12px",
-                      }}
-                    >
-                      {/* Left side: Citations, Cite, Remove buttons */}
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "12px",
-                        }}
-                      >
-                        {/* Citations Count */}
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "6px 10px",
-                            background: "#f5f5f5",
-                            border: "1px solid #e0e0e0",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#333",
-                            fontWeight: 500,
-                          }}
-                        >
-                          <img
-                            src={invertedCommasIcon}
-                            alt="Citations"
-                            style={{
-                              width: "12px",
-                              height: "12px",
-                              opacity: 0.8,
-                            }}
-                          />
-                          {paper.citations}
-                        </span>
+{/* Bottom Actions */}
+<div
+  style={{
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: "12px",
+  }}
+>
+  {/* Left side: Citations, Cite, PDF Viewer, Remove buttons */}
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      gap: "12px",
+      flexWrap: "wrap",
+    }}
+  >
+    {/* Citations Count */}
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "6px 10px",
+        background: "#f5f5f5",
+        border: "1px solid #e0e0e0",
+        borderRadius: "4px",
+        fontSize: "12px",
+        color: "#333",
+        fontWeight: 500,
+      }}
+    >
+      <img
+        src={invertedCommasIcon}
+        alt="Citations"
+        style={{
+          width: "12px",
+          height: "12px",
+          opacity: 0.8,
+        }}
+      />
+      {paper.citations}
+    </span>
 
-                        {/* Cite Button */}
-                        <button
-                          onClick={() =>
-                            setCitationModal({
-                              isOpen: true,
-                              paper,
-                            })
-                          }
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            padding: "6px 10px",
-                            background: "#fff",
-                            border: "1px solid #e0e0e0",
-                            borderRadius: "4px",
-                            fontSize: "12px",
-                            color: "#333",
-                            cursor: "pointer",
-                            fontWeight: 500,
-                            whiteSpace: "nowrap",
-                          }}
-                          onMouseOver={(e) =>
-                            (e.currentTarget.style.opacity = "0.8")
-                          }
-                          onMouseOut={(e) =>
-                            (e.currentTarget.style.opacity = "1")
-                          }
-                        >
-                          <img
-                            src={invertedCommasIcon}
-                            alt="Cite"
-                            style={{ width: "12px", height: "12px" }}
-                          />
-                          Cite
-                        </button>
+    {/* Cite Button */}
+    <button
+      onClick={() =>
+        setCitationModal({
+          isOpen: true,
+          paper,
+        })
+      }
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "6px 10px",
+        background: "#fff",
+        border: "1px solid #e0e0e0",
+        borderRadius: "4px",
+        fontSize: "12px",
+        color: "#333",
+        cursor: "pointer",
+        fontWeight: 500,
+        whiteSpace: "nowrap",
+      }}
+      onMouseOver={(e) => (e.currentTarget.style.opacity = "0.8")}
+      onMouseOut={(e) => (e.currentTarget.style.opacity = "1")}
+    >
+      <img
+        src={invertedCommasIcon}
+        alt="Cite"
+        style={{ width: "12px", height: "12px" }}
+      />
+      Cite
+    </button>
 
-                        {/* Remove button */}
-                        <button
-                          onClick={() =>
-                            handleRemovePaper(paper.id, paper.dbPaperId)
-                          }
-                          style={{
-                            color: "#dc2626",
-                            background: "none",
-                            border: "none",
-                            cursor: "pointer",
-                            padding: 0,
-                            display:
-                              selectedLibrary === "all" ? "none" : "block",
-                            fontSize: "0.875rem",
-                          }}
-                          onMouseOver={(e) =>
-                            (e.currentTarget.style.color = "#991b1b")
-                          }
-                          onMouseOut={(e) =>
-                            (e.currentTarget.style.color = "#dc2626")
-                          }
-                        >
-                          Remove
-                        </button>
-                      </div>
+    {/* PDF Viewer Button - only show when not in "All Papers" view */}
+    {selectedLibrary !== "all" && (
+      <button
+        onClick={() => {
+          if (paper.pdf_url) {
+            navigate(`/pdf-viewer/${paper.s2PaperId}`, {
+              state: {
+                libraryId: selectedLibrary,
+                paperId: paper.dbPaperId,
+                pdfUrl: paper.pdf_url,
+                paperTitle: paper.title,
+              },
+            });
+          }
+        }}
+        disabled={!paper.pdf_url}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          padding: "6px 10px",
+          background: paper.pdf_url ? "#E8EDE8" : "#f3f4f6",
+          border: "1px solid #e0e0e0",
+          borderRadius: "4px",
+          fontSize: "12px",
+          color: paper.pdf_url ? "#3E513E" : "#9ca3af",
+          cursor: paper.pdf_url ? "pointer" : "not-allowed",
+          fontWeight: 500,
+          whiteSpace: "nowrap",
+          opacity: paper.pdf_url ? 1 : 0.7,
+        }}
+        onMouseOver={(e) => {
+          if (paper.pdf_url) {
+            e.currentTarget.style.backgroundColor = "#d1e0d1";
+          }
+        }}
+        onMouseOut={(e) => {
+          if (paper.pdf_url) {
+            e.currentTarget.style.backgroundColor = "#E8EDE8";
+          }
+        }}
+        title={paper.pdf_url ? "Open in Novara PDF Viewer" : "No PDF available"}
+      >
+        <svg 
+          width="12" 
+          height="12" 
+          viewBox="0 0 24 24" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          style={{ marginRight: "2px" }}
+        >
+          <path 
+            d="M14 2H6C5.46957 2 4.96086 2.21071 4.58579 2.58579C4.21071 2.96086 4 3.46957 4 4V20C4 20.5304 4.21071 21.0391 4.58579 21.4142C4.96086 21.7893 5.46957 22 6 22H18C18.5304 22 19.0391 21.7893 19.4142 21.4142C19.7893 21.0391 20 20.5304 20 20V8L14 2Z" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <path 
+            d="M14 2V8H20" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+            fill="none"
+          />
+          <path 
+            d="M16 13H8" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+          <path 
+            d="M16 17H8" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+          <path 
+            d="M10 9H9H8" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round"
+          />
+        </svg>
+        Novara PDF Viewer
+      </button>
+    )}
 
-                      {/* Right side: Reading Status */}
-                      {selectedLibrary !== "all" && (
-                        <select
-                          value={paper.readingStatus}
-                          onChange={(e) =>
-                            handleReadingStatusChange(
-                              paper.id,
-                              paper.dbPaperId,
-                              e.target.value,
-                            )
-                          }
-                          style={{
-                            padding: "4px 12px",
-                            borderRadius: "9999px",
-                            fontSize: "0.75rem",
-                            fontWeight: 500,
-                            border: "none",
-                            cursor: "pointer",
-                            ...getStatusColor(paper.readingStatus),
-                          }}
-                        >
-                          <option value="unread">Unread</option>
-                          <option value="in_progress">In Progress</option>
-                          <option value="read">Read</option>
-                        </select>
-                      )}
-                    </div>
+    {/* Remove button */}
+    <button
+      onClick={() => handleRemovePaper(paper.id, paper.dbPaperId)}
+      style={{
+        color: "#dc2626",
+        background: "none",
+        border: "none",
+        cursor: "pointer",
+        padding: 0,
+        display: selectedLibrary === "all" ? "none" : "block",
+        fontSize: "0.875rem",
+      }}
+      onMouseOver={(e) => (e.currentTarget.style.color = "#991b1b")}
+      onMouseOut={(e) => (e.currentTarget.style.color = "#dc2626")}
+    >
+      Remove
+    </button>
+  </div>
+
+  {/* Right side: Reading Status */}
+  {selectedLibrary !== "all" && (
+    <select
+      value={paper.readingStatus}
+      onChange={(e) =>
+        handleReadingStatusChange(
+          paper.id,
+          paper.dbPaperId,
+          e.target.value,
+        )
+      }
+      style={{
+        padding: "4px 12px",
+        borderRadius: "9999px",
+        fontSize: "0.75rem",
+        fontWeight: 500,
+        border: "none",
+        cursor: "pointer",
+        ...getStatusColor(paper.readingStatus),
+      }}
+    >
+      <option value="unread">Unread</option>
+      <option value="in_progress">In Progress</option>
+      <option value="read">Read</option>
+    </select>
+  )}
                   </div>
-                ))}
+                  </div>
+                  );
+                })}
               </div>
             )}
           </div>
