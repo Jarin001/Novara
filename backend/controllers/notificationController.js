@@ -58,7 +58,7 @@ const getNotifications = async (req, res) => {
       });
     }
 
-    // For library_share notifications, check if user has accepted/has access
+    // For library_share notifications, check if user has accepted/has access or declined
     const libraryShareNotifs = (notifications || []).filter(
       n => n.type === 'library_share' && n.reference_id
     );
@@ -79,12 +79,15 @@ const getNotifications = async (req, res) => {
 
       notifications.forEach(n => {
         if (n.type === 'library_share' && n.reference_id) {
+          // Check if message indicates it was declined
+          if (n.message && n.message.includes('declined the invitation')) {
+            n.status = 'declined';
+          }
           // If user has access to this library, they accepted it
-          if (acceptedLibraryIds.has(n.reference_id)) {
+          else if (acceptedLibraryIds.has(n.reference_id)) {
             n.status = 'accepted';
           }
-          // Otherwise, check if there's a decline notification
-          // (We'll assume no status means pending)
+          // Otherwise it's still pending
         }
       });
     }

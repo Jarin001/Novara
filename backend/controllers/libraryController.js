@@ -675,11 +675,15 @@ exports.declineSharedLibrary = async (req, res) => {
       }
     }
 
-    // Delete the original invitation notification (declined = removed)
+    // Update the original notification to mark it as declined
+    // We'll update the message to indicate it was declined
     if (notification && notification.id) {
       await supabaseClient
         .from("notifications")
-        .delete()
+        .update({ 
+          is_read: true,
+          message: `You declined the invitation to "${library?.name || 'a library'}".`
+        })
         .eq("id", notification.id);
     }
 

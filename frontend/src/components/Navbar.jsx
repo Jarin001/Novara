@@ -143,15 +143,15 @@ const Navbar = () => {
     } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
       navigate(`/paper/${notification.s2_paper_id}`);
     } else if (notification.type === 'library_share') {
-      // Only navigate if already accepted
+      // Only navigate if already accepted (go to specific library)
       if (notification.status === 'accepted' && notification.reference_id) {
-        navigate(`/library`);
+        navigate(`/library?id=${notification.reference_id}`);
       }
       // If pending or declined, don't navigate
       return;
     } else if (notification.type === 'library_accept' && notification.reference_id) {
-      // Navigate to the library when invitation was accepted
-      navigate(`/library`);
+      // Navigate to the specific library when invitation was accepted
+      navigate(`/library?id=${notification.reference_id}`);
     } else if (notification.type === 'library_decline') {
       // Just mark as read, no navigation needed
       return;
@@ -293,8 +293,8 @@ const Navbar = () => {
         throw new Error(errorData.message || 'Failed to decline library share');
       }
 
-      // Remove notification from list (backend deletes it)
-      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      // Refetch notifications to get updated status from backend
+      await fetchNotifications();
       
       // Decrease unread count if it was unread
       if (!notification.is_read) {
@@ -719,7 +719,7 @@ const Navbar = () => {
                               </button>
                             )}
 
-                            {/* Library Share Invitation - Accept/Decline Buttons or Accepted Status */}
+                            {/* Library Share Invitation - Accept/Decline Buttons or Status Badge */}
                             {notification.type === 'library_share' && (
                               <>
                                 {notification.status === 'accepted' ? (
@@ -735,6 +735,20 @@ const Navbar = () => {
                                     color: '#2e7d32'
                                   }}>
                                     ✓ Accepted
+                                  </div>
+                                ) : notification.status === 'declined' ? (
+                                  // Show "Declined" badge if already declined
+                                  <div style={{
+                                    display: 'inline-block',
+                                    padding: '4px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    marginTop: '4px',
+                                    backgroundColor: '#fbe9e7',
+                                    color: '#d84315'
+                                  }}>
+                                    ✕ Declined
                                   </div>
                                 ) : (
                                   // Show Accept/Decline buttons if pending
