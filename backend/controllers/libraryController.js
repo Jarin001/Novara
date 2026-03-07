@@ -466,7 +466,14 @@ exports.shareLibrary = async (req, res) => {
 
     if (!sender) return res.status(404).json({ message: "Sender not found" });
 
-    // Check if recipient already has access
+    // Optional: prevent sharing with yourself
+    if (recipient_id === sender.id) {
+      return res
+        .status(400)
+        .json({ message: "You already have access to this library." });
+    }
+
+    // Check if recipient already has access in user_libraries
     const { data: existingAccess } = await supabaseClient
       .from("user_libraries")
       .select("id")
@@ -474,33 +481,53 @@ exports.shareLibrary = async (req, res) => {
       .eq("library_id", library_id)
       .single();
 
-    // if (existingAccess) {
-    //   return res
-    //     .status(400)
-    //     .json({ message: "Library is already shared with ${recipient.name}" });
-    // }
-
-        // Optional: prevent sharing with yourself
-    if (recipient_id === sender.id) {
+    if (existingAccess) {
+      const { data: recipient } = await supabaseClient
+        .from("users")
+        .select("name")
+        .eq("id", recipient_id)
+        .single();
+        
       return res
         .status(400)
-        .json({ message: "You already have access to this library." });
+        .json({ message: `Library is already shared with ${recipient?.name || 'this user'}` });
     }
 
-    if (existingAccess) {
-  // Get recipient info to show their name
-  const { data: recipient } = await supabaseClient
-    .from("users")
-    .select("name")
-    .eq("id", recipient_id)
-    .single();
-    
-  return res
-    .status(400)
-    .json({ message: `Library is already shared with ${recipient?.name || 'this user'}` });
-}
+    // Check for existing pending or declined notifications
+    const { data: existingNotification } = await supabaseClient
+      .from("notifications")
+      .select("id, message")
+      .eq("user_id", recipient_id)
+      .eq("actor_id", sender.id)
+      .eq("reference_id", library_id)
+      .eq("type", "library_share")
+      .maybeSingle();
 
-
+    // If there's an existing notification
+    if (existingNotification) {
+      // Check if this was a declined invitation (by checking message content)
+      if (existingNotification.message && existingNotification.message.includes('declined the invitation')) {
+        // Delete the old declined notification so we can send a new one
+        await supabaseClient
+          .from("notifications")
+          .delete()
+          .eq("id", existingNotification.id);
+          
+        console.log('Deleted old declined notification, creating new one');
+        // Continue to create new notification below
+      } else {
+        // It's a pending notification
+        const { data: recipient } = await supabaseClient
+          .from("users")
+          .select("name")
+          .eq("id", recipient_id)
+          .single();
+          
+        return res.status(400).json({ 
+          message: `An invitation is already pending for ${recipient?.name || 'this user'}` 
+        });
+      }
+    }
 
     // Get library info
     const { data: library } = await supabaseClient
@@ -608,7 +635,7 @@ exports.acceptSharedLibrary = async (req, res) => {
       console.error('Error creating acceptance notification:', notifError);
     }
 
-    // Mark the original invitation notification as read (status determined by user_libraries check)
+    // Mark the original invitation notification as read
     await supabaseClient
       .from("notifications")
       .update({ is_read: true })
@@ -676,13 +703,12 @@ exports.declineSharedLibrary = async (req, res) => {
     }
 
     // Update the original notification to mark it as declined
-    // We'll update the message to indicate it was declined
     if (notification && notification.id) {
       await supabaseClient
         .from("notifications")
         .update({ 
           is_read: true,
-          message: `You declined the invitation to "${library?.name || 'a library'}".`
+          message: `${recipient.name} declined the invitation to "${library?.name || 'a library'}".`
         })
         .eq("id", notification.id);
     }
