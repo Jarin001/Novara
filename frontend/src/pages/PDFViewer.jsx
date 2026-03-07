@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
 import io from 'socket.io-client';
@@ -20,6 +20,16 @@ const PDFViewer = () => {
   const [pdfUrl, setPdfUrl] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Zoom state
+  const [scale, setScale] = useState(1.0);
+  const MIN_SCALE = 0.5;
+  const MAX_SCALE = 3.0;
+  const SCALE_STEP = 0.25;
+
+  // Fullscreen ref and state
+  const containerRef = useRef(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Annotations state
   const [annotations, setAnnotations] = useState([]);
@@ -72,7 +82,7 @@ const PDFViewer = () => {
       };
       fetchPaperDetails();
     }
-  }, [location.state, paperId]); // Depend on location.state so it updates if state changes
+  }, [location.state, paperId]);
 
   // Get user ID from localStorage and assign a color
   useEffect(() => {
@@ -139,6 +149,29 @@ const PDFViewer = () => {
       fetchAnnotations();
     }
   }, [paperId]);
+
+  // Handle fullscreen change events
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Toggle fullscreen on the container element
+  const toggleFullscreen = useCallback(() => {
+    if (!containerRef.current) return;
+    if (!isFullscreen) {
+      containerRef.current.requestFullscreen();
+    } else {
+      document.exitFullscreen();
+    }
+  }, [isFullscreen]);
+
+  // Zoom handlers
+  const zoomIn = () => setScale(prev => Math.min(prev + SCALE_STEP, MAX_SCALE));
+  const zoomOut = () => setScale(prev => Math.max(prev - SCALE_STEP, MIN_SCALE));
 
   // Handle mouse events for creating annotations
   const handleMouseDown = (e) => {
@@ -321,6 +354,7 @@ const PDFViewer = () => {
           borderRadius: 8,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
+          {/* Back button */}
           <button
             onClick={() => navigate(-1)}
             style={{
@@ -341,99 +375,172 @@ const PDFViewer = () => {
             ← Back
           </button>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 'auto' }}>
-            <label style={{ fontSize: 12, color: '#333' }}>Tool:</label>
-            <select
-              value={currentTool}
-              onChange={(e) => setCurrentTool(e.target.value)}
+          {/* Zoom controls */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              onClick={zoomOut}
+              disabled={scale <= MIN_SCALE}
+              style={{
+                padding: "6px 10px",
+                background: scale <= MIN_SCALE ? "#f0f0f0" : "#fff",
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 14,
+                color: scale <= MIN_SCALE ? "#999" : "#333",
+                cursor: scale <= MIN_SCALE ? "not-allowed" : "pointer",
+                fontWeight: "bold",
+                lineHeight: 1
+              }}
+              title="Zoom out"
+            >
+              −
+            </button>
+            <span style={{ fontSize: 12, color: '#333', minWidth: 50, textAlign: 'center' }}>
+              {Math.round(scale * 100)}%
+            </span>
+            <button
+              onClick={zoomIn}
+              disabled={scale >= MAX_SCALE}
+              style={{
+                padding: "6px 10px",
+                background: scale >= MAX_SCALE ? "#f0f0f0" : "#fff",
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 14,
+                color: scale >= MAX_SCALE ? "#999" : "#333",
+                cursor: scale >= MAX_SCALE ? "not-allowed" : "pointer",
+                fontWeight: "bold",
+                lineHeight: 1
+              }}
+              title="Zoom in"
+            >
+              +
+            </button>
+            <button
+              onClick={toggleFullscreen}
               style={{
                 padding: "6px 10px",
                 background: "#fff",
                 border: "1px solid #e0e0e0",
                 borderRadius: 4,
-                fontSize: 12,
+                fontSize: 14,
                 color: "#333",
-                cursor: "pointer"
+                cursor: "pointer",
+                fontWeight: "bold",
+                lineHeight: 1,
+                marginLeft: 4
               }}
+              title="Fullscreen"
             >
-              <option value="highlight">Highlight</option>
-              <option value="note">Note</option>
-              <option value="underline">Underline</option>
-            </select>
+              ⛶
+            </button>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <label style={{ fontSize: 12, color: '#333' }}>Color:</label>
-            <input
-              type="color"
-              value={currentColor}
-              onChange={(e) => setCurrentColor(e.target.value)}
+          {/* Page navigation */}
+          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+            <button
+              disabled={pageNumber <= 1}
+              onClick={() => setPageNumber(pageNumber - 1)}
               style={{
-                width: 32,
-                height: 32,
-                padding: 2,
+                padding: "6px 10px",
+                background: pageNumber <= 1 ? "#f0f0f0" : "#fff",
                 border: "1px solid #e0e0e0",
                 borderRadius: 4,
-                cursor: "pointer"
+                fontSize: 14,
+                color: pageNumber <= 1 ? "#999" : "#333",
+                cursor: pageNumber <= 1 ? "not-allowed" : "pointer",
+                fontWeight: "bold",
+                lineHeight: 1
               }}
-            />
+              title="Previous page"
+            >
+              ◀
+            </button>
+            <span style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>
+              Page {pageNumber} of {numPages}
+            </span>
+            <button
+              disabled={pageNumber >= numPages}
+              onClick={() => setPageNumber(pageNumber + 1)}
+              style={{
+                padding: "6px 10px",
+                background: pageNumber >= numPages ? "#f0f0f0" : "#fff",
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 14,
+                color: pageNumber >= numPages ? "#999" : "#333",
+                cursor: pageNumber >= numPages ? "not-allowed" : "pointer",
+                fontWeight: "bold",
+                lineHeight: 1
+              }}
+              title="Next page"
+            >
+              ▶
+            </button>
           </div>
 
-          <div style={{ fontSize: 12, color: '#333', marginLeft: 8 }}>
-            Page {pageNumber} of {numPages}
+          {/* Tool selector and color picker (right-aligned) */}
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginLeft: 'auto' }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ fontSize: 12, color: '#333' }}>Tool:</label>
+              <select
+                value={currentTool}
+                onChange={(e) => setCurrentTool(e.target.value)}
+                style={{
+                  padding: "6px 10px",
+                  background: "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  fontSize: 12,
+                  color: "#333",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="highlight">Highlight</option>
+                <option value="note">Note</option>
+                <option value="underline">Underline</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <label style={{ fontSize: 12, color: '#333' }}>Color:</label>
+              <input
+                type="color"
+                value={currentColor}
+                onChange={(e) => setCurrentColor(e.target.value)}
+                style={{
+                  width: 32,
+                  height: 32,
+                  padding: 2,
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  cursor: "pointer"
+                }}
+              />
+            </div>
           </div>
-
-          <button
-            disabled={pageNumber <= 1}
-            onClick={() => setPageNumber(pageNumber - 1)}
-            style={{
-              padding: "6px 10px",
-              background: pageNumber <= 1 ? "#f0f0f0" : "#fff",
-              border: "1px solid #e0e0e0",
-              borderRadius: 4,
-              fontSize: 12,
-              color: pageNumber <= 1 ? "#999" : "#333",
-              cursor: pageNumber <= 1 ? "not-allowed" : "pointer",
-              fontWeight: 500
-            }}
-          >
-            Prev
-          </button>
-
-          <button
-            disabled={pageNumber >= numPages}
-            onClick={() => setPageNumber(pageNumber + 1)}
-            style={{
-              padding: "6px 10px",
-              background: pageNumber >= numPages ? "#f0f0f0" : "#fff",
-              border: "1px solid #e0e0e0",
-              borderRadius: 4,
-              fontSize: 12,
-              color: pageNumber >= numPages ? "#999" : "#333",
-              cursor: pageNumber >= numPages ? "not-allowed" : "pointer",
-              fontWeight: 500
-            }}
-          >
-            Next
-          </button>
         </div>
 
         {/* PDF Viewer with Overlay */}
-        <div style={{
-          flex: 1,
-          overflow: 'auto',
-          position: 'relative',
-          background: '#fff',
-          borderRadius: 8,
-          boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-          padding: 20,
-          display: 'flex',
-          justifyContent: 'center'
-        }}>
+        <div
+          ref={containerRef}
+          style={{
+            flex: 1,
+            overflow: 'auto',
+            position: 'relative',
+            background: '#fff',
+            borderRadius: 8,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            padding: 20,
+            display: 'flex',
+            justifyContent: 'center'
+          }}
+        >
           <div style={{ position: 'relative', display: 'inline-block' }}>
             <Document file={pdfUrl} onLoadSuccess={onDocumentLoadSuccess} loading="Loading PDF...">
               <Page
                 pageNumber={pageNumber}
+                scale={scale}
                 onLoadSuccess={onPageLoadSuccess}
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
