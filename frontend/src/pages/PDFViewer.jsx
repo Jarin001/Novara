@@ -825,7 +825,6 @@
 
 // export default PDFViewer;
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Document, Page, pdfjs } from 'react-pdf';
@@ -894,7 +893,7 @@ const PDFViewer = () => {
   const [annotations, setAnnotations]   = useState([]);
   const [currentTool, setCurrentTool]   = useState('highlight');
   const [currentColor, setCurrentColor] = useState('#FFFF00');
-  const [selectedAnnotation, setSelectedAnnotation] = useState(null); // highlight delete popup
+  const [selectedAnnotation, setSelectedAnnotation] = useState(null);
 
   /* ── toast ── */
   const [toast, setToast] = useState('');
@@ -911,9 +910,8 @@ const PDFViewer = () => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [noteEditText, setNoteEditText]   = useState('');
 
-  /* ── socket + user (from old page) ── */
-  const [socket, setSocket]     = useState(null);
-  const [userId, setUserId]     = useState(null);
+  /* ── socket + user ── */
+  const [socket, setSocket]       = useState(null);
   const [userColor, setUserColor] = useState('#FFFF00');
 
   /* ─────────────────────────────────────────────────────────
@@ -940,17 +938,18 @@ const PDFViewer = () => {
   }, [location.state, paperId]);
 
   /* ─────────────────────────────────────────────────────────
-     User from localStorage (old page logic)
+     User color from localStorage (for socket/collab use)
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
         const user = JSON.parse(userData);
-        setUserId(user.id);
-        const hash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-        const colors = ['#FFB6C1', '#ADD8E6', '#90EE90', '#FFD700', '#FFA07A', '#E0B0FF'];
-        setUserColor(colors[hash % colors.length]);
+        if (user?.id) {
+          const hash = user.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+          const colors = ['#FFB6C1', '#ADD8E6', '#90EE90', '#FFD700', '#FFA07A', '#E0B0FF'];
+          setUserColor(colors[hash % colors.length]);
+        }
       } catch (e) {
         console.error('Error parsing user data', e);
       }
@@ -958,7 +957,7 @@ const PDFViewer = () => {
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Socket (old page logic)
+     Socket
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const newSocket = io(process.env.REACT_APP_BACKEND_URL);
@@ -988,7 +987,7 @@ const PDFViewer = () => {
   }, [paperId]);
 
   /* ─────────────────────────────────────────────────────────
-     Fetch existing annotations (old page logic)
+     Fetch existing annotations
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     if (!paperId) return;
@@ -1008,6 +1007,7 @@ const PDFViewer = () => {
     document.addEventListener('fullscreenchange', h);
     return () => document.removeEventListener('fullscreenchange', h);
   }, []);
+
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;
     if (!isFullscreen) containerRef.current.requestFullscreen();
@@ -1102,22 +1102,56 @@ const PDFViewer = () => {
     };
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp); };
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Save annotation to backend + socket (old page logic)
+     Save annotation to backend + socket
+     FIX: Read userId directly from localStorage instead of
+     relying on React state, which may still be null due to
+     async useEffect timing when this function is first called.
   ───────────────────────────────────────────────────────── */
   const saveAnnotation = async (type, position, content = '') => {
-    if (!userId) {
+    // Extract userId from Supabase JWT token — 'user' key is not set in localStorage,
+    // Supabase stores the userId as the 'sub' claim inside the access token.
+    const token = localStorage.getItem('access_token');
+    let currentUserId = null;
+
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        currentUserId = payload.sub;
+      } catch (e) {
+        console.error('Failed to parse access token', e);
+      }
+    }
+
+    if (!currentUserId) {
       showToast('Please log in to annotate.');
       return null;
     }
+
+    // libraryId and dbPaperId come from navigation state (passed by ResearchLibrary).
+    // May be undefined if navigated from Search — backend requires libraryId so we
+    // fall back to 'unknown' to satisfy the schema in that case.
+    const libraryId = location.state?.libraryId || 'unknown';
+    const dbPaperId = location.state?.paperId || null;
+
     const annotationData = {
-      paperId, userId, pageNumber,
-      type, position, content,
+      paperId,
+      userId: currentUserId,
+      libraryId,
+      dbPaperId,
+      pageNumber,
+      type,
+      position,
+      content,
       color: currentColor,
     };
+
     try {
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations`, {
         method: 'POST',
@@ -1142,7 +1176,6 @@ const PDFViewer = () => {
     setSelection(null);
     const saved = await saveAnnotation(type, sel, '');
     if (!saved) return;
-    // Auto-open note popup right after creating
     if (type === 'note') {
       setOpenNoteId(saved._id);
       setEditingNoteId(saved._id);
@@ -1152,7 +1185,7 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Delete annotation (backend + socket, old page logic)
+     Delete annotation
   ───────────────────────────────────────────────────────── */
   const deleteAnnotation = async (id) => {
     try {
@@ -1171,7 +1204,7 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Save note edit (update content via backend)
+     Save note edit
   ───────────────────────────────────────────────────────── */
   const saveNoteEdit = async (id) => {
     try {
@@ -1185,12 +1218,10 @@ const PDFViewer = () => {
         setAnnotations(prev => prev.map(a => a._id === id ? updated : a));
         socket?.emit('annotationChanged', { paperId, annotation: updated });
       } else {
-        // Optimistic update if no PATCH endpoint
         setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
       }
     } catch (err) {
       console.error('Error updating note', err);
-      // Optimistic fallback
       setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: noteEditText } : a));
     }
     setEditingNoteId(null);
