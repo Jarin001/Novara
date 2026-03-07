@@ -58,6 +58,37 @@ const getNotifications = async (req, res) => {
       });
     }
 
+    // For library_share notifications, check if user has accepted/has access
+    const libraryShareNotifs = (notifications || []).filter(
+      n => n.type === 'library_share' && n.reference_id
+    );
+
+    if (libraryShareNotifs.length > 0) {
+      const libraryIds = libraryShareNotifs.map(n => n.reference_id);
+      
+      // Check which libraries the user has access to
+      const { data: userLibraries } = await supabaseClient
+        .from('user_libraries')
+        .select('library_id')
+        .eq('user_id', currentUser.id)
+        .in('library_id', libraryIds);
+
+      const acceptedLibraryIds = new Set(
+        (userLibraries || []).map(ul => ul.library_id)
+      );
+
+      notifications.forEach(n => {
+        if (n.type === 'library_share' && n.reference_id) {
+          // If user has access to this library, they accepted it
+          if (acceptedLibraryIds.has(n.reference_id)) {
+            n.status = 'accepted';
+          }
+          // Otherwise, check if there's a decline notification
+          // (We'll assume no status means pending)
+        }
+      });
+    }
+
     // For each notification with an actor, check if current user is following them
     const notificationsWithFollowStatus = await Promise.all(
       (notifications || []).map(async (notification) => {

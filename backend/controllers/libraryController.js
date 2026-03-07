@@ -552,11 +552,15 @@ exports.acceptSharedLibrary = async (req, res) => {
     // First, get the notification to find who shared it
     const { data: notification } = await supabaseClient
       .from("notifications")
-      .select("actor_id")
+      .select("id, actor_id")
       .eq("user_id", recipient.id)
       .eq("reference_id", library_id)
       .eq("type", "library_share")
       .single();
+
+    if (!notification || !notification.actor_id) {
+      return res.status(404).json({ message: "Library invitation not found" });
+    }
 
     // Get library name
     const { data: library } = await supabaseClient
@@ -565,6 +569,18 @@ exports.acceptSharedLibrary = async (req, res) => {
       .eq("id", library_id)
       .single();
 
+    // Check if user already has access
+    const { data: existingAccess } = await supabaseClient
+      .from("user_libraries")
+      .select("id")
+      .eq("user_id", recipient.id)
+      .eq("library_id", library_id)
+      .single();
+
+    if (existingAccess) {
+      return res.status(400).json({ message: "You already have access to this library" });
+    }
+
     // Add recipient to user_libraries as collaborator
     const { error: insertError } = await supabaseClient
       .from("user_libraries")
@@ -572,31 +588,36 @@ exports.acceptSharedLibrary = async (req, res) => {
         user_id: recipient.id,
         library_id,
         role: "collaborator",
-        invited_by_user_id: notification?.actor_id || null,
+        invited_by_user_id: notification.actor_id,
       });
 
     if (insertError) throw insertError;
 
-    // Notify the sender that the invitation was accepted
-    if (notification?.actor_id) {
-      await supabaseClient.from("notifications").insert({
+    // ALWAYS notify the sender that the invitation was accepted
+    const { error: notifError } = await supabaseClient
+      .from("notifications")
+      .insert({
         user_id: notification.actor_id, // sender receives notification
         actor_id: recipient.id, // recipient performed the action
         reference_id: library_id,
         type: "library_accept",
-        message: `${recipient.name} accepted your invitation to collaborate in "${library.name}".`,
+        message: `${recipient.name} accepted your invitation to collaborate in "${library?.name || 'a library'}".`,
       });
+
+    if (notifError) {
+      console.error('Error creating acceptance notification:', notifError);
     }
 
-    // Mark notification as read
+    // Mark the original invitation notification as read (status determined by user_libraries check)
     await supabaseClient
       .from("notifications")
       .update({ is_read: true })
-      .eq("user_id", recipient.id)
-      .eq("reference_id", library_id)
-      .eq("type", "library_share");
+      .eq("id", notification.id);
 
-    res.status(200).json({ message: "Library share accepted" });
+    res.status(200).json({ 
+      message: "Library share accepted",
+      library_id: library_id
+    });
   } catch (err) {
     console.error(err);
     errorHandler(res, err, "Failed to accept shared library");
@@ -612,22 +633,55 @@ exports.declineSharedLibrary = async (req, res) => {
     const supabaseClient = req.supabase;
     const { library_id } = req.params;
 
-    // Get recipient user ID
+    // Get recipient user ID and name
     const { data: recipient } = await supabaseClient
       .from("users")
-      .select("id")
+      .select("id, name")
       .eq("auth_id", authId)
       .single();
 
     if (!recipient) return res.status(404).json({ message: "User not found" });
 
-    // Mark notification as read
-    await supabaseClient
+    // Get the notification to find who shared it
+    const { data: notification } = await supabaseClient
       .from("notifications")
-      .update({ is_read: true })
+      .select("id, actor_id")
       .eq("user_id", recipient.id)
       .eq("reference_id", library_id)
-      .eq("type", "library_share");
+      .eq("type", "library_share")
+      .single();
+
+    // Get library name
+    const { data: library } = await supabaseClient
+      .from("libraries")
+      .select("name")
+      .eq("id", library_id)
+      .single();
+
+    // Send notification to inviter that invitation was declined
+    if (notification && notification.actor_id) {
+      const { error: notifError } = await supabaseClient
+        .from("notifications")
+        .insert({
+          user_id: notification.actor_id, // sender receives notification
+          actor_id: recipient.id, // recipient performed the action
+          reference_id: library_id,
+          type: "library_decline",
+          message: `${recipient.name} declined your invitation to collaborate in "${library?.name || 'a library'}".`,
+        });
+
+      if (notifError) {
+        console.error('Error creating decline notification:', notifError);
+      }
+    }
+
+    // Delete the original invitation notification (declined = removed)
+    if (notification && notification.id) {
+      await supabaseClient
+        .from("notifications")
+        .delete()
+        .eq("id", notification.id);
+    }
 
     res.status(200).json({ message: "Library share declined" });
   } catch (err) {
