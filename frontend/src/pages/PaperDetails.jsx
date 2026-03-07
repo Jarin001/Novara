@@ -358,7 +358,7 @@ const PaperDetails = () => {
     }
   };
 
-  // Check authentication and fetch user libraries
+  // ================== UPDATED useEffect for fetching libraries ==================
   useEffect(() => {
     const checkAuthAndFetchLibraries = async () => {
       try {
@@ -382,14 +382,35 @@ const PaperDetails = () => {
           const data = await response.json();
           console.log('User libraries fetched:', data);
           setIsAuthenticated(true);
-          // Extract library data from the response - handle both formats
           let libraries = [];
+
+          // My libraries (owned, not shared) → role 'creator'
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
-            libraries = data.my_libraries.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }));
+            libraries = data.my_libraries.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }));
           }
+
+          // Libraries owned and shared with others → role 'creator'
+          if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
+            libraries = [...libraries, ...data.shared_with_others.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }))];
+          }
+
+          // Libraries shared with me → role from backend (e.g., 'collaborator')
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
-            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: lib.role 
+            }))];
           }
+
           setUserLibraries(libraries);
         } else if (response.status === 401) {
           setIsAuthenticated(false);
@@ -409,6 +430,7 @@ const PaperDetails = () => {
 
     checkAuthAndFetchLibraries();
   }, []);
+  // ===============================================================================
 
   // Auto-scroll to bottom of chat when new messages are added
   useEffect(() => {
@@ -691,7 +713,7 @@ const PaperDetails = () => {
     });
   };
 
-  // UPDATED FUNCTION: Save paper to libraries - SAME AS RESULTS PAGE
+  // UPDATED FUNCTION: Save paper to libraries - SAME AS RESULTS PAGE (with 409 handling)
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -718,6 +740,11 @@ const PaperDetails = () => {
 
       // Get BibTeX for the paper - USING CACHE
       const s2PaperId = paper.paperId || paper.id; // This is the s2_paper_id
+      if (!s2PaperId) {
+        alert('Cannot save paper: missing paper ID');
+        return;
+      }
+
       const paperInternalId = internalPaperId; // This is the internal DB paper_id
       let bibtexData = '';
       
@@ -791,9 +818,15 @@ const PaperDetails = () => {
                 addedCount++;
                 console.log(`✓ Paper added to library ${library.name}`);
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to add to library ${library.name}:`, errorData);
-                failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Handle 409 Conflict as success (paper already exists)
+                if (response.status === 409) {
+                  console.log(`Paper already exists in library ${library.name}, counting as added.`);
+                  addedCount++;
+                } else {
+                  const errorData = await response.json();
+                  console.error(`Failed to add to library ${library.name}:`, errorData);
+                  failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                }
               }
             } catch (error) {
               console.error(`Error adding to library ${library.name}:`, error);
