@@ -713,7 +713,7 @@ const PaperDetails = () => {
     });
   };
 
-  // UPDATED FUNCTION: Save paper to libraries - SAME AS RESULTS PAGE (with 409 handling)
+  // ================== UPDATED handleSaveToLibraries with abstract fix ==================
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -755,12 +755,17 @@ const PaperDetails = () => {
       // Prepare paper data according to your backend's savePaperToLibrary endpoint
       const paperData = {
         s2_paper_id: s2PaperId || '',
-        title: paper.title || '',
+        title: paper.title || 'Untitled',
         venue: Array.isArray(paper.venue) ? paper.venue[0] : paper.venue || '',
         published_year: paper.year || new Date().getFullYear(),
         citation_count: paper.citationCount || 0,
         fields_of_study: paper.fieldsOfStudy || [],
-        abstract: paper.abstract || '',
+        // Ensure abstract is a string, not an array
+        abstract: (() => {
+          if (typeof paper.abstract === 'string') return paper.abstract;
+          if (Array.isArray(paper.abstract)) return paper.abstract[0] || '';
+          return '';
+        })(),
         bibtex: bibtexData || '',
         authors: (paper.authors || []).map(a => { 
           if (typeof a === 'object') {
@@ -823,9 +828,21 @@ const PaperDetails = () => {
                   console.log(`Paper already exists in library ${library.name}, counting as added.`);
                   addedCount++;
                 } else {
-                  const errorData = await response.json();
-                  console.error(`Failed to add to library ${library.name}:`, errorData);
-                  failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                  // Try to parse error response safely
+                  let errorMessage = 'Unknown error';
+                  try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                  } catch (parseError) {
+                    // If response is not JSON, get text
+                    try {
+                      errorMessage = await response.text();
+                    } catch (textError) {
+                      errorMessage = `HTTP ${response.status}`;
+                    }
+                  }
+                  console.error(`Failed to add to library ${library.name}:`, errorMessage);
+                  failedAdditions.push(`${library.name}: ${errorMessage}`);
                 }
               }
             } catch (error) {
@@ -875,12 +892,25 @@ const PaperDetails = () => {
                   if (fallbackResponse.ok) {
                     removedCount++;
                     console.log(`✓ Paper removed from library ${library.name} (using s2_paper_id)`);
+                  } else {
+                    console.log(`Fallback removal also failed, skipping.`);
                   }
                 }
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to remove from library ${library.name}:`, errorData);
-                failedRemovals.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Parse error message safely
+                let errorMessage = 'Unknown error';
+                try {
+                  const errorData = await response.json();
+                  errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                } catch (parseError) {
+                  try {
+                    errorMessage = await response.text();
+                  } catch (textError) {
+                    errorMessage = `HTTP ${response.status}`;
+                  }
+                }
+                console.error(`Failed to remove from library ${library.name}:`, errorMessage);
+                failedRemovals.push(`${library.name}: ${errorMessage}`);
               }
             } catch (error) {
               console.error(`Error removing from library ${library.name}:`, error);
@@ -928,6 +958,7 @@ const PaperDetails = () => {
       alert('Error updating libraries: ' + error.message);
     }
   };
+  // =====================================================================================
 
   const handleCreateLibrary = async () => {
     if (!newLibraryName.trim()) return;

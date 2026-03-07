@@ -41,7 +41,6 @@ const saveCitationCacheToStorage = () => {
 
 // Helper function to fetch citations with caching
 const fetchPaperCitationsWithCache = async (paperId) => {
-  // Return from cache if available
   if (citationCache.has(paperId)) {
     console.log(`Using cached citations for paper: ${paperId}`);
     return citationCache.get(paperId);
@@ -55,7 +54,7 @@ const fetchPaperCitationsWithCache = async (paperId) => {
       const data = await response.json();
       const citations = data.data || [];
       citationCache.set(paperId, citations);
-      saveCitationCacheToStorage(); // Save to localStorage
+      saveCitationCacheToStorage();
       return citations;
     }
   } catch (error) {
@@ -107,9 +106,9 @@ const ResultsPage = () => {
   const [resultsError, setResultsError] = useState(null);
   const [totalResults, setTotalResults] = useState(0);
   
-  // Pagination state
+  // Pagination state – now using server‑side pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const papersPerPage = 7;
+  const papersPerPage = 10; // changed from 7 to 10
 
   // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
@@ -167,7 +166,13 @@ const ResultsPage = () => {
     document.addEventListener('mousedown', onDocClick);
     return () => document.removeEventListener('mousedown', onDocClick);
   }, []);
-  
+
+  // Reset to page 1 when any filter/search changes (so we fetch the first page of new results)
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [q, sortBy, dateRange, selectedFields]);
+
+  // Main data fetching – now includes pagination parameters
   useEffect(() => {
     if (!q) {
       setResults([]);
@@ -181,12 +186,12 @@ const ResultsPage = () => {
       try {
         setResultsLoading(true);
         setResultsError(null);
-        console.log(`Fetching results for: "${q}"`);
+        console.log(`Fetching results for: "${q}" page ${currentPage}`);
         
         const params = new URLSearchParams();
         params.append('query', q);
-        params.append('limit', 100);
-        params.append('offset', 0);
+        params.append('limit', papersPerPage);
+        params.append('offset', (currentPage - 1) * papersPerPage);
         
         if (sortBy === 'citations') {
           params.append('sortByCitations', 'true');
@@ -217,7 +222,6 @@ const ResultsPage = () => {
           
           setResults(processedResults);
           setTotalResults(data.total || processedResults.length || 0);
-          setCurrentPage(1);
           setExpandedAbstracts({});
         } else {
           setResultsError("Failed to load results");
@@ -237,15 +241,15 @@ const ResultsPage = () => {
     };
 
     fetchResults();
-  }, [q, sortBy, dateRange, selectedFields]);
+  }, [q, sortBy, dateRange, selectedFields, currentPage]); // added currentPage to dependencies
 
-  // Pre-fetch citations for first few results
+  // Pre-fetch citations for current page results (now only 10 papers)
   useEffect(() => {
     const preFetchCitations = async () => {
       if (!results || results.length === 0) return;
       
-      const papersToPrefetch = results.slice(0, 5);
-      papersToPrefetch.forEach(async (paper) => {
+      // Pre-fetch citations for all papers on current page (max 10)
+      results.forEach(async (paper) => {
         if (paper.paperId && !citationCache.has(paper.paperId)) {
           try {
             const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paper.paperId}`);
@@ -337,7 +341,6 @@ const ResultsPage = () => {
           setIsAuthenticated(true);
           let libraries = [];
 
-          // My libraries (owned, not shared) → role 'creator'
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
             libraries = data.my_libraries.map(lib => ({ 
               id: lib.id, 
@@ -346,7 +349,6 @@ const ResultsPage = () => {
             }));
           }
 
-          // Libraries owned and shared with others → role 'creator'
           if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
             libraries = [...libraries, ...data.shared_with_others.map(lib => ({ 
               id: lib.id, 
@@ -355,7 +357,6 @@ const ResultsPage = () => {
             }))];
           }
 
-          // Libraries shared with me → role from backend (e.g., 'collaborator')
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
             libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
               id: lib.id, 
@@ -384,15 +385,7 @@ const ResultsPage = () => {
     checkAuthAndFetchLibraries();
   }, []);
 
-  const visible = useMemo(() => {
-    let list = results.slice();
-    if (sortBy === 'citations') {
-      list.sort((a,b)=> (b.citationCount || 0) - (a.citationCount || 0));
-    }
-    return list;
-  }, [results, sortBy]);
-
-  // Extract available fields from results
+  // Extract available fields from current page results (only for filter UI – limited)
   const availableFields = useMemo(() => {
     const fields = new Set();
     results.forEach(r => {
@@ -407,11 +400,10 @@ const ResultsPage = () => {
     ? userLibraries 
     : [];
 
-  // Pagination calculations
-  const totalPages = Math.ceil(visible.length / papersPerPage);
+  // Pagination calculations based on totalResults from API
+  const totalPages = Math.ceil(totalResults / papersPerPage);
   const startIndex = (currentPage - 1) * papersPerPage;
-  const endIndex = startIndex + papersPerPage;
-  const currentPapers = visible.slice(startIndex, endIndex);
+  const endIndex = startIndex + results.length; // results.length may be less than papersPerPage on last page
 
   const onHeaderSearch = (e) => {
     e && e.preventDefault && e.preventDefault();
@@ -739,13 +731,15 @@ const ResultsPage = () => {
     setCheckingPaperInLibraries(false);
   };
 
-  // Save paper to libraries (uses your backend controller)
+  // ================== UPDATED handleSaveToLibraries with abstract fix ==================
   const handleSaveToLibraries = async () => {
+    // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
       alert('Please select at least one library to save the paper to');
       return;
     }
 
+    // If user has deselected all libraries (including previously saved ones)
     if (selectedLibraries.length === 0 && paperInLibraries.length > 0) {
       const confirmRemove = window.confirm(
         'You have deselected all libraries. This will remove the paper from all ' + 
@@ -763,6 +757,12 @@ const ResultsPage = () => {
       }
 
       const s2PaperId = saveItem.paperId || saveItem.id;
+      // Validate required ID
+      if (!s2PaperId) {
+        alert('Cannot save paper: missing paper ID');
+        return;
+      }
+
       const internalPaperId = saveItem.internalPaperId;
       let bibtexData = '';
       
@@ -770,14 +770,20 @@ const ResultsPage = () => {
         bibtexData = await fetchPaperBibtexWithCache(s2PaperId);
       }
 
+      // Prepare paper data with proper type checking for abstract
       const paperData = {
-        s2_paper_id: s2PaperId || '',
-        title: saveItem.title || '',
+        s2_paper_id: s2PaperId,
+        title: saveItem.title || 'Untitled',
         venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
         published_year: saveItem.year || new Date().getFullYear(),
         citation_count: saveItem.citationCount || 0,
         fields_of_study: saveItem.fieldsOfStudy || [],
-        abstract: saveItem.abstract || '',
+        // Ensure abstract is a string, not an array
+        abstract: (() => {
+          if (typeof saveItem.abstract === 'string') return saveItem.abstract;
+          if (Array.isArray(saveItem.abstract)) return saveItem.abstract[0] || '';
+          return '';
+        })(),
         bibtex: bibtexData || '',
         authors: (saveItem.authors || []).map(a => { 
           if (typeof a === 'object') {
@@ -833,9 +839,27 @@ const ResultsPage = () => {
                 addedCount++;
                 console.log(`✓ Paper added to library ${library.name}`);
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to add to library ${library.name}:`, errorData);
-                failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Handle 409 Conflict as success (paper already exists)
+                if (response.status === 409) {
+                  console.log(`Paper already exists in library ${library.name}, counting as added.`);
+                  addedCount++;
+                } else {
+                  // Try to parse error response safely
+                  let errorMessage = 'Unknown error';
+                  try {
+                    const errorData = await response.json();
+                    errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                  } catch (parseError) {
+                    // If response is not JSON, get text
+                    try {
+                      errorMessage = await response.text();
+                    } catch (textError) {
+                      errorMessage = `HTTP ${response.status}`;
+                    }
+                  }
+                  console.error(`Failed to add to library ${library.name}:`, errorMessage);
+                  failedAdditions.push(`${library.name}: ${errorMessage}`);
+                }
               }
             } catch (error) {
               console.error(`Error adding to library ${library.name}:`, error);
@@ -880,12 +904,26 @@ const ResultsPage = () => {
                   if (fallbackResponse.ok) {
                     removedCount++;
                     console.log(`✓ Paper removed from library ${library.name} (using s2_paper_id)`);
+                  } else {
+                    // Fallback also failed – log but don't count as failure if already removed
+                    console.log(`Fallback removal also failed, skipping.`);
                   }
                 }
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to remove from library ${library.name}:`, errorData);
-                failedRemovals.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                // Parse error message safely
+                let errorMessage = 'Unknown error';
+                try {
+                  const errorData = await response.json();
+                  errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+                } catch (parseError) {
+                  try {
+                    errorMessage = await response.text();
+                  } catch (textError) {
+                    errorMessage = `HTTP ${response.status}`;
+                  }
+                }
+                console.error(`Failed to remove from library ${library.name}:`, errorMessage);
+                failedRemovals.push(`${library.name}: ${errorMessage}`);
               }
             } catch (error) {
               console.error(`Error removing from library ${library.name}:`, error);
@@ -930,6 +968,7 @@ const ResultsPage = () => {
       alert('Error updating libraries: ' + error.message);
     }
   };
+  // =====================================================================================
 
   const handleCreateLibrary = async () => {
     if (!newLibraryName.trim()) return;
@@ -1221,7 +1260,7 @@ const ResultsPage = () => {
             </div>
 
             <div>
-              {currentPapers.map((r, i) => (
+              {results.map((r, i) => (
                 <div key={i} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
                   <button 
                     onClick={() => navigate(`/paper/${r.paperId}`)}
@@ -1452,7 +1491,7 @@ const ResultsPage = () => {
               ))}
             </div>
 
-            {visible.length > papersPerPage && (
+            {totalPages > 1 && (
               <div style={{ marginTop: 40, display: "flex", justifyContent: "center", alignItems: "center", gap: 8 }}>
                 <button 
                   onClick={goToPrevPage}
@@ -1516,10 +1555,9 @@ const ResultsPage = () => {
               </div>
             )}
 
-            {visible.length > 0 && (
+            {totalResults > 0 && (
               <div style={{ marginTop: 20, textAlign: "center", color: "#666", fontSize: 14 }}>
-                Showing papers {startIndex + 1} to {Math.min(endIndex, visible.length)} of {visible.length} results
-                {visible.length !== totalResults && ` (filtered from ${totalResults} total)`}
+                Showing papers {startIndex + 1} to {endIndex} of {totalResults} results
               </div>
             )}
           </>

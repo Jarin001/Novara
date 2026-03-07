@@ -220,7 +220,9 @@ const ReferencesPage = () => {
                 year: ref.year || ref.date || 0,
                 venue: ref.venue || ref.journal || ref.publicationVenue || 'Unknown',
                 abstract: ref.abstract || 'No abstract available',
-                citationCount: ref.citationCount || 0
+                citationCount: ref.citationCount || 0,
+                // NEW: Include pdfUrl from backend (if available)
+                pdfUrl: ref.pdfUrl || ''
               };
             });
             
@@ -311,14 +313,37 @@ const ReferencesPage = () => {
           const data = await response.json();
           console.log('User libraries fetched:', data);
           setIsAuthenticated(true);
-          // Extract library data from the response - handle both formats
+          
+          // Extract library data from the response - include all three categories
           let libraries = [];
+          
+          // My libraries (owned and not shared) - set role to 'creator'
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
-            libraries = data.my_libraries.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }));
+            libraries = data.my_libraries.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }));
           }
+          
+          // Shared with others (owned but shared) - also owned, so role 'creator'
+          if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
+            libraries = [...libraries, ...data.shared_with_others.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: 'creator' 
+            }))];
+          }
+          
+          // Shared with me (collaborator) - use the role from response
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
-            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ id: lib.id, name: lib.name, role: lib.role }))];
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
+              id: lib.id, 
+              name: lib.name, 
+              role: lib.role 
+            }))];
           }
+          
           setUserLibraries(libraries);
         } else if (response.status === 401) {
           setIsAuthenticated(false);
@@ -646,7 +671,7 @@ const ReferencesPage = () => {
     setCheckingPaperInLibraries(false);
   };
 
-  // UPDATED SAVE PAPER TO LIBRARIES - MATCHING RESULTS PAGE WITH PDF_URL
+  // ========== UPDATED SAVE PAPER TO LIBRARIES - MATCHING CITATIONSPAGE WITH FULL ERROR HANDLING ==========
   const handleSaveToLibraries = async () => {
     // If no libraries selected and paper wasn't in any libraries, do nothing
     if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
@@ -681,11 +706,12 @@ const ReferencesPage = () => {
       }
 
       // Prepare paper data according to your backend's savePaperToLibrary endpoint
+      // FIXED: Using the exact same structure as CitationsPage
       const paperData = {
         s2_paper_id: s2PaperId || '',
         title: saveItem.title || '',
         venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
-        published_year: saveItem.year || new Date().getFullYear(),
+        published_year: saveItem.year || saveItem.date || new Date().getFullYear(),
         citation_count: saveItem.citationCount || 0,
         fields_of_study: saveItem.fieldsOfStudy || [],
         abstract: saveItem.abstract || '',
@@ -707,6 +733,7 @@ const ReferencesPage = () => {
       console.log("Updating paper in libraries");
       console.log("s2PaperId:", s2PaperId);
       console.log("internalPaperId:", internalPaperId);
+      console.log("Paper data being sent:", paperData);
 
       // Determine which libraries to add to and which to remove from
       const librariesToAdd = selectedLibraries.filter(lib => 
@@ -733,6 +760,9 @@ const ReferencesPage = () => {
         operations.push(
           (async () => {
             try {
+              console.log(`Adding paper to library: ${library.name}`);
+              console.log(`Paper data authors:`, paperData.authors);
+              
               const response = await fetch(`${API_ENDPOINTS.LIBRARIES}/${library.id}/papers`, {
                 method: 'POST',
                 headers: {
@@ -742,13 +772,32 @@ const ReferencesPage = () => {
                 body: JSON.stringify(paperData)
               });
 
+              console.log(`Response status for ${library.name}:`, response.status);
+              
               if (response.ok) {
                 addedCount++;
                 console.log(`✓ Paper added to library ${library.name}`);
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to add to library ${library.name}:`, errorData);
-                failedAdditions.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                let errorText = '';
+                try {
+                  errorText = await response.text();
+                  console.error(`Response text for ${library.name}:`, errorText);
+                } catch (e) {
+                  console.error(`Could not read response text for ${library.name}:`, e);
+                }
+                
+                let errorData = { message: 'Unknown error' };
+                try {
+                  if (errorText) {
+                    errorData = JSON.parse(errorText);
+                  }
+                } catch (e) {
+                  console.error('Response is not JSON:', errorText);
+                  errorData = { message: errorText || `HTTP ${response.status}` };
+                }
+                
+                console.error(`Failed to add to library ${library.name}:`, errorData, 'Status:', response.status);
+                failedAdditions.push(`${library.name}: ${errorData.message || `HTTP ${response.status}`}`);
               }
             } catch (error) {
               console.error(`Error adding to library ${library.name}:`, error);
@@ -800,9 +849,14 @@ const ReferencesPage = () => {
                   }
                 }
               } else {
-                const errorData = await response.json();
-                console.error(`Failed to remove from library ${library.name}:`, errorData);
-                failedRemovals.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
+                let errorData = { message: 'Unknown error' };
+                try {
+                  errorData = await response.json();
+                } catch (e) {
+                  console.error('Response is not JSON:', e);
+                }
+                console.error(`Failed to remove from library ${library.name}:`, errorData, 'Status:', response.status);
+                failedRemovals.push(`${library.name}: ${errorData.message || `HTTP ${response.status}`}`);
               }
             } catch (error) {
               console.error(`Error removing from library ${library.name}:`, error);
@@ -850,6 +904,7 @@ const ReferencesPage = () => {
       alert('Error updating libraries: ' + error.message);
     }
   };
+  // ========== END OF UPDATED SAVE FUNCTION ==========
 
   const handleCreateLibrary = async () => {
     if (!newLibraryName.trim()) return;
@@ -1305,8 +1360,31 @@ const ReferencesPage = () => {
                     {r.citationCount ? r.citationCount.toLocaleString() : 0}
                   </span>
 
-                  {/* PDF Button */}
-                  {r.openAccessPdf && r.openAccessPdf.url ? (
+                  {/* PDF Button - UPDATED to use pdfUrl first, then fallback to openAccessPdf */}
+                  {r.pdfUrl ? (
+                    <a 
+                      href={r.pdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        background: "#fff",
+                        border: "1px solid #e0e0e0",
+                        borderRadius: 4,
+                        fontSize: 12,
+                        color: "#333",
+                        textDecoration: "none",
+                        cursor: "pointer",
+                        fontWeight: 500,
+                        whiteSpace: "nowrap"
+                      }}
+                    >
+                      [PDF]
+                    </a>
+                  ) : r.openAccessPdf && r.openAccessPdf.url ? (
                     <a 
                       href={r.openAccessPdf.url}
                       target="_blank"

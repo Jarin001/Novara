@@ -202,7 +202,7 @@ const fetchWithRedirects = (url, options, res, depth = 0) => {
     console.log(`[PDF Proxy] Status: ${proxyRes.statusCode}, Content-Type: ${proxyRes.headers['content-type']}, URL: ${url}`);
 
     // ── Follow redirects internally ──────────────────────
-    if ([301, 302, 307, 308].includes(proxyRes.statusCode)) {
+    if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
       let redirectUrl = proxyRes.headers['location'];
       if (redirectUrl) {
         // Handle relative redirects
