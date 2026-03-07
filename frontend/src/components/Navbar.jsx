@@ -140,9 +140,15 @@ const Navbar = () => {
     // Navigate based on notification type
     if (notification.type === 'follow' || notification.type === 'follow_back') {
       navigate(`/user/${notification.actor.id}`);
-  } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
-    navigate(`/paper/${notification.s2_paper_id}`);
-  }
+    } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
+      navigate(`/paper/${notification.s2_paper_id}`);
+    } else if (notification.type === 'library_share') {
+      // For library share invitations, don't navigate - let user use Accept/Decline buttons
+      return;
+    } else if (notification.type === 'library_accept' && notification.reference_id) {
+      // Navigate to the library when invitation was accepted
+      navigate(`/library`);
+    }
 
     setNotificationDropdownOpen(false);
   };
@@ -221,6 +227,73 @@ const Navbar = () => {
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
+    }
+  };
+
+  // Handle accepting library share invitation
+  const handleAcceptLibraryShare = async (e, notification) => {
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/libraries/${notification.reference_id}/accept`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to accept library share');
+      }
+
+      // Remove this notification from the list (it's been accepted)
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      setUnreadCount(prev => Math.max(0, prev - 1));
+      
+      // Refresh to show the new library (optional)
+      // You might want to trigger a library list refresh here
+      
+    } catch (error) {
+      console.error('Error accepting library share:', error);
+      alert(error.message || 'Failed to accept library invitation');
+    }
+  };
+
+  // Handle declining library share invitation
+  const handleDeclineLibraryShare = async (e, notification) => {
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/libraries/${notification.reference_id}/decline`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to decline library share');
+      }
+
+      // Remove this notification from the list
+      setNotifications(prev => prev.filter(n => n.id !== notification.id));
+      if (!notification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+    } catch (error) {
+      console.error('Error declining library share:', error);
+      alert(error.message || 'Failed to decline library invitation');
     }
   };
 
@@ -634,6 +707,54 @@ const Navbar = () => {
                               >
                                 {followingFromNotif[notification.actor.id] ? 'Following...' : 'Follow Back'}
                               </button>
+                            )}
+
+                            {/* Library Share Invitation - Accept/Decline Buttons */}
+                            {notification.type === 'library_share' && (
+                              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                <button
+                                  onClick={(e) => handleAcceptLibraryShare(e, notification)}
+                                  style={{
+                                    padding: '6px 16px',
+                                    backgroundColor: '#3E513E',
+                                    color: '#fff',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => e.target.style.backgroundColor = '#2d3f2d'}
+                                  onMouseLeave={(e) => e.target.style.backgroundColor = '#3E513E'}
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={(e) => handleDeclineLibraryShare(e, notification)}
+                                  style={{
+                                    padding: '6px 16px',
+                                    backgroundColor: '#fff',
+                                    color: '#666',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    cursor: 'pointer',
+                                    transition: 'all 0.2s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.target.style.backgroundColor = '#f5f5f5';
+                                    e.target.style.borderColor = '#999';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.target.style.backgroundColor = '#fff';
+                                    e.target.style.borderColor = '#ddd';
+                                  }}
+                                >
+                                  Decline
+                                </button>
+                              </div>
                             )}
                           </div>
 
