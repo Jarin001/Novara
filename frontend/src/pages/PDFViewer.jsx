@@ -173,6 +173,19 @@ const PDFViewer = () => {
   const zoomIn = () => setScale(prev => Math.min(prev + SCALE_STEP, MAX_SCALE));
   const zoomOut = () => setScale(prev => Math.max(prev - SCALE_STEP, MIN_SCALE));
 
+  // Keyboard navigation: left/right arrows
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'ArrowLeft') {
+        setPageNumber(prev => Math.max(prev - 1, 1));
+      } else if (e.key === 'ArrowRight') {
+        setPageNumber(prev => Math.min(prev + 1, numPages || 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [numPages]);
+
   // Handle mouse events for creating annotations
   const handleMouseDown = (e) => {
     if (!currentTool || !pageDimensions.width) return;
@@ -342,80 +355,128 @@ const PDFViewer = () => {
         display: 'flex',
         flexDirection: 'column'
       }}>
-        {/* Toolbar */}
+        {/* Toolbar - redesigned with perfectly centered zoom controls using flexbox with equal side widths */}
         <div style={{
           display: 'flex',
-          gap: 12,
           alignItems: 'center',
-          flexWrap: 'wrap',
+          gap: 12,
           marginBottom: 20,
           background: '#fff',
           padding: '12px 20px',
           borderRadius: 8,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
         }}>
-          {/* Back button */}
-          <button
-            onClick={() => navigate(-1)}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: 6,
-              padding: "6px 12px",
-              background: "#fff",
-              border: "1px solid #e0e0e0",
-              borderRadius: 4,
-              fontSize: 12,
-              color: "#333",
-              cursor: "pointer",
-              fontWeight: 500,
-              whiteSpace: "nowrap"
-            }}
-          >
-            ← Back
-          </button>
+          {/* Left section (flex:1 pushes it to the left, equal width with right) */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', gap: 8, alignItems: 'center' }}>
+            <button
+              onClick={() => setCurrentTool('highlight')}
+              style={{
+                padding: "6px 12px",
+                background: currentTool === 'highlight' ? '#e0e0e0' : '#fff',
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 12,
+                color: "#333",
+                cursor: "pointer",
+                fontWeight: currentTool === 'highlight' ? 600 : 400
+              }}
+            >
+              Highlight
+            </button>
+            <button
+              onClick={() => setCurrentTool('underline')}
+              style={{
+                padding: "6px 12px",
+                background: currentTool === 'underline' ? '#e0e0e0' : '#fff',
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 12,
+                color: "#333",
+                cursor: "pointer",
+                fontWeight: currentTool === 'underline' ? 600 : 400
+              }}
+            >
+              Underline
+            </button>
+            <button
+              onClick={() => setCurrentTool('note')}
+              style={{
+                padding: "6px 12px",
+                background: currentTool === 'note' ? '#e0e0e0' : '#fff',
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                fontSize: 12,
+                color: "#333",
+                cursor: "pointer",
+                fontWeight: currentTool === 'note' ? 600 : 400
+              }}
+            >
+              Note
+            </button>
+            <input
+              type="color"
+              value={currentColor}
+              onChange={(e) => setCurrentColor(e.target.value)}
+              style={{
+                width: 32,
+                height: 32,
+                padding: 2,
+                border: "1px solid #e0e0e0",
+                borderRadius: 4,
+                cursor: "pointer",
+                marginLeft: 4
+              }}
+              title="Highlight/underline color"
+            />
+          </div>
 
-          {/* Zoom controls */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <button
-              onClick={zoomOut}
-              disabled={scale <= MIN_SCALE}
-              style={{
-                padding: "6px 10px",
-                background: scale <= MIN_SCALE ? "#f0f0f0" : "#fff",
-                border: "1px solid #e0e0e0",
-                borderRadius: 4,
-                fontSize: 14,
-                color: scale <= MIN_SCALE ? "#999" : "#333",
-                cursor: scale <= MIN_SCALE ? "not-allowed" : "pointer",
-                fontWeight: "bold",
-                lineHeight: 1
-              }}
-              title="Zoom out"
-            >
-              −
-            </button>
-            <span style={{ fontSize: 12, color: '#333', minWidth: 50, textAlign: 'center' }}>
-              {Math.round(scale * 100)}%
-            </span>
-            <button
-              onClick={zoomIn}
-              disabled={scale >= MAX_SCALE}
-              style={{
-                padding: "6px 10px",
-                background: scale >= MAX_SCALE ? "#f0f0f0" : "#fff",
-                border: "1px solid #e0e0e0",
-                borderRadius: 4,
-                fontSize: 14,
-                color: scale >= MAX_SCALE ? "#999" : "#333",
-                cursor: scale >= MAX_SCALE ? "not-allowed" : "pointer",
-                fontWeight: "bold",
-                lineHeight: 1
-              }}
-              title="Zoom in"
-            >
-              +
-            </button>
+          {/* Middle section: zoom controls (centered automatically because side sections are equal width) */}
+          <div style={{ flex: '0 0 auto' }}>
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button
+                onClick={zoomOut}
+                disabled={scale <= MIN_SCALE}
+                style={{
+                  padding: "6px 10px",
+                  background: scale <= MIN_SCALE ? "#f0f0f0" : "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  fontSize: 14,
+                  color: scale <= MIN_SCALE ? "#999" : "#333",
+                  cursor: scale <= MIN_SCALE ? "not-allowed" : "pointer",
+                  fontWeight: "bold",
+                  lineHeight: 1
+                }}
+                title="Zoom out"
+              >
+                −
+              </button>
+              <span style={{ fontSize: 12, color: '#333', minWidth: 50, textAlign: 'center' }}>
+                {Math.round(scale * 100)}%
+              </span>
+              <button
+                onClick={zoomIn}
+                disabled={scale >= MAX_SCALE}
+                style={{
+                  padding: "6px 10px",
+                  background: scale >= MAX_SCALE ? "#f0f0f0" : "#fff",
+                  border: "1px solid #e0e0e0",
+                  borderRadius: 4,
+                  fontSize: 14,
+                  color: scale >= MAX_SCALE ? "#999" : "#333",
+                  cursor: scale >= MAX_SCALE ? "not-allowed" : "pointer",
+                  fontWeight: "bold",
+                  lineHeight: 1
+                }}
+                title="Zoom in"
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Right section (flex:1 pushes it to the right, equal width with left) */}
+          <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
             <button
               onClick={toggleFullscreen}
               style={{
@@ -427,96 +488,52 @@ const PDFViewer = () => {
                 color: "#333",
                 cursor: "pointer",
                 fontWeight: "bold",
-                lineHeight: 1,
-                marginLeft: 4
+                lineHeight: 1
               }}
               title="Fullscreen"
             >
               ⛶
             </button>
-          </div>
-
-          {/* Page navigation */}
-          <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
-            <button
-              disabled={pageNumber <= 1}
-              onClick={() => setPageNumber(pageNumber - 1)}
-              style={{
-                padding: "6px 10px",
-                background: pageNumber <= 1 ? "#f0f0f0" : "#fff",
-                border: "1px solid #e0e0e0",
-                borderRadius: 4,
-                fontSize: 14,
-                color: pageNumber <= 1 ? "#999" : "#333",
-                cursor: pageNumber <= 1 ? "not-allowed" : "pointer",
-                fontWeight: "bold",
-                lineHeight: 1
-              }}
-              title="Previous page"
-            >
-              ◀
-            </button>
-            <span style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>
-              Page {pageNumber} of {numPages}
-            </span>
-            <button
-              disabled={pageNumber >= numPages}
-              onClick={() => setPageNumber(pageNumber + 1)}
-              style={{
-                padding: "6px 10px",
-                background: pageNumber >= numPages ? "#f0f0f0" : "#fff",
-                border: "1px solid #e0e0e0",
-                borderRadius: 4,
-                fontSize: 14,
-                color: pageNumber >= numPages ? "#999" : "#333",
-                cursor: pageNumber >= numPages ? "not-allowed" : "pointer",
-                fontWeight: "bold",
-                lineHeight: 1
-              }}
-              title="Next page"
-            >
-              ▶
-            </button>
-          </div>
-
-          {/* Tool selector and color picker (right-aligned) */}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginLeft: 'auto' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 12, color: '#333' }}>Tool:</label>
-              <select
-                value={currentTool}
-                onChange={(e) => setCurrentTool(e.target.value)}
+            <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+              <button
+                disabled={pageNumber <= 1}
+                onClick={() => setPageNumber(pageNumber - 1)}
                 style={{
                   padding: "6px 10px",
-                  background: "#fff",
+                  background: pageNumber <= 1 ? "#f0f0f0" : "#fff",
                   border: "1px solid #e0e0e0",
                   borderRadius: 4,
-                  fontSize: 12,
-                  color: "#333",
-                  cursor: "pointer"
+                  fontSize: 14,
+                  color: pageNumber <= 1 ? "#999" : "#333",
+                  cursor: pageNumber <= 1 ? "not-allowed" : "pointer",
+                  fontWeight: "bold",
+                  lineHeight: 1
                 }}
+                title="Previous page (←)"
               >
-                <option value="highlight">Highlight</option>
-                <option value="note">Note</option>
-                <option value="underline">Underline</option>
-              </select>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <label style={{ fontSize: 12, color: '#333' }}>Color:</label>
-              <input
-                type="color"
-                value={currentColor}
-                onChange={(e) => setCurrentColor(e.target.value)}
+                ◀
+              </button>
+              <span style={{ fontSize: 12, color: '#333', whiteSpace: 'nowrap' }}>
+                {pageNumber} / {numPages}
+              </span>
+              <button
+                disabled={pageNumber >= numPages}
+                onClick={() => setPageNumber(pageNumber + 1)}
                 style={{
-                  width: 32,
-                  height: 32,
-                  padding: 2,
+                  padding: "6px 10px",
+                  background: pageNumber >= numPages ? "#f0f0f0" : "#fff",
                   border: "1px solid #e0e0e0",
                   borderRadius: 4,
-                  cursor: "pointer"
+                  fontSize: 14,
+                  color: pageNumber >= numPages ? "#999" : "#333",
+                  cursor: pageNumber >= numPages ? "not-allowed" : "pointer",
+                  fontWeight: "bold",
+                  lineHeight: 1
                 }}
-              />
+                title="Next page (→)"
+              >
+                ▶
+              </button>
             </div>
           </div>
         </div>
