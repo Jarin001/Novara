@@ -72,8 +72,62 @@ class PaperService {
   }
 
   /**
-   * Save or update user note
+   * Upsert user reading status in user_reading_status table
    */
+  static async upsertReadingStatus(supabase, userId, libraryId, paperId, readingStatus) {
+    const { data, error } = await supabase
+      .from('user_reading_status')
+      .upsert(
+        {
+          user_id: userId,
+          library_id: libraryId,
+          paper_id: paperId,
+          reading_status: readingStatus,
+          last_read_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id,library_id,paper_id' }
+      )
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  }
+
+  /**
+   * Get reading statuses for a user across multiple papers in a library
+   */
+  static async getReadingStatuses(supabase, userId, libraryId, paperIds) {
+    const { data, error } = await supabase
+      .from('user_reading_status')
+      .select('paper_id, reading_status, last_read_at')
+      .eq('user_id', userId)
+      .eq('library_id', libraryId)
+      .in('paper_id', paperIds);
+
+    if (error) throw error;
+
+    // Return as a map keyed by paper_id
+    return Object.fromEntries(
+      (data || []).map(r => [r.paper_id, r])
+    );
+  }
+
+  /**
+   * Delete reading status for a user
+   */
+  static async deleteReadingStatus(supabase, userId, libraryId, paperId) {
+    const { error } = await supabase
+      .from('user_reading_status')
+      .delete()
+      .eq('user_id', userId)
+      .eq('library_id', libraryId)
+      .eq('paper_id', paperId);
+
+    if (error) throw error;
+  }
+
+
   static async saveUserNote(userId, libraryId, paperId, userNote) {
     return await LibraryPaperNote.findOneAndUpdate(
       {

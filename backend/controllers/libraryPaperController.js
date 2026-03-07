@@ -66,6 +66,9 @@ exports.savePaperToLibrary = async (req, res) => {
       reading_status
     );
 
+    // Save personal reading status
+    await PaperService.upsertReadingStatus(supabase, userId, library_id, paper.id, reading_status);
+
     // Save user note (MongoDB)
     await PaperService.saveUserNote(userId, library_id, paper.id, user_note);
 
@@ -120,11 +123,12 @@ exports.getLibraryPapers = async (req, res) => {
 
     const paperIds = papers.map(p => p.papers.id);
 
-    // Get MongoDB data and authors
-    const [contentMap, notes, authorsMap] = await Promise.all([
+    // Get MongoDB data, authors, and personal reading statuses
+    const [contentMap, notes, authorsMap, readingStatusMap] = await Promise.all([
       PaperService.getPaperContents(paperIds),
       PaperService.getUserNotes(userId, library_id, paperIds),
-      AuthorService.getAuthorsForPapers(supabase, paperIds)
+      AuthorService.getAuthorsForPapers(supabase, paperIds),
+      PaperService.getReadingStatuses(supabase, userId, library_id, paperIds)
     ]);
 
     const noteMap = Object.fromEntries(
@@ -134,12 +138,12 @@ exports.getLibraryPapers = async (req, res) => {
     // Combine data
     const result = papers.map(lp => ({
       library_paper_id: lp.id,
-      reading_status: lp.reading_status,
+      reading_status: readingStatusMap[lp.papers.id]?.reading_status || 'unread',
+      last_read_at: readingStatusMap[lp.papers.id]?.last_read_at || null,
       added_at: lp.added_at,
-      last_read_at: lp.last_read_at,
       ...lp.papers,
       authors: authorsMap[lp.papers.id] || [],
-      pdf_url: lp.papers.pdf_url || '', 
+      pdf_url: lp.papers.pdf_url || '',
       abstract: contentMap[lp.papers.id]?.abstract || '',
       bibtex: contentMap[lp.papers.id]?.bibtex || '',
       user_note: noteMap[lp.papers.id.toString()]?.userNote || ''
@@ -303,8 +307,11 @@ exports.removePaperFromLibrary = async (req, res) => {
       await PaperService.deletePaperContent(paper_id);
     }
 
-    // Always delete the specific library note
-    await PaperService.deleteUserNote(userId, library_id, paper_id);
+    // Delete personal reading status and note
+    await Promise.all([
+      PaperService.deleteReadingStatus(supabase, userId, library_id, paper_id),
+      PaperService.deleteUserNote(userId, library_id, paper_id)
+    ]);
 
     res.json({ message: 'Paper removed from library successfully' });
 
@@ -344,23 +351,12 @@ exports.updateReadingStatus = async (req, res) => {
     // Verify user
     const userId = await LibraryAccessService.getUserId(supabase, authId);
 
-    // Update status
-    const { data: updated, error } = await supabase
-      .from('library_papers')
-      .update({
-        reading_status,
-        last_read_at: new Date().toISOString()
-      })
-      .eq('library_id', library_id)
-      .eq('paper_id', paper_id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    // Upsert personal reading status
+    const updated = await PaperService.upsertReadingStatus(supabase, userId, library_id, paper_id, reading_status);
 
     res.json({
       message: 'Reading status updated',
-      library_paper: updated
+      reading_status: updated
     });
 
   } catch (err) {
