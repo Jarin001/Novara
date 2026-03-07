@@ -108,7 +108,7 @@ const ResultsPage = () => {
   
   // Pagination state – now using server‑side pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const papersPerPage = 10; // changed from 7 to 10
+  const papersPerPage = 7;
 
   // Citation modal state
   const [citeOpen, setCiteOpen] = useState(false);
@@ -417,15 +417,21 @@ const ResultsPage = () => {
     navigate(`/search?q=${encodeURIComponent(searchInput)}&type=${encodeURIComponent(type)}`);
   };
 
+  // ── CHANGED: navigate directly to the paper detail page when a suggestion is selected ──
   const handleSuggestionClick = (suggestion) => {
-    setSearchInput(suggestion.title);
     setShowSuggestions(false);
     setHasUserInteracted(false);
-    
-    if (suggestion.title.trim()) {
+
+    if (suggestion.paperId) {
+      // Go straight to the paper details page
+      navigate(`/paper/${suggestion.paperId}`);
+    } else if (suggestion.title && suggestion.title.trim()) {
+      // Fallback: run a search if there is no paperId
+      setSearchInput(suggestion.title);
       navigate(`/search?q=${encodeURIComponent(suggestion.title)}&type=${encodeURIComponent(type)}`);
     }
   };
+  // ────────────────────────────────────────────────────────────────────────────────────────
 
   const toggleAbstract = (paperId) => {
     setExpandedAbstracts(prev => ({
