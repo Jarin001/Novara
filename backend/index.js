@@ -11,8 +11,11 @@ const userPapersRoutes = require('./routes/userPapersRoutes');
 const authRoutes = require('./routes/authRoutes');
 const followRoutes = require('./routes/followRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-
 const annotationRoutes = require('./routes/annotation.route');
+
+const https = require('https');
+const http = require('http');
+const { URL } = require('url');
 
 const app = express();
 
@@ -48,7 +51,6 @@ app.get("/", (req, res) => {
   });
 });
 
-
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/libraries', libraryRoutes);
@@ -73,7 +75,6 @@ app.use('/api/citations', citationRoutes);
 app.use("/api/paper-ai", paperAiRoutes);
 
 // Bibtex routes
-
 app.use('/api/library-bibtex', libraryBibtexRoute);
 app.use('/api/all-library-bibtex', allPaperBibtexRoute);
 
@@ -82,19 +83,255 @@ app.use('/api/notifications', notificationRoutes);
 
 app.use('/api/annotations', annotationRoutes);
 
+/* ─────────────────────────────────────────────────────────────
+   PDF URL normaliser
+   Handles known sources that need special treatment:
+   1. arXiv   — rewrite to export.arxiv.org/pdf/{id}
+   2. PubMed  — rewrite to PMC PDF URL
+   3. DOI     — resolve doi.org links to actual PDF
+   4. Semantic Scholar — use openAccessPdf directly
+   5. Everything else  — pass through as-is
+───────────────────────────────────────────────────────────── */
+const normalisePdfUrl = (url) => {
+  // ── arXiv ────────────────────────────────────────────────
+  // Handles:
+  //   https://arxiv.org/abs/2103.00020
+  //   https://arxiv.org/pdf/2103.00020.pdf
+  //   https://arxiv.org/pdf/2103.00020v2.pdf
+  //   http://arxiv.org/abs/2103.00020
+  const arxivMatch = url.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]{4}\.[0-9]+(?:v[0-9]+)?)/i);
+  if (arxivMatch) {
+    return `https://export.arxiv.org/pdf/${arxivMatch[1]}`;
+  }
 
+  // ── PubMed Central ───────────────────────────────────────
+  // Handles:
+  //   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1234567/
+  //   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1234567/pdf/
+  const pmcMatch = url.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC[0-9]+)/i);
+  if (pmcMatch) {
+    return `https://www.ncbi.nlm.nih.gov/pmc/articles/${pmcMatch[1]}/pdf/`;
+  }
 
+  // ── Europe PMC ───────────────────────────────────────────
+  // Handles:
+  //   https://europepmc.org/articles/PMC1234567
+  const europePmcMatch = url.match(/europepmc\.org\/articles\/(PMC[0-9]+)/i);
+  if (europePmcMatch) {
+    return `https://europepmc.org/articles/${europePmcMatch[1]}/pdf/render`;
+  }
+
+  // ── Semantic Scholar ─────────────────────────────────────
+  // Handles:
+  //   https://api.semanticscholar.org/...
+  //   https://pdfs.semanticscholar.org/...
+  // These are already direct PDF links — pass through as-is
+  if (url.includes('semanticscholar.org')) {
+    return url;
+  }
+
+  // ── ACL Anthology ────────────────────────────────────────
+  // Handles:
+  //   https://aclanthology.org/2021.acl-long.1
+  //   https://aclanthology.org/2021.acl-long.1.pdf
+  const aclMatch = url.match(/aclanthology\.org\/([^\s/?]+?)(?:\.pdf)?$/i);
+  if (aclMatch && !url.endsWith('.pdf')) {
+    return `https://aclanthology.org/${aclMatch[1]}.pdf`;
+  }
+
+  // ── Springer / SpringerLink ──────────────────────────────
+  // Handles:
+  //   https://link.springer.com/article/10.1007/...
+  //   https://link.springer.com/content/pdf/10.1007/...
+  const springerArticleMatch = url.match(/link\.springer\.com\/article\/(10\.[0-9]+\/.+)/i);
+  if (springerArticleMatch) {
+    return `https://link.springer.com/content/pdf/${springerArticleMatch[1]}.pdf`;
+  }
+
+  // ── ResearchGate ─────────────────────────────────────────
+  // ResearchGate blocks all scrapers — nothing we can do.
+  // Return null to signal "not fetchable".
+  if (url.includes('researchgate.net')) {
+    return null;
+  }
+
+  // ── Elsevier / ScienceDirect ─────────────────────────────
+  // ScienceDirect blocks non-subscriber access.
+  // Return null to signal "not fetchable".
+  if (url.includes('sciencedirect.com') || url.includes('elsevier.com')) {
+    return null;
+  }
+
+  // ── IEEE Xplore ──────────────────────────────────────────
+  // IEEE blocks non-subscriber access.
+  // Return null to signal "not fetchable".
+  if (url.includes('ieeexplore.ieee.org')) {
+    return null;
+  }
+
+  // ── Wiley ────────────────────────────────────────────────
+  if (url.includes('onlinelibrary.wiley.com')) {
+    return null;
+  }
+
+  // ── Everything else ──────────────────────────────────────
+  return url;
+};
+
+/* ─────────────────────────────────────────────────────────────
+   Internal fetch helper — follows up to 5 redirects manually
+   so we stay in control and always proxy through our server.
+───────────────────────────────────────────────────────────── */
+const fetchWithRedirects = (url, options, res, depth = 0) => {
+  if (depth > 5) {
+    if (!res.headersSent) res.status(508).json({ error: 'Too many redirects', url });
+    return;
+  }
+
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch (e) {
+    if (!res.headersSent) res.status(400).json({ error: 'Invalid URL', url });
+    return;
+  }
+
+  const protocol = parsedUrl.protocol === 'https:' ? https : http;
+
+  const request = protocol.get(url, options, (proxyRes) => {
+    console.log(`[PDF Proxy] Status: ${proxyRes.statusCode}, Content-Type: ${proxyRes.headers['content-type']}, URL: ${url}`);
+
+    // ── Follow redirects internally ──────────────────────
+    if ([301, 302, 307, 308].includes(proxyRes.statusCode)) {
+      let redirectUrl = proxyRes.headers['location'];
+      if (redirectUrl) {
+        // Handle relative redirects
+        if (redirectUrl.startsWith('/')) {
+          redirectUrl = `${parsedUrl.protocol}//${parsedUrl.host}${redirectUrl}`;
+        }
+        console.log(`[PDF Proxy] Redirect (${proxyRes.statusCode}) -> ${redirectUrl}`);
+        // Drain the response body before following redirect
+        proxyRes.resume();
+        // Normalise the redirect URL too (e.g. arxiv may redirect to abs page)
+        const normalisedRedirect = normalisePdfUrl(redirectUrl) || redirectUrl;
+        return fetchWithRedirects(normalisedRedirect, options, res, depth + 1);
+      }
+    }
+
+    // ── Non-200 upstream ─────────────────────────────────
+    if (proxyRes.statusCode !== 200) {
+      console.error(`[PDF Proxy] Upstream ${proxyRes.statusCode} for: ${url}`);
+      if (!res.headersSent) {
+        return res.status(proxyRes.statusCode).json({
+          error: `Upstream returned ${proxyRes.statusCode}`,
+          url,
+        });
+      }
+      return;
+    }
+
+    // ── Verify content is actually a PDF ─────────────────
+    const contentType = proxyRes.headers['content-type'] || '';
+    if (
+      !contentType.includes('pdf') &&
+      !contentType.includes('octet-stream') &&
+      !contentType.includes('binary')
+    ) {
+      console.error(`[PDF Proxy] Not a PDF. Content-Type: "${contentType}", URL: ${url}`);
+      if (!res.headersSent) {
+        proxyRes.resume(); // drain to free socket
+        return res.status(400).json({
+          error: `URL did not return a PDF (Content-Type: ${contentType})`,
+          url,
+        });
+      }
+      return;
+    }
+
+    // ── Stream PDF to client ──────────────────────────────
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    if (proxyRes.headers['content-length']) {
+      res.setHeader('Content-Length', proxyRes.headers['content-length']);
+    }
+
+    proxyRes.pipe(res);
+
+    proxyRes.on('error', (err) => {
+      console.error(`[PDF Proxy] Stream error: ${err.message}`);
+      if (!res.headersSent) res.status(500).json({ error: err.message });
+    });
+  });
+
+  request.on('error', (err) => {
+    console.error(`[PDF Proxy] Request error for ${url}: ${err.message}`);
+    if (!res.headersSent) res.status(500).json({ error: err.message, url });
+  });
+
+  request.setTimeout(30000, () => {
+    request.destroy();
+    console.error(`[PDF Proxy] Timeout for ${url}`);
+    if (!res.headersSent) res.status(504).json({ error: 'PDF fetch timed out', url });
+  });
+};
+
+// PDF Proxy - must be BEFORE the 404 handler
+app.get('/api/pdf-proxy', (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'URL parameter is required' });
+
+  console.log(`[PDF Proxy] Incoming request for: ${url}`);
+
+  // Normalise the URL for known sources
+  const fetchUrl = normalisePdfUrl(url);
+
+  // Source is known to be paywalled/blocked
+  if (fetchUrl === null) {
+    console.warn(`[PDF Proxy] Blocked source: ${url}`);
+    return res.status(403).json({
+      error: 'This publisher does not allow direct PDF access. Please visit the publisher website.',
+      url,
+    });
+  }
+
+  if (fetchUrl !== url) {
+    console.log(`[PDF Proxy] Normalised URL: ${url} -> ${fetchUrl}`);
+  }
+
+  const options = {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'application/pdf,*/*',
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept-Encoding': 'identity', // avoid compressed responses that confuse content-type check
+    },
+    rejectUnauthorized: false, // fixes SSL cert chain errors
+  };
+
+  fetchWithRedirects(fetchUrl, options, res);
+});
+
+// 404 handler - must come after all routes
+app.use((req, res) => {
+  res.status(404).json({ error: 'Route not found' });
+});
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err.stack);
+  res.status(500).json({ error: 'Something went wrong!' });
+});
 
 const PORT = process.env.PORT || 5000;
 
-const server = require('http').createServer(app);
+const server = http.createServer(app);
 const io = require('socket.io')(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST', 'PUT', 'DELETE']
   }
 });
-
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
@@ -112,35 +349,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// PDF Proxy - bypasses CORS restrictions on external PDF URLs
-app.get('/api/pdf-proxy', async (req, res) => {
-  const { url } = req.query;
-  if (!url) return res.status(400).json({ error: 'URL parameter is required' });
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return res.status(response.status).json({ error: 'Failed to fetch PDF' });
-    const buffer = await response.arrayBuffer();
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.send(Buffer.from(buffer));
-  } catch (err) {
-    res.status(500).json({ error: 'Failed to fetch PDF' });
-  }
-});
-
-// 404 handler - must come after all routes
-app.use((req, res) => {
-  res.status(404).json({ error: 'Route not found' });
-});
-
-// Error handler
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
-});
-
-
-
 server.listen(PORT, () => {
   console.log(`Server running at: http://localhost:${PORT}`);
   console.log(`Available endpoints:`);
@@ -150,4 +358,5 @@ server.listen(PORT, () => {
   console.log(`  - Libraries: http://localhost:${PORT}/api/libraries`);
   console.log(`  - User Papers: http://localhost:${PORT}/api/user/papers`);
   console.log(`  - Annotations: http://localhost:${PORT}/api/annotations`);
+  console.log(`  - PDF Proxy: http://localhost:${PORT}/api/pdf-proxy`);
 });

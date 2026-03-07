@@ -914,31 +914,70 @@ const PDFViewer = () => {
   const [socket, setSocket]       = useState(null);
   const [userColor, setUserColor] = useState('#FFFF00');
 
+  // Keep a ref to location.state so saveAnnotation always reads the latest
+  // value without needing it in its dependency array.
+  const locationStateRef = useRef(location.state);
+  useEffect(() => {
+    locationStateRef.current = location.state;
+  }, [location.state]);
+
   /* ─────────────────────────────────────────────────────────
-     PDF URL
+     PDF URL — depends ONLY on paperId so that navigating
+     between papers always resets and re-fetches correctly.
+     location.state is read via ref to avoid stale closure.
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
-    if (location.state?.pdfUrl) {
-      setPdfUrl(`${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(location.state.pdfUrl)}`);
+    // Reset all per-paper state every time paperId changes
+    setPdfUrl('');
+    setLoading(true);
+    setError(null);
+    setNumPages(null);
+    setPageNumber(1);
+    setAnnotations([]);
+    setSelection(null);
+    setSelectedAnnotation(null);
+    setOpenNoteId(null);
+    setShowNoteMenu(false);
+    setEditingNoteId(null);
+    setNoteEditText('');
+
+    const state = locationStateRef.current;
+
+    if (state?.pdfUrl) {
+      console.log('[PDFViewer] Using pdfUrl from navigation state:', state.pdfUrl);
+      setPdfUrl(
+        `${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(state.pdfUrl)}`
+      );
       setLoading(false);
     } else {
+      console.log('[PDFViewer] No pdfUrl in state, fetching from API for paperId:', paperId);
       (async () => {
         try {
           const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/papers/${paperId}`);
           if (res.ok) {
             const data = await res.json();
             const url = data.openAccessPdf?.url;
-            if (url) setPdfUrl(`${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`);
-            else setError('No PDF available for this paper.');
-          } else setError('Failed to fetch paper details.');
-        } catch { setError('Error fetching paper details.'); }
-        finally { setLoading(false); }
+            if (url) {
+              setPdfUrl(
+                `${process.env.REACT_APP_BACKEND_URL}/api/pdf-proxy?url=${encodeURIComponent(url)}`
+              );
+            } else {
+              setError('No PDF available for this paper.');
+            }
+          } else {
+            setError('Failed to fetch paper details.');
+          }
+        } catch {
+          setError('Error fetching paper details.');
+        } finally {
+          setLoading(false);
+        }
       })();
     }
-  }, [location.state, paperId]);
+  }, [paperId]); // ← ONLY paperId, not location.state
 
   /* ─────────────────────────────────────────────────────────
-     User color from localStorage (for socket/collab use)
+     User color from localStorage
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -957,7 +996,7 @@ const PDFViewer = () => {
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Socket
+     Socket — reconnects when paperId changes
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     const newSocket = io(process.env.REACT_APP_BACKEND_URL);
@@ -987,7 +1026,7 @@ const PDFViewer = () => {
   }, [paperId]);
 
   /* ─────────────────────────────────────────────────────────
-     Fetch existing annotations
+     Fetch existing annotations — re-fetches when paperId changes
   ───────────────────────────────────────────────────────── */
   useEffect(() => {
     if (!paperId) return;
@@ -1109,14 +1148,9 @@ const PDFViewer = () => {
   }, []);
 
   /* ─────────────────────────────────────────────────────────
-     Save annotation to backend + socket
-     FIX: Read userId directly from localStorage instead of
-     relying on React state, which may still be null due to
-     async useEffect timing when this function is first called.
+     Save annotation
   ───────────────────────────────────────────────────────── */
   const saveAnnotation = async (type, position, content = '') => {
-    // Extract userId from Supabase JWT token — 'user' key is not set in localStorage,
-    // Supabase stores the userId as the 'sub' claim inside the access token.
     const token = localStorage.getItem('access_token');
     let currentUserId = null;
 
@@ -1134,11 +1168,9 @@ const PDFViewer = () => {
       return null;
     }
 
-    // libraryId and dbPaperId come from navigation state (passed by ResearchLibrary).
-    // May be undefined if navigated from Search — backend requires libraryId so we
-    // fall back to 'unknown' to satisfy the schema in that case.
-    const libraryId = location.state?.libraryId || 'unknown';
-    const dbPaperId = location.state?.paperId || null;
+    // Read from ref so this always has the latest state value
+    const libraryId = locationStateRef.current?.libraryId || 'unknown';
+    const dbPaperId = locationStateRef.current?.paperId   || null;
 
     const annotationData = {
       paperId,
@@ -1169,7 +1201,7 @@ const PDFViewer = () => {
   };
 
   /* ─────────────────────────────────────────────────────────
-     Apply annotation (calls backend save)
+     Apply annotation
   ───────────────────────────────────────────────────────── */
   const applyAnnotation = async (type, sel) => {
     if (!sel) return;
@@ -1206,7 +1238,7 @@ const PDFViewer = () => {
   /* ─────────────────────────────────────────────────────────
      Save note edit
   ───────────────────────────────────────────────────────── */
-  const saveNoteEdit = async (id,text) => {
+  const saveNoteEdit = async (id, text) => {
     try {
       const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations/${id}`, {
         method: 'PUT',
@@ -1215,11 +1247,7 @@ const PDFViewer = () => {
       });
       if (res.ok) {
         const updated = await res.json();
-        setAnnotations(prev => 
-          prev.map(a => 
-            a._id === id ? { ...a, content: text } : a
-          )
-        );
+        setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
         socket?.emit('annotationChanged', { paperId, annotation: updated });
       } else {
         setAnnotations(prev => prev.map(a => a._id === id ? { ...a, content: text } : a));
@@ -1244,7 +1272,6 @@ const PDFViewer = () => {
       .map(ann => {
         const { x, y, width, height } = ann.position;
 
-        /* ── Highlight ── */
         if (ann.type === 'highlight') return (
           <div key={ann._id}
             onClick={(e) => { e.stopPropagation(); setSelectedAnnotation(ann); setOpenNoteId(null); }}
@@ -1259,14 +1286,12 @@ const PDFViewer = () => {
           />
         );
 
-        /* ── Note ── */
         if (ann.type === 'note') {
           const isOpen    = openNoteId === ann._id;
           const isEditing = editingNoteId === ann._id;
 
           return (
             <React.Fragment key={ann._id}>
-              {/* Highlight behind selected area */}
               <div style={{
                 position: 'absolute',
                 left: `${x * 100}%`, top: `${y * 100}%`,
@@ -1276,7 +1301,6 @@ const PDFViewer = () => {
                 pointerEvents: 'none',
               }} />
 
-              {/* Note icon */}
               <div
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1298,7 +1322,6 @@ const PDFViewer = () => {
                 <NoteIcon color={ann.color || '#FFFF00'} />
               </div>
 
-              {/* Note popup */}
               {isOpen && (
                 <div
                   onMouseDown={(e) => e.stopPropagation()}
@@ -1311,28 +1334,23 @@ const PDFViewer = () => {
                     boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
                     overflow: 'visible', position: 'relative',
                   }}>
-                    {/* Header bar */}
                     <div style={{
                       display: 'flex', justifyContent: 'flex-end', alignItems: 'center',
                       padding: '8px 10px 0', gap: 8, position: 'relative',
                       background: `color-mix(in srgb, ${ann.color || '#FFFF00'} 60%, white)`,
                       borderRadius: '8px 8px 0 0',
                     }}>
-                      {/* ··· menu */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowNoteMenu(v => !v); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 16, color: '#888', padding: '0 4px', lineHeight: 1, letterSpacing: 1 }}
                         title="Options"
                       >···</button>
-
-                      {/* ✕ close */}
                       <button
                         onClick={(e) => { e.stopPropagation(); setOpenNoteId(null); setShowNoteMenu(false); setEditingNoteId(null); }}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 15, color: '#888', padding: '0 2px', lineHeight: 1 }}
                         title="Close"
                       >✕</button>
 
-                      {/* Dropdown */}
                       {showNoteMenu && (
                         <div
                           onMouseDown={(e) => e.stopPropagation()}
@@ -1359,22 +1377,17 @@ const PDFViewer = () => {
                       )}
                     </div>
 
-                    {/* Body */}
                     <div style={{ padding: '8px 16px 12px', minHeight: 120 }}>
                       {isEditing ? (
                         <textarea
                           autoFocus value={noteEditText}
-                          onChange={(e) =>{
+                          onChange={(e) => {
                             const text = e.target.value;
                             setNoteEditText(text);
-
                             setAnnotations(prev =>
-                              prev.map(a =>
-                                a._id === ann._id ? { ...a, content: text } : a )
+                              prev.map(a => a._id === ann._id ? { ...a, content: text } : a)
                             );
                           }}
-
-                          
                           style={{ width: '100%', minHeight: 100, border: 'none', background: 'transparent', fontSize: 14, fontFamily: 'inherit', resize: 'none', outline: 'none', color: '#333', boxSizing: 'border-box' }}
                           placeholder="Enter your comment here..."
                         />
@@ -1385,11 +1398,10 @@ const PDFViewer = () => {
                       )}
                     </div>
 
-                    {/* Checkmark save */}
                     {isEditing && (
                       <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '0 12px 10px' }}>
                         <button
-                          onClick={(e) => { e.stopPropagation();  saveNoteEdit(ann._id, noteEditText);}}
+                          onClick={(e) => { e.stopPropagation(); saveNoteEdit(ann._id, noteEditText); }}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#555' }}
                           title="Save"
                         >✓</button>
@@ -1475,7 +1487,6 @@ const PDFViewer = () => {
     <>
       <Navbar />
 
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: 90, left: '50%', transform: 'translateX(-50%)',
@@ -1499,7 +1510,6 @@ const PDFViewer = () => {
           background: '#fff', padding: '12px 20px', borderRadius: 8,
           boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
         }}>
-          {/* Left: tools */}
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-start', gap: 8, alignItems: 'center' }}>
             <button onClick={() => handleToolClick('highlight')} style={btnBase(currentTool === 'highlight')}>Highlight</button>
             <button onClick={() => handleToolClick('note')}      style={btnBase(currentTool === 'note')}>Note</button>
@@ -1510,14 +1520,12 @@ const PDFViewer = () => {
             />
           </div>
 
-          {/* Center: zoom */}
           <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
             <button onClick={zoomOut} disabled={scale <= MIN_SCALE} style={navBtn(scale <= MIN_SCALE)}>−</button>
             <span style={{ fontSize: 12, color: '#333', minWidth: 50, textAlign: 'center' }}>{Math.round(scale * 100)}%</span>
             <button onClick={zoomIn}  disabled={scale >= MAX_SCALE} style={navBtn(scale >= MAX_SCALE)}>+</button>
           </div>
 
-          {/* Right: fullscreen + pagination */}
           <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end', gap: 8, alignItems: 'center' }}>
             <button onClick={toggleFullscreen} style={navBtn(false)} title="Fullscreen">⛶</button>
             <button disabled={pageNumber <= 1} onClick={() => setPageNumber(p => p - 1)} style={navBtn(pageNumber <= 1)} title="Previous page (←)">◀</button>
@@ -1536,7 +1544,12 @@ const PDFViewer = () => {
           }}
         >
           <div style={{ position: 'relative', display: 'inline-block' }}>
-            <Document file={pdfUrl} onLoadSuccess={onDocumentLoadSuccess} loading="Loading PDF...">
+            <Document
+              key={pdfUrl}  // ← forces react-pdf to fully remount when URL changes
+              file={pdfUrl}
+              onLoadSuccess={onDocumentLoadSuccess}
+              loading="Loading PDF..."
+            >
               <Page
                 pageNumber={pageNumber}
                 scale={scale}
@@ -1545,7 +1558,6 @@ const PDFViewer = () => {
               />
             </Document>
 
-            {/* Drag-to-select overlay */}
             <div
               ref={overlayRef}
               style={{
@@ -1555,7 +1567,6 @@ const PDFViewer = () => {
               }}
               onMouseDown={handleOverlayMouseDown}
             >
-              {/* Live drag preview */}
               {dragPreview && dragPreview.width > 0 && (
                 <div style={{
                   position: 'absolute',
@@ -1566,7 +1577,6 @@ const PDFViewer = () => {
                 }} />
               )}
 
-              {/* Confirmed selection */}
               {selection && (
                 <div style={{
                   position: 'absolute',
