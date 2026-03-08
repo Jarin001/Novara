@@ -20,9 +20,8 @@ const Bibtex = ({ papers = [], libraries = [], sharedLibraries = [] }) => {
     location.state?.selectedLibrary || searchParams.get("library") || "all";
 
   // Get libraries and papers from location state or props
-  const stateLibraries = location.state?.libraries || libraries;
-  const stateSharedLibraries =
-    location.state?.sharedLibraries || sharedLibraries;
+  const stateLibraries = location.state?.myLibraries || location.state?.libraries || libraries;
+  const stateSharedLibraries = location.state?.sharedWithOthers || location.state?.sharedWithMe || location.state?.sharedLibraries || sharedLibraries;
   const statePapers = location.state?.papers || papers;
   const [allCopied, setAllCopied] = useState(false);
 
