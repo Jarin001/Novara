@@ -10,7 +10,7 @@ const annotationSchema = new mongoose.Schema(
 
     type: {
       type: String,
-      enum: ["highlight", "note", "underline"],
+      enum: ["highlight", "note"],
       required: true
     },
 

@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { resolvePdfUrl } = require("./pdfResolver.service");
 
 const BASE_URL = "https://api.semanticscholar.org/recommendations/v1/papers";
 
@@ -10,9 +11,10 @@ const FIELDS = [
   "publicationDate",
   "fieldsOfStudy",
   "citationCount",
-  "abstract"
+  "abstract",
+  "openAccessPdf",
+  "externalIds"
 ].join(",");
-
 
 exports.getRelatedPapers = async ({ paperId, from = "recent", limit = 15, fields = FIELDS }) => {
   const headers = {
@@ -27,22 +29,38 @@ exports.getRelatedPapers = async ({ paperId, from = "recent", limit = 15, fields
 
   try {
     const res = await axios.get(`${BASE_URL}/forpaper/${encodeURIComponent(paperId)}`, { headers, params });
-
     const papers = res.data.recommendedPapers || [];
 
-    const formattedPapers = papers.map(p => ({
-      paperId: p.paperId,
-      title: p.title,
-      authors: p.authors?.map(a => ({
-        authorId: a.authorId,
-        name: a.name
-      })) || [],
-      year: p.year,
-      publicationDate: p.publicationDate,
-      fieldsOfStudy: p.fieldsOfStudy || [],
-      citationCount: p.citationCount || 0,
-      abstract: p.abstract || []
-    }));
+    const formattedPapers = await Promise.all(
+      papers.map(async (p) => {
+        const pdf = await resolvePdfUrl(p);
+
+        const resolvedPdfUrl =
+          (pdf.url && typeof pdf.url === 'string' && pdf.url.startsWith('http'))
+            ? pdf.url
+            : (p.openAccessPdf?.url && typeof p.openAccessPdf.url === 'string' && p.openAccessPdf.url.startsWith('http'))
+              ? p.openAccessPdf.url
+              : '';
+
+        return {
+          paperId: p.paperId,
+          title: p.title,
+          authors: p.authors?.map(a => ({
+            authorId: a.authorId,
+            name: a.name
+          })) || [],
+          year: p.year,
+          publicationDate: p.publicationDate,
+          fieldsOfStudy: p.fieldsOfStudy || [],
+          citationCount: p.citationCount || 0,
+          abstract: p.abstract || "",
+          pdfUrl: resolvedPdfUrl,
+          openAccessPdf: p.openAccessPdf || null,
+          externalIds: p.externalIds || {},
+          pdfSource: pdf.status
+        };
+      })
+    );
 
     return { data: formattedPapers };
   } catch (error) {
