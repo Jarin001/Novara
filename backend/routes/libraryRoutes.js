@@ -11,7 +11,9 @@ const {
   deleteLibrary,
   shareLibrary,             
   acceptSharedLibrary,      
-  declineSharedLibrary 
+  declineSharedLibrary,
+  leaveLibrary,
+  removeCollaborator 
 } = require('../controllers/libraryController');
 
 const {
@@ -30,10 +32,13 @@ router.post('/', createLibrary);                    // Create library
 router.get('/', getUserLibraries);                  // Get all user's libraries (my + shared)
 router.get('/:library_id', getLibrary);             // Get single library
 router.put('/:library_id', updateLibrary);          // Update library 
+router.delete("/:library_id/leave", leaveLibrary);
+router.delete("/:library_id/remove/:user_id", removeCollaborator);
 router.delete('/:library_id', deleteLibrary);       // Delete library (ONLY owner)
 
 
 // Library sharing
+
 router.post('/:library_id/share', shareLibrary);         // Share library with another user
 router.post('/:library_id/accept', acceptSharedLibrary); // Accept shared library
 router.post('/:library_id/decline', declineSharedLibrary); // Decline shared library

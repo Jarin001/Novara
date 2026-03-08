@@ -3192,6 +3192,133 @@ const ResearchLibrary = () => {
     }
   };
 
+  // Remove collaborator from library
+  const handleRemoveCollaborator = async (collaboratorUserId, collaboratorName) => {
+    console.log("Removing collaborator:", { collaboratorUserId, collaboratorName });
+    
+    if (!window.confirm(`Are you sure you want to remove ${collaboratorName} from this library?`)) {
+      return;
+    }
+
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      console.log("API Call - Library ID:", editingLibrary.id, "Collaborator ID:", collaboratorUserId);
+      
+      const response = await fetch(
+        `${API_BASE_URL}/api/libraries/${editingLibrary.id}/remove/${collaboratorUserId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      console.log("Response status:", response.status);
+      
+      if (!response.ok) {
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch {
+          errorData = { message: response.statusText };
+        }
+        throw new Error(errorData.message || "Failed to remove collaborator");
+      }
+
+      const data = await response.json();
+      console.log("Success response:", data);
+
+      // Update the editing library by removing the collaborator from both arrays
+      setEditingLibrary((prev) => ({
+        ...prev,
+        collaborators: prev.collaborators?.filter((collab) => {
+          const id = collab.user_id || collab.id;
+          return String(id) !== String(collaboratorUserId);
+        }),
+        shared_with: prev.shared_with?.filter((collab) => {
+          const id = collab.user_id || collab.id;
+          return String(id) !== String(collaboratorUserId);
+        }),
+      }));
+
+      // Also update sharedWithOthers array
+      setSharedWithOthers((prev) =>
+        prev.map((lib) =>
+          lib.id === editingLibrary.id
+            ? {
+                ...lib,
+                collaborators: lib.collaborators?.filter((collab) => {
+                  const id = collab.user_id || collab.id;
+                  return String(id) !== String(collaboratorUserId);
+                }),
+                shared_with: lib.shared_with?.filter((collab) => {
+                  const id = collab.user_id || collab.id;
+                  return String(id) !== String(collaboratorUserId);
+                }),
+              }
+            : lib
+        )
+      );
+
+      setError("");
+      alert(`${collaboratorName} has been removed from the library`);
+    } catch (err) {
+      console.error("Error removing collaborator:", err);
+      setError(err.message || "Failed to remove collaborator");
+      alert(`Error: ${err.message || "Failed to remove collaborator"}`);
+    }
+  };
+
+  // Leave library (for shared with me libraries)
+  const handleLeaveLibrary = async (id) => {
+    if (!window.confirm("Are you sure you want to leave this library?")) {
+      return;
+    }
+
+    try {
+      const token = getAuthToken();
+      if (!token) {
+        navigate("/login");
+        return;
+      }
+
+      const response = await fetch(`${API_BASE_URL}/api/libraries/${id}/leave`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Failed to leave library");
+      }
+
+      // Remove library from sharedWithMe array
+      setSharedWithMe((prev) => prev.filter((lib) => lib.id !== id));
+
+      if (selectedLibrary === id) {
+        setSelectedLibrary("all");
+      }
+
+      setShowEditSidebar(false);
+      setEditingLibrary(null);
+      setError("");
+      alert("You have successfully left the library");
+    } catch (err) {
+      console.error("Error leaving library:", err);
+      setError(err.message || "Failed to leave library");
+      alert(`Error: ${err.message || "Failed to leave library"}`);
+    }
+  };
+
   // Handle share button click
   const handleShareClick = () => {
     // Find the current library object
@@ -5629,6 +5756,8 @@ const ResearchLibrary = () => {
                     {(editingLibrary.collaborators || editingLibrary.shared_with || []).map((collab, idx) => {
                       // Handle different field name formats
                       const name = collab.user_name || collab.name || collab.email || "Unknown User";
+                      const collabUserId = collab.user_id || collab.id;
+                      
                       return (
                         <div
                           key={idx}
@@ -5645,14 +5774,55 @@ const ResearchLibrary = () => {
                           <span style={{ color: "#111827", fontWeight: 500 }}>
                             {name}
                           </span>
-                          <span
-                            style={{
-                              fontSize: "0.8rem",
-                              color: "#6b7280",
-                            }}
-                          >
-                            Collaborator
-                          </span>
+                          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                            <span
+                              style={{
+                                fontSize: "0.8rem",
+                                color: "#6b7280",
+                              }}
+                            >
+                              Collaborator
+                            </span>
+                            {editingLibrary.role === "creator" && (
+                              <div
+                                onClick={() => handleRemoveCollaborator(collabUserId, name)}
+                                title="Remove collaborator"
+                                style={{
+                                  cursor: "pointer",
+                                  padding: "4px",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  color: "#dc2626",
+                                  transition: "all 0.2s",
+                                }}
+                                onMouseOver={(e) => {
+                                  e.currentTarget.style.color = "#991b1b";
+                                  e.currentTarget.style.transform = "scale(1.2)";
+                                }}
+                                onMouseOut={(e) => {
+                                  e.currentTarget.style.color = "#dc2626";
+                                  e.currentTarget.style.transform = "scale(1)";
+                                }}
+                              >
+                                <svg
+                                  width="18"
+                                  height="18"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <polyline points="3 6 5 6 21 6"></polyline>
+                                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                                </svg>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -5755,6 +5925,40 @@ const ResearchLibrary = () => {
                   }}
                 >
                   Delete Library
+                </button>
+              </div>
+            )}
+
+            {/* Leave Library Button - Only for collaborators */}
+            {editingLibrary.role !== "creator" && (
+              <div
+                style={{
+                  padding: "0 24px 20px 24px",
+                  background: "white",
+                }}
+              >
+                <button
+                  onClick={() => handleLeaveLibrary(editingLibrary.id)}
+                  style={{
+                    width: "100%",
+                    padding: "10px 16px",
+                    background: "#fee2e2",
+                    color: "#991b1b",
+                    border: "1px solid #fecaca",
+                    borderRadius: "6px",
+                    fontSize: "0.9rem",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s",
+                  }}
+                  onMouseOver={(e) => {
+                    e.currentTarget.style.background = "#fecaca";
+                  }}
+                  onMouseOut={(e) => {
+                    e.currentTarget.style.background = "#fee2e2";
+                  }}
+                >
+                  Leave Library
                 </button>
               </div>
             )}

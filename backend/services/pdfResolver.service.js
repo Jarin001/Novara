@@ -1,15 +1,36 @@
+// const axios = require("axios");
+
+// const isValidPdfUrl = async (url) => {
+//   try {
+//     const response = await axios.head(url, {
+//       maxRedirects: 5,
+//       timeout: 15000,
+//       validateStatus: (status) => status >= 200 && status < 400
+//     });
+
+//     const contentType = response.headers["content-type"] || "";
+//     return contentType.toLowerCase().startsWith("application/pdf");
+//   } catch {
+//     return false;
+//   }
+// };
+
 const axios = require("axios");
 
 const isValidPdfUrl = async (url) => {
   try {
-    const response = await axios.head(url, {
+    const response = await axios.get(url, {
+      responseType: "arraybuffer",
       maxRedirects: 5,
       timeout: 15000,
-      validateStatus: (status) => status >= 200 && status < 400
+      headers: {
+        Range: "bytes=0-10"
+      }
     });
 
-    const contentType = response.headers["content-type"] || "";
-    return contentType.toLowerCase().startsWith("application/pdf");
+    const firstBytes = Buffer.from(response.data).toString("utf8");
+
+    return firstBytes.startsWith("%PDF");
   } catch {
     return false;
   }
