@@ -21,6 +21,15 @@ const annotationSchema = new mongoose.Schema(
       height: { type: Number, required: true }
     },
 
+    replies: [
+      {
+        text: { type: String, default: '' },
+        userId: { type: String },
+        userName: { type: String },
+        createdAt: { type: Date, default: Date.now },
+      }
+    ],
+
     content: { type: String, default: "" },
     color: { type: String, default: "#FFFF00" }, // default highlight color
     isDeleted: { type: Boolean, default: false }
