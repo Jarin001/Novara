@@ -250,3 +250,6 @@ CREATE TABLE user_reading_status (
 CREATE INDEX idx_user_reading_status_user_id ON user_reading_status(user_id);
 CREATE INDEX idx_user_reading_status_library_id ON user_reading_status(library_id);
 CREATE INDEX idx_user_reading_status_paper_id ON user_reading_status(paper_id);
+
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS social_links TEXT[] DEFAULT '{}';
