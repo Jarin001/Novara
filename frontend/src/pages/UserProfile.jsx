@@ -21,11 +21,11 @@ import {
 } from '../services/paperService';
 
 
-import { FiCamera, FiEdit2 } from 'react-icons/fi'; 
+import { FiCamera, FiEdit2 } from 'react-icons/fi';
 
 // Import the bookmark and citation icons (for ResultsPage-style paper display)
 import bookmarkIcon from "../images/bookmark.png";
-import invertedCommasIcon from "../images/inverted-commas.png"; 
+import invertedCommasIcon from "../images/inverted-commas.png";
 
 // Add this CSS for the abstract display
 const additionalStyles = `
@@ -52,10 +52,10 @@ if (typeof document !== 'undefined') {
 const UserProfile = () => {
   const navigate = useNavigate();
   const { userId } = useParams();
-  
+
   // Get refreshUserData from context to update navbar
   const { refreshUserData } = useUser();
-  
+
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [showProfilePictureMenu, setShowProfilePictureMenu] = useState(false);
@@ -125,6 +125,59 @@ const UserProfile = () => {
     profile_picture_url: null
   });
 
+  // Add this function in UserProfile component (inside the component, before the return statement)
+  const getSocialIcon = (url) => {
+    if (url.includes('github')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#333">
+          <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.03-2.682-.103-.253-.447-1.27.098-2.646 0 0 .84-.269 2.75 1.025.8-.223 1.65-.334 2.5-.334.85 0 1.7.111 2.5.334 1.91-1.294 2.75-1.025 2.75-1.025.545 1.376.201 2.393.099 2.646.64.698 1.03 1.591 1.03 2.682 0 3.841-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+        </svg>
+      );
+    }
+    if (url.includes('linkedin')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#0A66C2">
+          <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451c.979 0 1.771-.773 1.771-1.729V1.729C24 .774 23.204 0 22.225 0z" />
+        </svg>
+      );
+    }
+    if (url.includes('twitter') || url.includes('x.com')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#1DA1F2">
+          <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+        </svg>
+      );
+    }
+    if (url.includes('scholar') || url.includes('semantic')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#4285F4">
+          <path d="M12 2L2 7v2l10 5 10-5V7l-10-5zm0 4.2L5.5 7 12 9.8 18.5 7 12 6.2zM4 12v5l8 4 8-4v-5l-8 4-8-4z" />
+        </svg>
+      );
+    }
+    if (url.includes('orcid')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#A6CE39">
+          <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zM7.5 17.5H5V6.5h2.5v11zm9.25-6.25c0 1.381-1.119 2.5-2.5 2.5s-2.5-1.119-2.5-2.5v-2.5h-2.5v9h2.5v-2.5c.5.5 1.119 1 2.5 1 2.5 0 5-2.5 5-5v-5h-2.5v5zM10 5h2.5v2.5H10V5z" />
+        </svg>
+      );
+    }
+    if (url.includes('medium')) {
+      return (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#000000">
+          <path d="M2.846 6.887c.03-.295-.083-.586-.303-.784l-2.24-2.7v-.403h6.958l5.378 11.795 4.728-11.795h6.633v.403l-1.916 1.837c-.165.126-.247.333-.213.538v13.5c-.034.205.048.412.213.538l1.87 1.837v.403h-9.41v-.403l1.937-1.882c.19-.19.19-.247.19-.538v-10.91l-5.39 13.688h-.729l-6.275-13.688v9.174c-.052.385.076.774.347 1.052l2.52 3.058v.403h-7.148v-.403l2.52-3.058c.27-.278.39-.667.32-1.052v-10.61z" />
+        </svg>
+      );
+    }
+    // Default link icon
+    return (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="#666">
+        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+    );
+  };
+
   /**
    * Fetch user publications (for own profile)
    */
@@ -156,7 +209,7 @@ const UserProfile = () => {
   const fetchReadingProgress = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      
+
       const response = await fetch(
         `${process.env.REACT_APP_BACKEND_URL}/api/user/papers`,
         {
@@ -183,7 +236,7 @@ const UserProfile = () => {
       const statusCounts = papers.reduce((acc, paper) => {
         // Get all reading statuses for this paper across libraries
         const statuses = paper.reading_statuses || [];
-        
+
         // If paper is in multiple libraries, prioritize the most advanced status
         // Priority: read > in_progress > unread
         let primaryStatus = 'unread';
@@ -192,7 +245,7 @@ const UserProfile = () => {
         } else if (statuses.includes('in_progress')) {
           primaryStatus = 'in_progress';
         }
-        
+
         acc[primaryStatus] = (acc[primaryStatus] || 0) + 1;
         return acc;
       }, {});
@@ -355,12 +408,12 @@ const UserProfile = () => {
     try {
       const token = localStorage.getItem('access_token');
       const headers = {};
-      
+
       // Include auth token if available (backend will use it to detect if viewing own profile)
       if (token) {
         headers['Authorization'] = `Bearer ${token}`;
       }
-      
+
       console.log('fetchPublicProfile: Fetching from:', `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`);
       const response = await fetch(
         `${process.env.REACT_APP_BACKEND_URL}/api/users/profile/${targetUserId}`,
@@ -400,11 +453,11 @@ const UserProfile = () => {
           const profileResponse = await fetchPublicProfile(userId);
           console.log('UserProfile: Received profile response:', profileResponse);
           const publicProfile = profileResponse.user;
-          
+
           // Trust the backend's isOwnProfile flag
           const isOwn = publicProfile.isOwnProfile || false;
           setIsOwnProfile(isOwn);
-          
+
           if (isOwn) {
             // This is our own profile - we have publications but might want email
             setIsAuthenticated(true);
@@ -414,13 +467,14 @@ const UserProfile = () => {
               affiliation: publicProfile.affiliation || "",
               institution: publicProfile.affiliation || "",
               researchInterests: publicProfile.research_interests || [],
+              socialLinks: publicProfile.socialLinks || [],
               joinedDate: publicProfile.joinedDate || "",
               profile_picture_url: publicProfile.profile_picture_url || null,
               publications: publicProfile.publications || [],
               totalPapers: publicProfile.totalPapers || 0,
               mostCitedPapers: publicProfile.mostCitedPapers || [],
             }));
-            
+
             // Fetch additional own-profile data (email, reading stats)
             try {
               const fullProfile = await getUserProfile();
@@ -430,7 +484,7 @@ const UserProfile = () => {
                 email: fullProfile.email || ""
               }));
               await fetchReadingProgress();
-              
+
               // Fetch follow stats for own profile
               if (userId) {
                 await fetchFollowStatus(userId);
@@ -442,13 +496,14 @@ const UserProfile = () => {
             // Viewing someone else's profile
             setIsOwnProfile(false);
             setIsAuthenticated(false);
-            
+
             setUserData(prev => ({
               ...prev,
               name: publicProfile.name || "",
               affiliation: publicProfile.affiliation || "",
               institution: publicProfile.affiliation || "",
               researchInterests: publicProfile.research_interests || [],
+              socialLinks: publicProfile.socialLinks || [],
               joinedDate: publicProfile.joinedDate || "",
               profile_picture_url: publicProfile.profile_picture_url || null,
               publications: publicProfile.publications || [],
@@ -462,7 +517,7 @@ const UserProfile = () => {
               await fetchFollowStatus(userId);
             }
           }
-          
+
         } else {
           // VIEWING OWN PROFILE via /profile route (Auth required)
           const token = localStorage.getItem('access_token');
@@ -474,9 +529,9 @@ const UserProfile = () => {
 
           setIsOwnProfile(true);
           setIsAuthenticated(true);
-          
+
           const profile = await getUserProfile();
-          
+
           setUserData(prev => ({
             ...prev,
             name: profile.name || "",
@@ -485,7 +540,8 @@ const UserProfile = () => {
             affiliation: profile.affiliation || "",
             institution: profile.affiliation || "",
             researchInterests: profile.research_interests || [],
-            joinedDate: profile.created_at 
+            socialLinks: profile.socialLinks || [],
+            joinedDate: profile.created_at
               ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
               : "",
             profile_picture_url: profile.profile_picture_url || null
@@ -493,7 +549,7 @@ const UserProfile = () => {
 
           await fetchPublications();
           await fetchReadingProgress();
-          
+
           // Fetch follow stats for own profile too
           if (profile.id) {
             await fetchFollowStatus(profile.id);
@@ -527,7 +583,7 @@ const UserProfile = () => {
         console.log('Skipping library fetch - not own profile');
         return; // Only fetch for own profile
       }
-      
+
       const token = localStorage.getItem('access_token');
       if (!token) {
         console.log('Skipping library fetch - no token');
@@ -548,30 +604,30 @@ const UserProfile = () => {
         if (response.ok) {
           const data = await response.json();
           console.log(' User libraries fetched on mount:', data);
-          
+
           // Handle both response formats - same as PaperDetails
           let libraries = [];
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
-            libraries = data.my_libraries.map(lib => ({ 
-              id: lib.id, 
-              name: lib.name, 
-              role: lib.role, 
-              paper_count: lib.paper_count 
+            libraries = data.my_libraries.map(lib => ({
+              id: lib.id,
+              name: lib.name,
+              role: lib.role,
+              paper_count: lib.paper_count
             }));
           }
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
-            libraries = [...libraries, ...data.shared_with_me.map(lib => ({ 
-              id: lib.id, 
-              name: lib.name, 
-              role: lib.role, 
-              paper_count: lib.paper_count 
+            libraries = [...libraries, ...data.shared_with_me.map(lib => ({
+              id: lib.id,
+              name: lib.name,
+              role: lib.role,
+              paper_count: lib.paper_count
             }))];
           }
           // Fallback for old format
           if (libraries.length === 0 && data.libraries && Array.isArray(data.libraries)) {
             libraries = data.libraries;
           }
-          
+
           console.log('Libraries loaded on mount:', libraries.length, libraries);
           setUserLibraries(libraries);
         } else if (response.status === 401) {
@@ -626,6 +682,7 @@ const UserProfile = () => {
         name: updatedData.name,
         affiliation: updatedData.affiliation,
         researchInterests: updatedData.researchInterests,
+        socialLinks: updatedData.socialLinks, // ADD THIS LINE
         institution: updatedData.affiliation
       }));
 
@@ -741,25 +798,25 @@ const UserProfile = () => {
   // CITATION MODAL FUNCTIONS (from PaperDetails) 
   const openCite = async (paper) => {
     if (!paper || (!paper.paperId && !paper.s2_paper_id && !paper.id)) return;
-    
+
     const paperIdToUse = paper.paperId || paper.s2_paper_id || paper.id;
-    
+
     setCiteItem(paper);
     setCiteOpen(true);
     setCitationLoading(true);
     setCitationFormats([]);
     setSelectedFormat('bibtex');
     setCopied(false);
-    
+
     try {
       console.log(`Fetching citations for paper: ${paperIdToUse}`);
       const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/citations/${paperIdToUse}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log("Citations fetched:", data);
         setCitationFormats(data.data || []);
-        
+
         // Set default format to first available or bibtex
         if (data.data && data.data.length > 0) {
           setSelectedFormat(data.data[0].id || 'bibtex');
@@ -789,7 +846,7 @@ const UserProfile = () => {
 
   const copyCitation = async () => {
     let txt = '';
-    
+
     // Try to get citation from backend format
     if (citationFormats && citationFormats.length > 0) {
       const selectedFormatObj = citationFormats.find(f => f.id === selectedFormat);
@@ -805,13 +862,13 @@ const UserProfile = () => {
         }
       }
     }
-    
+
     // Fallback if not available
     if (!txt && citeItem) {
       const authors = citeItem.authors || 'Unknown Authors';
       const title = citeItem.title || 'Untitled';
       const year = citeItem.year || 'n.d.';
-      
+
       if (selectedFormat === 'bibtex') {
         const safeTitle = (citeItem.title || 'Untitled').replace(/[{}]/g, '');
         txt = `@article{${citeItem.paperId || citeItem.id || 'unknown'},
@@ -821,7 +878,7 @@ const UserProfile = () => {
 }`;
       }
     }
-    
+
     try {
       await navigator.clipboard.writeText(txt);
       setCopied(true);
@@ -839,18 +896,18 @@ const UserProfile = () => {
           selection.removeAllRanges();
           selection.addRange(range);
         }
-        try { 
-          document.execCommand('copy'); 
-          setCopied(true); 
-          setTimeout(() => setCopied(false), 1600); 
-        } catch(_) {}
+        try {
+          document.execCommand('copy');
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        } catch (_) { }
       }
     }
   };
 
   const downloadCitation = () => {
     let content = '';
-    
+
     // Try to get BibTeX from backend format
     if (citationFormats && citationFormats.length > 0) {
       const bibTexFormat = citationFormats.find(f => f.id === 'bibtex');
@@ -858,7 +915,7 @@ const UserProfile = () => {
         content = bibTexFormat.value || '';
       }
     }
-    
+
     // Fallback if not available
     if (!content && citeItem) {
       const authors = citeItem.authors || 'Unknown Authors';
@@ -871,10 +928,10 @@ const UserProfile = () => {
   year = {${year}}
 }`;
     }
-    
+
     const sanitizeFilename = (s = '') => s.replace(/[^a-z0-9\.\-\_]/gi, '-').slice(0, 120);
     const name = sanitizeFilename((citeItem && citeItem.title) || 'paper') + '.bib';
-    
+
     const blob = new Blob([content], { type: 'application/x-bibtex' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1163,7 +1220,7 @@ const UserProfile = () => {
                           {userData.name ? userData.name.charAt(0).toUpperCase() : '?'}
                         </div>
                       )}
-                      
+
                       {/* Camera icon with dropdown menu - ONLY FOR OWN PROFILE */}
                       {isOwnProfile && (
                         <>
@@ -1179,8 +1236,8 @@ const UserProfile = () => {
                                   setShowProfilePictureMenu(!showProfilePictureMenu);
                                 }
                               }}
-                              style={{ 
-                                cursor: 'pointer', 
+                              style={{
+                                cursor: 'pointer',
                                 opacity: uploadingPicture ? 0.5 : 1,
                                 pointerEvents: uploadingPicture ? 'none' : 'auto'
                               }}
@@ -1194,10 +1251,10 @@ const UserProfile = () => {
                                 <FiCamera size={18} />
                               )}
                             </div>
-                            
+
                             {/* Dropdown menu - only show if profile picture exists */}
                             {showProfilePictureMenu && !uploadingPicture && userData.profile_picture_url && (
-                              <div 
+                              <div
                                 className="position-absolute bg-white rounded shadow-sm"
                                 style={{
                                   top: '50%',
@@ -1214,7 +1271,7 @@ const UserProfile = () => {
                                   onClick={() => {
                                     document.getElementById('profilePictureInput').click();
                                   }}
-                                  style={{ 
+                                  style={{
                                     cursor: 'pointer',
                                     padding: '6px 10px',
                                     fontSize: '13px',
@@ -1228,7 +1285,7 @@ const UserProfile = () => {
                                 <button
                                   className="w-100 text-start border-0 bg-white text-danger"
                                   onClick={handleRemoveProfilePicture}
-                                  style={{ 
+                                  style={{
                                     cursor: 'pointer',
                                     padding: '6px 10px',
                                     fontSize: '13px',
@@ -1243,7 +1300,7 @@ const UserProfile = () => {
                               </div>
                             )}
                           </div>
-                          
+
                           <input
                             type="file"
                             id="profilePictureInput"
@@ -1310,10 +1367,10 @@ const UserProfile = () => {
                               }} />
                             ) : (
                               <span>
-                                {followStatus.isFollowing 
-                                  ? 'Following' 
-                                  : followStatus.isFollower 
-                                    ? 'Follow Back' 
+                                {followStatus.isFollowing
+                                  ? 'Following'
+                                  : followStatus.isFollower
+                                    ? 'Follow Back'
                                     : 'Follow'
                                 }
                               </span>
@@ -1340,13 +1397,149 @@ const UserProfile = () => {
                         <span className="small">Verified email at {userData.email}</span>
                       </div>
                     )}
+                    {/* Social Links - Professional */}
+                    {userData.socialLinks && userData.socialLinks.length > 0 && (
+                      <div className="mb-4">
+                        <div className="text-muted small fw-semibold mb-2" style={{
+                          color: '#5f6368',
+                          letterSpacing: '0.3px',
+                          textTransform: 'uppercase',
+                          fontSize: '11px'
+                        }}>
+                          SOCIAL
+                        </div>
+                        <div className="d-flex gap-3 flex-wrap">
+                          {userData.socialLinks.map((link, idx) => {
+                            // Extract username from URL
+                            const urlParts = link.split('/').filter(Boolean);
+                            const username = urlParts[urlParts.length - 1] || '';
 
+                            // Determine platform
+                            let platform = 'link';
+                            let platformName = '';
+                            let iconColor = '#666';
+
+                            if (link.includes('github')) {
+                              platform = 'github';
+                              platformName = 'GitHub';
+                              iconColor = '#333';
+                            } else if (link.includes('linkedin')) {
+                              platform = 'linkedin';
+                              platformName = 'LinkedIn';
+                              iconColor = '#0A66C2';
+                            } else if (link.includes('twitter') || link.includes('x.com')) {
+                              platform = 'twitter';
+                              platformName = 'X';
+                              iconColor = '#1DA1F2';
+                            } else if (link.includes('scholar')) {
+                              platform = 'scholar';
+                              platformName = 'Scholar';
+                              iconColor = '#4285F4';
+                            } else if (link.includes('orcid')) {
+                              platform = 'orcid';
+                              platformName = 'ORCID';
+                              iconColor = '#A6CE39';
+                            } else if (link.includes('medium')) {
+                              platform = 'medium';
+                              platformName = 'Medium';
+                              iconColor = '#000';
+                            }
+
+                            // Show username only if it's short and clean
+                            const displayName = username.length > 0 && username.length <= 20
+                              ? `${platformName} / ${username}`
+                              : platformName;
+
+                            return (
+                              <a
+                                key={idx}
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  textDecoration: 'none',
+                                  color: '#3c4043',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  borderBottom: '1px solid transparent',
+                                  transition: 'all 0.2s ease',
+                                  paddingBottom: '1px'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderBottomColor = '#3c4043';
+                                  e.currentTarget.style.opacity = '0.75';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderBottomColor = 'transparent';
+                                  e.currentTarget.style.opacity = '1';
+                                }}
+                              >
+                                {/* SVG Icon */}
+                                <span style={{ display: 'flex', alignItems: 'center', color: iconColor }}>
+                                  {platform === 'github' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.03-2.682-.103-.253-.447-1.27.098-2.646 0 0 .84-.269 2.75 1.025.8-.223 1.65-.334 2.5-.334.85 0 1.7.111 2.5.334 1.91-1.294 2.75-1.025 2.75-1.025.545 1.376.201 2.393.099 2.646.64.698 1.03 1.591 1.03 2.682 0 3.841-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'linkedin' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451c.979 0 1.771-.773 1.771-1.729V1.729C24 .774 23.204 0 22.225 0z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'twitter' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'scholar' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 2L2 7v2l10 5 10-5V7l-10-5zm0 4.2L5.5 7 12 9.8 18.5 7 12 6.2zM4 12v5l8 4 8-4v-5l-8 4-8-4z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'orcid' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zM7.5 17.5H5V6.5h2.5v11zm9.25-6.25c0 1.381-1.119 2.5-2.5 2.5s-2.5-1.119-2.5-2.5v-2.5h-2.5v9h2.5v-2.5c.5.5 1.119 1 2.5 1 2.5 0 5-2.5 5-5v-5h-2.5v5zM10 5h2.5v2.5H10V5z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'medium' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M2.846 6.887c.03-.295-.083-.586-.303-.784l-2.24-2.7v-.403h6.958l5.378 11.795 4.728-11.795h6.633v.403l-1.916 1.837c-.165.126-.247.333-.213.538v13.5c-.034.205.048.412.213.538l1.87 1.837v.403h-9.41v-.403l1.937-1.882c.19-.19.19-.247.19-.538v-10.91l-5.39 13.688h-.729l-6.275-13.688v9.174c-.052.385.076.774.347 1.052l2.52 3.058v.403h-7.148v-.403l2.52-3.058c.27-.278.39-.667.32-1.052v-10.61z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'link' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                    </svg>
+                                  )}
+                                </span>
+
+                                {/* Display name */}
+                                <span>{displayName}</span>
+                              </a>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Research Interests with Header */}
                     {userData.researchInterests.length > 0 && (
                       <div className="mb-3">
-                        <div className="text-muted small fw-semibold mb-2">Research Interests</div>
+                        <div className="text-muted small fw-semibold mb-2" style={{
+                          color: '#5f6368',
+                          letterSpacing: '0.3px',
+                          textTransform: 'uppercase',
+                          fontSize: '11px'
+                        }}>
+                          RESEARCH INTERESTS
+                        </div>
                         <div className="d-flex gap-2 flex-wrap">
                           {userData.researchInterests.map((interest, idx) => (
-                            <span key={idx} className="badge research-interest-badge">
+                            <span key={idx} className="research-interest-badge">
                               {interest}
                             </span>
                           ))}
@@ -1421,14 +1614,33 @@ const UserProfile = () => {
                       {userData.publications.length} papers
                     </span>
                   </div>
-                  
+
                   {/* Upload Paper button - ONLY FOR OWN PROFILE */}
                   {isOwnProfile && (
                     <button
-                      className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
+                      className="btn btn-outline-primary fw-semibold d-flex align-items-center gap-2"
                       onClick={() => setIsUploadModalOpen(true)}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        whiteSpace: 'nowrap',
+                        borderWidth: '1px',
+                        borderRadius: '4px',
+                        borderColor: '#1f5e3a',
+                        color: '#1f5e3a',
+                        backgroundColor: '#fff'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1f5e3a';
+                        e.currentTarget.style.color = '#fff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fff';
+                        e.currentTarget.style.color = '#1f5e3a';
+                      }}
                     >
-                      <span className="fs-5">+</span>
+                      <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>
                       <span>Upload Paper</span>
                     </button>
                   )}
@@ -1439,7 +1651,7 @@ const UserProfile = () => {
                   {userData.publications.length === 0 ? (
                     <div className="text-center py-5">
                       <p className="text-muted">
-                        {isOwnProfile 
+                        {isOwnProfile
                           ? 'No publications yet. Click "Upload Paper" to add your first paper!'
                           : 'No publications yet.'
                         }
@@ -1449,12 +1661,12 @@ const UserProfile = () => {
                     userData.publications.map((pub, idx) => (
                       <div key={pub.id || idx} style={{ padding: "18px 0", borderBottom: "1px solid #eee" }}>
                         {/* Paper Title - Clickable button */}
-                        <button 
+                        <button
                           onClick={() => handlePaperClick(pub)}
-                          style={{ 
-                            color: "#3E513E", 
-                            fontSize: 20, 
-                            fontWeight: 600, 
+                          style={{
+                            color: "#3E513E",
+                            fontSize: 20,
+                            fontWeight: 600,
                             textDecoration: "none",
                             background: "transparent",
                             border: "none",
@@ -1488,7 +1700,7 @@ const UserProfile = () => {
                               )}
                             </>
                           )}
-                          
+
                           {/* 2. Fields of Study - colored badges with links */}
                           {/* Check multiple possible field names: fieldsOfStudy, fields_of_study, fields */}
                           {(pub.fieldsOfStudy || pub.fields_of_study || pub.fields) && (
@@ -1498,12 +1710,12 @@ const UserProfile = () => {
                               return fieldsArray.length > 0 ? (
                                 <>
                                   {fieldsArray.slice(0, 3).map((field, fidx) => (
-                                    <span 
-                                      key={fidx} 
-                                      style={{ 
-                                        background: "#e8f4f8", 
-                                        padding: "4px 8px", 
-                                        borderRadius: 4, 
+                                    <span
+                                      key={fidx}
+                                      style={{
+                                        background: "#e8f4f8",
+                                        padding: "4px 8px",
+                                        borderRadius: 4,
                                         fontSize: 11,
                                         color: "#1a73e8",
                                         fontWeight: 400,
@@ -1514,11 +1726,11 @@ const UserProfile = () => {
                                     </span>
                                   ))}
                                   {fieldsArray.length > 3 && (
-                                    <span 
-                                      style={{ 
-                                        background: "#e8f4f8", 
-                                        padding: "4px 8px", 
-                                        borderRadius: 4, 
+                                    <span
+                                      style={{
+                                        background: "#e8f4f8",
+                                        padding: "4px 8px",
+                                        borderRadius: 4,
                                         fontSize: 11,
                                         color: "#1a73e8",
                                         fontWeight: 400
@@ -1531,7 +1743,7 @@ const UserProfile = () => {
                               ) : null;
                             })()
                           )}
-                          
+
                           {/* 3. Venue - plain gray text, not in badge */}
                           {/* Check multiple possible field names: venue, journal, publication */}
                           {(pub.venue || pub.journal || pub.publication) && (
@@ -1542,7 +1754,7 @@ const UserProfile = () => {
                               })()}
                             </span>
                           )}
-                          
+
                           {/* 4. Date - plain gray text with bullet separator */}
                           {(pub.year || pub.date) && (
                             <span style={{ color: "#5f6368", fontSize: 13 }}>
@@ -1561,9 +1773,9 @@ const UserProfile = () => {
                         {/* Action buttons */}
                         <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
                           {/* Citations Count with inverted commas icon */}
-                          <span style={{ 
-                            display: "inline-flex", 
-                            alignItems: "center", 
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
                             gap: 6,
                             padding: "6px 10px",
                             background: "#f5f5f5",
@@ -1573,17 +1785,17 @@ const UserProfile = () => {
                             color: "#333",
                             fontWeight: 500
                           }}>
-                            <img 
-                              src={invertedCommasIcon} 
-                              alt="Citations" 
+                            <img
+                              src={invertedCommasIcon}
+                              alt="Citations"
                               style={{ width: 12, height: 12, opacity: 0.8 }}
                             />
                             {pub.citationCount || pub.citations || pub.citation_count || 0}
                           </span>
 
                           {/* Save Button with bookmark icon */}
-                          <button 
-                            onClick={() => openSave(pub)} 
+                          <button
+                            onClick={() => openSave(pub)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -1599,17 +1811,17 @@ const UserProfile = () => {
                               whiteSpace: "nowrap"
                             }}
                           >
-                            <img 
-                              src={bookmarkIcon} 
-                              alt="Save" 
+                            <img
+                              src={bookmarkIcon}
+                              alt="Save"
                               style={{ width: 12, height: 12 }}
                             />
                             Save
                           </button>
 
                           {/* Cite Button with inverted commas icon */}
-                          <button 
-                            onClick={() => openCite(pub)} 
+                          <button
+                            onClick={() => openCite(pub)}
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
@@ -1625,9 +1837,9 @@ const UserProfile = () => {
                               whiteSpace: "nowrap"
                             }}
                           >
-                            <img 
-                              src={invertedCommasIcon} 
-                              alt="Cite" 
+                            <img
+                              src={invertedCommasIcon}
+                              alt="Cite"
                               style={{ width: 12, height: 12 }}
                             />
                             Cite
@@ -1737,46 +1949,46 @@ const UserProfile = () => {
 
       {/* Save Modal - Same as ResultsPage */}
       {saveOpen && saveItem && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 2000 
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000
         }}>
-          <div 
-            style={{ 
-              width: '500px', 
-              maxWidth: '90vw', 
-              background: '#fff', 
-              borderRadius: 8, 
-              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
-              overflow: 'hidden' 
+          <div
+            style={{
+              width: '500px',
+              maxWidth: '90vw',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+              overflow: 'hidden'
             }}>
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: '20px 24px', 
-              borderBottom: '1px solid #e0e0e0' 
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid #e0e0e0'
             }}>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>
                 Save to Library
               </h2>
-              <button 
-                onClick={closeSave} 
-                style={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: 20, 
-                  background: '#3E513E', 
-                  color: '#fff', 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  fontSize: 20, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
+              <button
+                onClick={closeSave}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  background: '#3E513E',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
                 ✕
@@ -1794,11 +2006,11 @@ const UserProfile = () => {
               </div>
 
               <div style={{ marginBottom: 20 }}>
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between', 
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 12 
+                  marginBottom: 12
                 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, color: '#444' }}>
                     Select Libraries
@@ -1829,8 +2041,8 @@ const UserProfile = () => {
                     No libraries yet. Create one to get started!
                   </div>
                 ) : (
-                  <div style={{ 
-                    maxHeight: 280, 
+                  <div style={{
+                    maxHeight: 280,
                     overflowY: 'auto',
                     border: '1px solid #e0e0e0',
                     borderRadius: 4
@@ -1862,7 +2074,7 @@ const UserProfile = () => {
                         <input
                           type="checkbox"
                           checked={selectedLibraries.some(l => l.id === lib.id)}
-                          onChange={() => {}}
+                          onChange={() => { }}
                           style={{ cursor: 'pointer' }}
                         />
                         <div style={{ flex: 1 }}>
@@ -1880,7 +2092,7 @@ const UserProfile = () => {
               </div>
 
               {showNewLibraryModal && (
-                <div style={{ 
+                <div style={{
                   marginBottom: 20,
                   padding: 16,
                   background: '#f8f9fa',
@@ -1970,46 +2182,46 @@ const UserProfile = () => {
 
       {/* Citation Modal - Same as PaperDetails */}
       {citeOpen && (
-        <div style={{ 
-          position: 'fixed', 
-          top: 0, left: 0, right: 0, bottom: 0, 
-          background: 'rgba(0,0,0,0.5)', 
-          display: 'flex', alignItems: 'center', justifyContent: 'center', 
-          zIndex: 2000 
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 2000
         }}>
-          <div 
+          <div
             className="cite-modal"
-            style={{ 
-              width: '580px', 
-              maxWidth: '90vw', 
-              background: '#fff', 
-              borderRadius: 8, 
-              boxShadow: '0 10px 40px rgba(0,0,0,0.2)', 
-              overflow: 'hidden' 
+            style={{
+              width: '580px',
+              maxWidth: '90vw',
+              background: '#fff',
+              borderRadius: 8,
+              boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+              overflow: 'hidden'
             }}>
             {/* Header */}
-            <div style={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              padding: '20px 24px', 
-              borderBottom: '1px solid #e0e0e0' 
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '20px 24px',
+              borderBottom: '1px solid #e0e0e0'
             }}>
               <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Cite Paper</h2>
-              <button 
-                onClick={closeCite} 
-                style={{ 
-                  width: 40, 
-                  height: 40, 
-                  borderRadius: 20, 
-                  background: '#3E513E', 
-                  color: '#fff', 
-                  border: 'none', 
-                  cursor: 'pointer', 
-                  fontSize: 20, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center' 
+              <button
+                onClick={closeCite}
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 20,
+                  background: '#3E513E',
+                  color: '#fff',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontSize: 20,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
                 }}
               >
                 ✕
@@ -2023,7 +2235,7 @@ const UserProfile = () => {
                   Loading citation formats...
                 </div>
               )}
-              
+
               {!citationLoading && citationFormats.length > 0 && (
                 <>
                   {/* Format tabs */}
@@ -2147,7 +2359,7 @@ const UserProfile = () => {
                   {copied && <span style={{ color: '#0b8043', fontWeight: 600, fontSize: 13, marginLeft: 8 }}>Copied!</span>}
                 </>
               )}
-              
+
               {!citationLoading && citationFormats.length === 0 && (
                 <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999' }}>
                   No citation formats available
@@ -2284,8 +2496,8 @@ const UserProfile = () => {
                               />
                             ) : (
                               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </div>
@@ -2355,8 +2567,8 @@ const UserProfile = () => {
                               />
                             ) : (
                               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M12 12C14.7614 12 17 9.76142 17 7C17 4.23858 14.7614 2 12 2C9.23858 2 7 4.23858 7 7C7 9.76142 9.23858 12 12 12Z" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                                <path d="M20 21C20 18.8783 19.1571 16.8434 17.6569 15.3431C16.1566 13.8429 14.1217 13 12 13C9.87827 13 7.84344 13.8429 6.34315 15.3431C4.84285 16.8434 4 18.8783 4 21" stroke="#999" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                               </svg>
                             )}
                           </div>

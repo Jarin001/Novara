@@ -11,7 +11,7 @@ const getUserProfile = async (req, res) => {
 
     const { data, error } = await supabase
       .from('users')
-      .select('id, name, email, profile_picture_url, affiliation, research_interests, created_at, updated_at')
+      .select('id, name, email, profile_picture_url, affiliation, research_interests, social_links, created_at, updated_at')
       .eq('auth_id', authId)
       .single();
 
@@ -37,12 +37,13 @@ const updateUserProfile = async (req, res) => {
   try {
     const authId = req.user.id;
     const supabase = req.supabase;
-    const { name, affiliation, researchInterests } = req.body;
+    const { name, affiliation, researchInterests, socialLinks } = req.body;
 
     const updates = {};
     if (name) updates.name = name;
     if (affiliation !== undefined) updates.affiliation = affiliation;
     if (researchInterests !== undefined) updates.research_interests = researchInterests;
+    if (socialLinks !== undefined) updates.social_links = socialLinks; 
 
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ 
@@ -153,7 +154,6 @@ const removeProfilePicture = async (req, res) => {
 
 
 // Get public profile of any user with publications
- 
 const getPublicUserProfile = async (req, res) => {
   try {
     const { user_id } = req.params;
@@ -184,7 +184,7 @@ const getPublicUserProfile = async (req, res) => {
     // Use the imported supabase instance (always available)
     const { data: userData, error: userError } = await supabase
       .from('users')
-      .select('id, auth_id, name, profile_picture_url, affiliation, research_interests, created_at')
+      .select('id, auth_id, name, profile_picture_url, affiliation, research_interests, social_links, created_at')
       .eq('id', user_id)
       .single();
 
@@ -246,7 +246,7 @@ const getPublicUserProfile = async (req, res) => {
           s2_paper_id: pub.papers.s2_paper_id,
           title: pub.papers.title,
           authors: authors,
-          abstract: abstract,  // ✅ FROM MONGODB
+          abstract: abstract,
           citation_count: pub.papers.citation_count || 0,
           year: pub.papers.published_date 
             ? new Date(pub.papers.published_date).getFullYear() 
@@ -263,13 +263,14 @@ const getPublicUserProfile = async (req, res) => {
       .sort((a, b) => b.citation_count - a.citation_count)
       .slice(0, 3);
 
-    // Build complete public profile response
+    // Build complete public profile response - Include social_links
     const publicProfile = {
       id: userData.id,
       name: userData.name,
       profile_picture_url: userData.profile_picture_url,
       affiliation: userData.affiliation,
       research_interests: userData.research_interests || [],
+      socialLinks: userData.social_links || [], // Add social links
       created_at: userData.created_at,
       joinedDate: userData.created_at 
         ? new Date(userData.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })

@@ -66,6 +66,9 @@ exports.savePaperToLibrary = async (req, res) => {
       reading_status
     );
 
+    // Save personal reading status
+    await PaperService.upsertReadingStatus(supabase, userId, library_id, paper.id, reading_status);
+
     // Save user note (MongoDB)
     await PaperService.saveUserNote(userId, library_id, paper.id, user_note);
 
@@ -120,11 +123,12 @@ exports.getLibraryPapers = async (req, res) => {
 
     const paperIds = papers.map(p => p.papers.id);
 
-    // Get MongoDB data and authors
-    const [contentMap, notes, authorsMap] = await Promise.all([
+    // Get MongoDB data, authors, and personal reading statuses
+    const [contentMap, notes, authorsMap, readingStatusMap] = await Promise.all([
       PaperService.getPaperContents(paperIds),
       PaperService.getUserNotes(userId, library_id, paperIds),
-      AuthorService.getAuthorsForPapers(supabase, paperIds)
+      AuthorService.getAuthorsForPapers(supabase, paperIds),
+      PaperService.getReadingStatuses(supabase, userId, library_id, paperIds)
     ]);
 
     const noteMap = Object.fromEntries(
@@ -134,12 +138,12 @@ exports.getLibraryPapers = async (req, res) => {
     // Combine data
     const result = papers.map(lp => ({
       library_paper_id: lp.id,
-      reading_status: lp.reading_status,
+      reading_status: readingStatusMap[lp.papers.id]?.reading_status || 'unread',
+      last_read_at: readingStatusMap[lp.papers.id]?.last_read_at || null,
       added_at: lp.added_at,
-      last_read_at: lp.last_read_at,
       ...lp.papers,
       authors: authorsMap[lp.papers.id] || [],
-      pdf_url: lp.papers.pdf_url || '', 
+      pdf_url: lp.papers.pdf_url || '',
       abstract: contentMap[lp.papers.id]?.abstract || '',
       bibtex: contentMap[lp.papers.id]?.bibtex || '',
       user_note: noteMap[lp.papers.id.toString()]?.userNote || ''
@@ -185,15 +189,13 @@ exports.getAllUserPapers = async (req, res) => {
       return res.json({ papers: [] });
     }
 
-    // Get all papers from these libraries
+    // Get all papers from these libraries (no reading_status here anymore)
     const { data: libraryPapers } = await supabase
       .from('library_papers')
       .select(`
         paper_id,
         library_id,
         added_at,
-        reading_status,
-        last_read_at,
         papers (
           id,
           s2_paper_id,
@@ -201,7 +203,8 @@ exports.getAllUserPapers = async (req, res) => {
           venue,
           year,
           citation_count,
-          fields_of_study
+          fields_of_study,
+          pdf_url
         )
       `)
       .in('library_id', libraryIds)
@@ -214,6 +217,27 @@ exports.getAllUserPapers = async (req, res) => {
     // Remove duplicates and aggregate
     const uniquePapers = PaperService.removeDuplicatesAndAggregate(libraryPapers);
     const paperIds = uniquePapers.map(p => p.paper_id);
+
+    // Fetch personal reading statuses from user_reading_status
+    const { data: readingStatuses } = await supabase
+      .from('user_reading_status')
+      .select('paper_id, library_id, reading_status, last_read_at')
+      .eq('user_id', userId)
+      .in('library_id', libraryIds);
+
+    // Map paper_id -> array of statuses across libraries
+    const readingStatusMap = {};
+    const lastReadAtMap = {};
+    readingStatuses?.forEach(rs => {
+      if (!readingStatusMap[rs.paper_id]) readingStatusMap[rs.paper_id] = [];
+      readingStatusMap[rs.paper_id].push(rs.reading_status);
+
+      // Keep the most recent last_read_at
+      if (!lastReadAtMap[rs.paper_id] || 
+        new Date(rs.last_read_at) > new Date(lastReadAtMap[rs.paper_id])) {
+        lastReadAtMap[rs.paper_id] = rs.last_read_at;
+      }
+    });
 
     // Get MongoDB data and authors
     const [contentMap, notes, authorsMap] = await Promise.all([
@@ -243,13 +267,14 @@ exports.getAllUserPapers = async (req, res) => {
       year: up.paper_data.year,
       citation_count: up.paper_data.citation_count,
       fields_of_study: up.paper_data.fields_of_study,
+      pdf_url: up.paper_data.pdf_url || '',
       authors: authorsMap[up.paper_id] || [],
       abstract: contentMap[up.paper_id]?.abstract || '',
       bibtex: contentMap[up.paper_id]?.bibtex || '',
       first_added_at: up.first_added_at,
-      last_read_at: up.last_read_at,
+      last_read_at: lastReadAtMap[up.paper_id] || null,
       library_ids: up.library_ids,
-      reading_statuses: up.reading_statuses,
+      reading_statuses: readingStatusMap[up.paper_id] || ['unread'],
       notes: notesByPaper[up.paper_id.toString()] || []
     }));
 
@@ -303,8 +328,11 @@ exports.removePaperFromLibrary = async (req, res) => {
       await PaperService.deletePaperContent(paper_id);
     }
 
-    // Always delete the specific library note
-    await PaperService.deleteUserNote(userId, library_id, paper_id);
+    // Delete personal reading status and note
+    await Promise.all([
+      PaperService.deleteReadingStatus(supabase, userId, library_id, paper_id),
+      PaperService.deleteUserNote(userId, library_id, paper_id)
+    ]);
 
     res.json({ message: 'Paper removed from library successfully' });
 
@@ -344,23 +372,12 @@ exports.updateReadingStatus = async (req, res) => {
     // Verify user
     const userId = await LibraryAccessService.getUserId(supabase, authId);
 
-    // Update status
-    const { data: updated, error } = await supabase
-      .from('library_papers')
-      .update({
-        reading_status,
-        last_read_at: new Date().toISOString()
-      })
-      .eq('library_id', library_id)
-      .eq('paper_id', paper_id)
-      .select()
-      .single();
-
-    if (error) throw error;
+    // Upsert personal reading status
+    const updated = await PaperService.upsertReadingStatus(supabase, userId, library_id, paper_id, reading_status);
 
     res.json({
       message: 'Reading status updated',
-      library_paper: updated
+      reading_status: updated
     });
 
   } catch (err) {

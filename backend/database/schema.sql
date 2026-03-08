@@ -227,3 +227,29 @@ CREATE TABLE notifications (
 CREATE INDEX idx_notifications_user_id ON notifications(user_id);
 CREATE INDEX idx_notifications_created_at ON notifications(created_at);
 CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read);
+
+ALTER TABLE notifications 
+DROP CONSTRAINT IF EXISTS notifications_type_check;
+
+ALTER TABLE notifications
+ADD CONSTRAINT notifications_type_check 
+CHECK (type IN ('follow', 'follow_back', 'new_publication', 'library_share', 'library_accept', 'library_decline'));
+
+
+CREATE TABLE user_reading_status (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    library_id UUID NOT NULL REFERENCES libraries(id) ON DELETE CASCADE,
+    paper_id UUID NOT NULL REFERENCES papers(id) ON DELETE CASCADE,
+    reading_status VARCHAR(50) CHECK (reading_status IN ('unread', 'in_progress', 'read')) DEFAULT 'unread',
+    last_read_at TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, library_id, paper_id)
+);
+
+CREATE INDEX idx_user_reading_status_user_id ON user_reading_status(user_id);
+CREATE INDEX idx_user_reading_status_library_id ON user_reading_status(library_id);
+CREATE INDEX idx_user_reading_status_paper_id ON user_reading_status(paper_id);
+
+ALTER TABLE users 
+ADD COLUMN IF NOT EXISTS social_links TEXT[] DEFAULT '{}';

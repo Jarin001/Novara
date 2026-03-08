@@ -140,9 +140,22 @@ const Navbar = () => {
     // Navigate based on notification type
     if (notification.type === 'follow' || notification.type === 'follow_back') {
       navigate(`/user/${notification.actor.id}`);
-  } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
-    navigate(`/paper/${notification.s2_paper_id}`);
-  }
+    } else if (notification.type === 'new_publication' && notification.s2_paper_id) {
+      navigate(`/paper/${notification.s2_paper_id}`);
+    } else if (notification.type === 'library_share') {
+      // Only navigate if already accepted (go to specific library)
+      if (notification.status === 'accepted' && notification.reference_id) {
+        navigate(`/library?id=${notification.reference_id}`);
+      }
+      // If pending or declined, don't navigate
+      return;
+    } else if (notification.type === 'library_accept' && notification.reference_id) {
+      // Navigate to the specific library when invitation was accepted
+      navigate(`/library?id=${notification.reference_id}`);
+    } else if (notification.type === 'library_decline') {
+      // Just mark as read, no navigation needed
+      return;
+    }
 
     setNotificationDropdownOpen(false);
   };
@@ -221,6 +234,76 @@ const Navbar = () => {
       }
     } catch (error) {
       console.error('Error deleting notification:', error);
+    }
+  };
+
+  // Handle accepting library share invitation
+  const handleAcceptLibraryShare = async (e, notification) => {
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/libraries/${notification.reference_id}/accept`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to accept library share');
+      }
+
+      // Refetch notifications to get updated status from backend
+      await fetchNotifications();
+      
+      // Decrease unread count if it was unread
+      if (!notification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+    } catch (error) {
+      console.error('Error accepting library share:', error);
+      alert(error.message || 'Failed to accept library invitation');
+    }
+  };
+
+  // Handle declining library share invitation
+  const handleDeclineLibraryShare = async (e, notification) => {
+    e.stopPropagation();
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(
+        `${process.env.REACT_APP_BACKEND_URL}/api/libraries/${notification.reference_id}/decline`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to decline library share');
+      }
+
+      // Refetch notifications to get updated status from backend
+      await fetchNotifications();
+      
+      // Decrease unread count if it was unread
+      if (!notification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
+      }
+      
+    } catch (error) {
+      console.error('Error declining library share:', error);
+      alert(error.message || 'Failed to decline library invitation');
     }
   };
 
@@ -634,6 +717,87 @@ const Navbar = () => {
                               >
                                 {followingFromNotif[notification.actor.id] ? 'Following...' : 'Follow Back'}
                               </button>
+                            )}
+
+                            {/* Library Share Invitation - Accept/Decline Buttons or Status Badge */}
+                            {notification.type === 'library_share' && (
+                              <>
+                                {notification.status === 'accepted' ? (
+                                  // Show "Accepted" badge if already accepted
+                                  <div style={{
+                                    display: 'inline-block',
+                                    padding: '4px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    marginTop: '4px',
+                                    backgroundColor: '#e8f5e9',
+                                    color: '#2e7d32'
+                                  }}>
+                                    ✓ Accepted
+                                  </div>
+                                ) : notification.status === 'declined' ? (
+                                  // Show "Declined" badge if already declined
+                                  <div style={{
+                                    display: 'inline-block',
+                                    padding: '4px 12px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    fontWeight: '600',
+                                    marginTop: '4px',
+                                    backgroundColor: '#fbe9e7',
+                                    color: '#d84315'
+                                  }}>
+                                    ✕ Declined
+                                  </div>
+                                ) : (
+                                  // Show Accept/Decline buttons if pending
+                                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                                    <button
+                                      onClick={(e) => handleAcceptLibraryShare(e, notification)}
+                                      style={{
+                                        padding: '6px 16px',
+                                        backgroundColor: '#3E513E',
+                                        color: '#fff',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => e.target.style.backgroundColor = '#2d3f2d'}
+                                      onMouseLeave={(e) => e.target.style.backgroundColor = '#3E513E'}
+                                    >
+                                      Accept
+                                    </button>
+                                    <button
+                                      onClick={(e) => handleDeclineLibraryShare(e, notification)}
+                                      style={{
+                                        padding: '6px 16px',
+                                        backgroundColor: '#fff',
+                                        color: '#666',
+                                        border: '1px solid #ddd',
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s'
+                                      }}
+                                      onMouseEnter={(e) => {
+                                        e.target.style.backgroundColor = '#f5f5f5';
+                                        e.target.style.borderColor = '#999';
+                                      }}
+                                      onMouseLeave={(e) => {
+                                        e.target.style.backgroundColor = '#fff';
+                                        e.target.style.borderColor = '#ddd';
+                                      }}
+                                    >
+                                      Decline
+                                    </button>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
 
