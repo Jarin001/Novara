@@ -85,102 +85,47 @@ app.use('/api/annotations', annotationRoutes);
 
 /* ─────────────────────────────────────────────────────────────
    PDF URL normaliser
-   Handles known sources that need special treatment:
-   1. arXiv   — rewrite to export.arxiv.org/pdf/{id}
-   2. PubMed  — rewrite to PMC PDF URL
-   3. DOI     — resolve doi.org links to actual PDF
-   4. Semantic Scholar — use openAccessPdf directly
-   5. Everything else  — pass through as-is
 ───────────────────────────────────────────────────────────── */
 const normalisePdfUrl = (url) => {
-  // ── arXiv ────────────────────────────────────────────────
-  // Handles:
-  //   https://arxiv.org/abs/2103.00020
-  //   https://arxiv.org/pdf/2103.00020.pdf
-  //   https://arxiv.org/pdf/2103.00020v2.pdf
-  //   http://arxiv.org/abs/2103.00020
   const arxivMatch = url.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]{4}\.[0-9]+(?:v[0-9]+)?)/i);
   if (arxivMatch) {
     return `https://export.arxiv.org/pdf/${arxivMatch[1]}`;
   }
 
-  // ── PubMed Central ───────────────────────────────────────
-  // Handles:
-  //   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1234567/
-  //   https://www.ncbi.nlm.nih.gov/pmc/articles/PMC1234567/pdf/
   const pmcMatch = url.match(/ncbi\.nlm\.nih\.gov\/pmc\/articles\/(PMC[0-9]+)/i);
   if (pmcMatch) {
     return `https://www.ncbi.nlm.nih.gov/pmc/articles/${pmcMatch[1]}/pdf/`;
   }
 
-  // ── Europe PMC ───────────────────────────────────────────
-  // Handles:
-  //   https://europepmc.org/articles/PMC1234567
   const europePmcMatch = url.match(/europepmc\.org\/articles\/(PMC[0-9]+)/i);
   if (europePmcMatch) {
     return `https://europepmc.org/articles/${europePmcMatch[1]}/pdf/render`;
   }
 
-  // ── Semantic Scholar ─────────────────────────────────────
-  // Handles:
-  //   https://api.semanticscholar.org/...
-  //   https://pdfs.semanticscholar.org/...
-  // These are already direct PDF links — pass through as-is
   if (url.includes('semanticscholar.org')) {
     return url;
   }
 
-  // ── ACL Anthology ────────────────────────────────────────
-  // Handles:
-  //   https://aclanthology.org/2021.acl-long.1
-  //   https://aclanthology.org/2021.acl-long.1.pdf
   const aclMatch = url.match(/aclanthology\.org\/([^\s/?]+?)(?:\.pdf)?$/i);
   if (aclMatch && !url.endsWith('.pdf')) {
     return `https://aclanthology.org/${aclMatch[1]}.pdf`;
   }
 
-  // ── Springer / SpringerLink ──────────────────────────────
-  // Handles:
-  //   https://link.springer.com/article/10.1007/...
-  //   https://link.springer.com/content/pdf/10.1007/...
   const springerArticleMatch = url.match(/link\.springer\.com\/article\/(10\.[0-9]+\/.+)/i);
   if (springerArticleMatch) {
     return `https://link.springer.com/content/pdf/${springerArticleMatch[1]}.pdf`;
   }
 
-  // ── ResearchGate ─────────────────────────────────────────
-  // ResearchGate blocks all scrapers — nothing we can do.
-  // Return null to signal "not fetchable".
-  if (url.includes('researchgate.net')) {
-    return null;
-  }
+  if (url.includes('researchgate.net')) return null;
+  if (url.includes('sciencedirect.com') || url.includes('elsevier.com')) return null;
+  if (url.includes('ieeexplore.ieee.org')) return null;
+  if (url.includes('onlinelibrary.wiley.com')) return null;
 
-  // ── Elsevier / ScienceDirect ─────────────────────────────
-  // ScienceDirect blocks non-subscriber access.
-  // Return null to signal "not fetchable".
-  if (url.includes('sciencedirect.com') || url.includes('elsevier.com')) {
-    return null;
-  }
-
-  // ── IEEE Xplore ──────────────────────────────────────────
-  // IEEE blocks non-subscriber access.
-  // Return null to signal "not fetchable".
-  if (url.includes('ieeexplore.ieee.org')) {
-    return null;
-  }
-
-  // ── Wiley ────────────────────────────────────────────────
-  if (url.includes('onlinelibrary.wiley.com')) {
-    return null;
-  }
-
-  // ── Everything else ──────────────────────────────────────
   return url;
 };
 
 /* ─────────────────────────────────────────────────────────────
-   Internal fetch helper — follows up to 5 redirects manually
-   so we stay in control and always proxy through our server.
+   Internal fetch helper — follows up to 5 redirects
 ───────────────────────────────────────────────────────────── */
 const fetchWithRedirects = (url, options, res, depth = 0) => {
   if (depth > 5) {
@@ -201,24 +146,19 @@ const fetchWithRedirects = (url, options, res, depth = 0) => {
   const request = protocol.get(url, options, (proxyRes) => {
     console.log(`[PDF Proxy] Status: ${proxyRes.statusCode}, Content-Type: ${proxyRes.headers['content-type']}, URL: ${url}`);
 
-    // ── Follow redirects internally ──────────────────────
     if ([301, 302, 303, 307, 308].includes(proxyRes.statusCode)) {
       let redirectUrl = proxyRes.headers['location'];
       if (redirectUrl) {
-        // Handle relative redirects
         if (redirectUrl.startsWith('/')) {
           redirectUrl = `${parsedUrl.protocol}//${parsedUrl.host}${redirectUrl}`;
         }
         console.log(`[PDF Proxy] Redirect (${proxyRes.statusCode}) -> ${redirectUrl}`);
-        // Drain the response body before following redirect
         proxyRes.resume();
-        // Normalise the redirect URL too (e.g. arxiv may redirect to abs page)
         const normalisedRedirect = normalisePdfUrl(redirectUrl) || redirectUrl;
         return fetchWithRedirects(normalisedRedirect, options, res, depth + 1);
       }
     }
 
-    // ── Non-200 upstream ─────────────────────────────────
     if (proxyRes.statusCode !== 200) {
       console.error(`[PDF Proxy] Upstream ${proxyRes.statusCode} for: ${url}`);
       if (!res.headersSent) {
@@ -230,7 +170,6 @@ const fetchWithRedirects = (url, options, res, depth = 0) => {
       return;
     }
 
-    // ── Verify content is actually a PDF ─────────────────
     const contentType = proxyRes.headers['content-type'] || '';
     if (
       !contentType.includes('pdf') &&
@@ -239,7 +178,7 @@ const fetchWithRedirects = (url, options, res, depth = 0) => {
     ) {
       console.error(`[PDF Proxy] Not a PDF. Content-Type: "${contentType}", URL: ${url}`);
       if (!res.headersSent) {
-        proxyRes.resume(); // drain to free socket
+        proxyRes.resume();
         return res.status(400).json({
           error: `URL did not return a PDF (Content-Type: ${contentType})`,
           url,
@@ -248,7 +187,6 @@ const fetchWithRedirects = (url, options, res, depth = 0) => {
       return;
     }
 
-    // ── Stream PDF to client ──────────────────────────────
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Cache-Control', 'public, max-age=3600');
@@ -283,10 +221,8 @@ app.get('/api/pdf-proxy', (req, res) => {
 
   console.log(`[PDF Proxy] Incoming request for: ${url}`);
 
-  // Normalise the URL for known sources
   const fetchUrl = normalisePdfUrl(url);
 
-  // Source is known to be paywalled/blocked
   if (fetchUrl === null) {
     console.warn(`[PDF Proxy] Blocked source: ${url}`);
     return res.status(403).json({
@@ -304,9 +240,9 @@ app.get('/api/pdf-proxy', (req, res) => {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'application/pdf,*/*',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Accept-Encoding': 'identity', // avoid compressed responses that confuse content-type check
+      'Accept-Encoding': 'identity',
     },
-    rejectUnauthorized: false, // fixes SSL cert chain errors
+    rejectUnauthorized: false,
   };
 
   fetchWithRedirects(fetchUrl, options, res);
@@ -326,6 +262,7 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 const server = http.createServer(app);
+
 const io = require('socket.io')(server, {
   cors: {
     origin: '*',
@@ -333,15 +270,20 @@ const io = require('socket.io')(server, {
   }
 });
 
+// ─── THIS IS THE FIX: exposes io to all controllers via req.app.get('io') ───
+app.set('io', io);
+
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   socket.on('joinPaper', ({ paperId }) => {
     socket.join(paperId);
+    console.log(`[Socket] ${socket.id} joined room: ${paperId}`);
   });
 
+  // Kept for safety — but controller now handles all broadcasts directly
   socket.on('annotationChanged', ({ paperId, annotation }) => {
-    io.to(paperId).emit('annotationUpdate', annotation);
+    socket.to(paperId).emit('annotationUpdate', annotation); // socket.to = exclude sender
   });
 
   socket.on('disconnect', () => {
