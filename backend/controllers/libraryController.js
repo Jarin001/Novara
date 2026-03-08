@@ -719,3 +719,131 @@ exports.declineSharedLibrary = async (req, res) => {
     errorHandler(res, err, "Failed to decline shared library");
   }
 };
+
+
+/*leave library*/
+
+exports.leaveLibrary = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabase = req.supabase;
+    const { library_id } = req.params;
+
+    // get current user
+    const { data: userData } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!userData) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // check role
+    const { data: access } = await supabase
+      .from("user_libraries")
+      .select("role")
+      .eq("user_id", userData.id)
+      .eq("library_id", library_id)
+      .single();
+
+    if (!access) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    if (access.role === "creator") {
+      return res.status(400).json({
+        message: "Creator cannot leave their own library. Delete it instead."
+      });
+    }
+
+    // remove collaborator
+    const { error } = await supabase
+      .from("user_libraries")
+      .delete()
+      .eq("user_id", userData.id)
+      .eq("library_id", library_id);
+
+    if (error) throw error;
+
+    res.json({ message: "You left the library" });
+
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, "Failed to leave library");
+  }
+};
+
+
+/*remove colaborators*/
+
+exports.removeCollaborator = async (req, res) => {
+  try {
+    const authId = req.user.id;
+    const supabase = req.supabase;
+
+    const { library_id, user_id } = req.params;
+
+    // get current user
+    const { data: currentUser } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", authId)
+      .single();
+
+    if (!currentUser) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    // check library owner
+    const { data: library } = await supabase
+      .from("libraries")
+      .select("created_by_user_id")
+      .eq("id", library_id)
+      .single();
+
+    if (!library) {
+      return res.status(404).json({ message: "Library not found" });
+    }
+
+    if (library.created_by_user_id !== currentUser.id) {
+      return res.status(403).json({
+        message: "Only the creator can remove collaborators"
+      });
+    }
+
+    // prevent removing creator
+    if (user_id === currentUser.id) {
+      return res.status(400).json({
+        message: "Creator cannot remove themselves"
+      });
+    }
+
+        // Get collaborator's name before deleting
+    const { data: collaborator } = await supabase
+      .from("users")
+      .select("name")
+      .eq("id", user_id)
+      .single();
+
+    if (!collaborator) {
+      return res.status(404).json({ message: "Collaborator not found" });
+    }
+
+    // delete collaborator
+    const { error } = await supabase
+      .from("user_libraries")
+      .delete()
+      .eq("library_id", library_id)
+      .eq("user_id", user_id);
+
+    if (error) throw error;
+
+    res.json({ message: `Collaborator "${collaborator.name}" removed successfully` });
+
+  } catch (err) {
+    console.error(err);
+    errorHandler(res, err, "Failed to remove collaborator");
+  }
+};

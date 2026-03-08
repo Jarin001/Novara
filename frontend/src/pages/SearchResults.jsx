@@ -85,23 +85,18 @@ const SearchResults = () => {
     if (e && e.preventDefault) e.preventDefault();
     setShowSuggestions(false);
     
-    // Navigate based on search type
     if (searchType === "authors") {
       navigate(`/authors?q=${encodeURIComponent(q)}`);
     } else {
-      // For publications, navigate to ResultsPage
       navigate(`/search?q=${encodeURIComponent(q)}&type=${encodeURIComponent(searchType)}`);
     }
   };
 
   const handleSearchTypeChange = (type) => {
     setSearchType(type);
-    
-    // Clear suggestions when changing type
     setSuggestions([]);
     setShowSuggestions(false);
     
-    // If there's a query, navigate immediately when changing type
     if (q.trim()) {
       if (type === "authors") {
         navigate(`/authors?q=${encodeURIComponent(q)}`);
@@ -113,23 +108,26 @@ const SearchResults = () => {
 
   const handleSuggestionClick = (suggestion) => {
     setShowSuggestions(false);
-    
-    // Navigate based on search type
+    setHasUserInteracted(false);
+
     if (searchType === "authors") {
-      // If it's an author suggestion, navigate directly to author profile page
+      // Author suggestion → go directly to author profile
       if (suggestion.type === "author") {
         navigate(`/profile/${suggestion.id}`);
       } else {
-        // If it's a publication suggestion but we're in author mode, search for authors with that name
         navigate(`/authors?q=${encodeURIComponent(suggestion.name || suggestion.title)}`);
       }
     } else {
-      // For publications, navigate to ResultsPage
-      navigate(`/search?q=${encodeURIComponent(suggestion.title)}&type=${encodeURIComponent(searchType)}`);
+      // ── CHANGED: publication suggestion → go directly to paper details page ──
+      if (suggestion.paperId) {
+        navigate(`/paper/${suggestion.paperId}`);
+      } else if (suggestion.title && suggestion.title.trim()) {
+        // Fallback: run a search if there is no paperId
+        navigate(`/search?q=${encodeURIComponent(suggestion.title)}&type=${encodeURIComponent(searchType)}`);
+      }
     }
   };
 
-  // Check if we should show content on this page
   const showAuthorsMessage = searchType === "authors" && initial;
 
   return (
@@ -191,7 +189,7 @@ const SearchResults = () => {
               </button>
             </form>
 
-            {/* Autocomplete Dropdown - Positioned below form */}
+            {/* Autocomplete Dropdown */}
             {showSuggestions && suggestions.length > 0 && (
               <div
                 style={{
@@ -277,7 +275,7 @@ const SearchResults = () => {
                         </div>
                       </>
                     ) : (
-                      // Publication suggestion (original format)
+                      // Publication suggestion
                       <>
                         <div style={{ 
                           width: 40, 
@@ -373,7 +371,6 @@ const SearchResults = () => {
           {!initial && (
             <div style={{ marginTop: 48, textAlign: "center", padding: "40px 20px", color: "#666" }}>
               <div style={{ fontSize: 18, marginBottom: 16 }}></div>
-              
             </div>
           )}
         </div>
