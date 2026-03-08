@@ -669,33 +669,33 @@ const UserProfile = () => {
     };
   }, [showProfilePictureMenu]);
 
-const handleSaveProfile = async (updatedData) => {
-  if (!isOwnProfile) return;
+  const handleSaveProfile = async (updatedData) => {
+    if (!isOwnProfile) return;
 
-  try {
-    setUpdateLoading(true);
+    try {
+      setUpdateLoading(true);
 
-    await updateUserProfile(updatedData);
+      await updateUserProfile(updatedData);
 
-    setUserData(prev => ({
-      ...prev,
-      name: updatedData.name,
-      affiliation: updatedData.affiliation,
-      researchInterests: updatedData.researchInterests,
-      socialLinks: updatedData.socialLinks, // ADD THIS LINE
-      institution: updatedData.affiliation
-    }));
+      setUserData(prev => ({
+        ...prev,
+        name: updatedData.name,
+        affiliation: updatedData.affiliation,
+        researchInterests: updatedData.researchInterests,
+        socialLinks: updatedData.socialLinks, // ADD THIS LINE
+        institution: updatedData.affiliation
+      }));
 
-    alert('Profile updated successfully!');
+      alert('Profile updated successfully!');
 
-  } catch (error) {
-    console.error('Error updating profile:', error);
-    alert(`Failed to update profile: ${error.message}`);
-    throw error;
-  } finally {
-    setUpdateLoading(false);
-  }
-};
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert(`Failed to update profile: ${error.message}`);
+      throw error;
+    } finally {
+      setUpdateLoading(false);
+    }
+  };
 
   const handleProfilePictureChange = async (event) => {
     if (!isOwnProfile) return;
@@ -1397,65 +1397,149 @@ const handleSaveProfile = async (updatedData) => {
                         <span className="small">Verified email at {userData.email}</span>
                       </div>
                     )}
-
-                    {/* Social Links*/}
+                    {/* Social Links - Professional */}
                     {userData.socialLinks && userData.socialLinks.length > 0 && (
-                      <div className="mb-3">
-                        <div className="d-flex gap-2 flex-wrap align-items-center">
-                          {userData.socialLinks.map((link, idx) => (
-                            <a
-                              key={idx}
-                              href={link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="social-link"
-                              style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '6px',
-                                padding: '6px 12px',
-                                backgroundColor: '#f5f5f5',
-                                borderRadius: '20px',
-                                textDecoration: 'none',
-                                color: '#333',
-                                fontSize: '13px',
-                                transition: 'all 0.2s',
-                                border: '1px solid #e0e0e0'
-                              }}
-                              onMouseEnter={(e) => {
-                                e.currentTarget.style.backgroundColor = '#e8f5e9';
-                                e.currentTarget.style.borderColor = '#1f5e3a';
-                              }}
-                              onMouseLeave={(e) => {
-                                e.currentTarget.style.backgroundColor = '#f5f5f5';
-                                e.currentTarget.style.borderColor = '#e0e0e0';
-                              }}
-                            >
-                              {getSocialIcon(link)}
-                              <span>
-                                {link.includes('github') && 'GitHub'}
-                                {link.includes('linkedin') && 'LinkedIn'}
-                                {link.includes('twitter') && 'Twitter'}
-                                {link.includes('scholar') && 'Google Scholar'}
-                                {link.includes('orcid') && 'ORCID'}
-                                {link.includes('medium') && 'Medium'}
-                                {!link.includes('github') && !link.includes('linkedin') &&
-                                  !link.includes('twitter') && !link.includes('scholar') &&
-                                  !link.includes('orcid') && !link.includes('medium') &&
-                                  link.split('/')[2]?.replace('www.', '')}
-                              </span>
-                            </a>
-                          ))}
+                      <div className="mb-4">
+                        <div className="text-muted small fw-semibold mb-2" style={{
+                          color: '#5f6368',
+                          letterSpacing: '0.3px',
+                          textTransform: 'uppercase',
+                          fontSize: '11px'
+                        }}>
+                          SOCIAL
+                        </div>
+                        <div className="d-flex gap-3 flex-wrap">
+                          {userData.socialLinks.map((link, idx) => {
+                            // Extract username from URL
+                            const urlParts = link.split('/').filter(Boolean);
+                            const username = urlParts[urlParts.length - 1] || '';
+
+                            // Determine platform
+                            let platform = 'link';
+                            let platformName = '';
+                            let iconColor = '#666';
+
+                            if (link.includes('github')) {
+                              platform = 'github';
+                              platformName = 'GitHub';
+                              iconColor = '#333';
+                            } else if (link.includes('linkedin')) {
+                              platform = 'linkedin';
+                              platformName = 'LinkedIn';
+                              iconColor = '#0A66C2';
+                            } else if (link.includes('twitter') || link.includes('x.com')) {
+                              platform = 'twitter';
+                              platformName = 'X';
+                              iconColor = '#1DA1F2';
+                            } else if (link.includes('scholar')) {
+                              platform = 'scholar';
+                              platformName = 'Scholar';
+                              iconColor = '#4285F4';
+                            } else if (link.includes('orcid')) {
+                              platform = 'orcid';
+                              platformName = 'ORCID';
+                              iconColor = '#A6CE39';
+                            } else if (link.includes('medium')) {
+                              platform = 'medium';
+                              platformName = 'Medium';
+                              iconColor = '#000';
+                            }
+
+                            // Show username only if it's short and clean
+                            const displayName = username.length > 0 && username.length <= 20
+                              ? `${platformName} / ${username}`
+                              : platformName;
+
+                            return (
+                              <a
+                                key={idx}
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  textDecoration: 'none',
+                                  color: '#3c4043',
+                                  fontSize: '13px',
+                                  fontWeight: '500',
+                                  borderBottom: '1px solid transparent',
+                                  transition: 'all 0.2s ease',
+                                  paddingBottom: '1px'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.borderBottomColor = '#3c4043';
+                                  e.currentTarget.style.opacity = '0.75';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.borderBottomColor = 'transparent';
+                                  e.currentTarget.style.opacity = '1';
+                                }}
+                              >
+                                {/* SVG Icon */}
+                                <span style={{ display: 'flex', alignItems: 'center', color: iconColor }}>
+                                  {platform === 'github' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.008-.866-.013-1.7-2.782.603-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.03-2.682-.103-.253-.447-1.27.098-2.646 0 0 .84-.269 2.75 1.025.8-.223 1.65-.334 2.5-.334.85 0 1.7.111 2.5.334 1.91-1.294 2.75-1.025 2.75-1.025.545 1.376.201 2.393.099 2.646.64.698 1.03 1.591 1.03 2.682 0 3.841-2.337 4.687-4.565 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.418 22 12c0-5.523-4.477-10-10-10z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'linkedin' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451c.979 0 1.771-.773 1.771-1.729V1.729C24 .774 23.204 0 22.225 0z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'twitter' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'scholar' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 2L2 7v2l10 5 10-5V7l-10-5zm0 4.2L5.5 7 12 9.8 18.5 7 12 6.2zM4 12v5l8 4 8-4v-5l-8 4-8-4z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'orcid' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zM7.5 17.5H5V6.5h2.5v11zm9.25-6.25c0 1.381-1.119 2.5-2.5 2.5s-2.5-1.119-2.5-2.5v-2.5h-2.5v9h2.5v-2.5c.5.5 1.119 1 2.5 1 2.5 0 5-2.5 5-5v-5h-2.5v5zM10 5h2.5v2.5H10V5z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'medium' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                      <path d="M2.846 6.887c.03-.295-.083-.586-.303-.784l-2.24-2.7v-.403h6.958l5.378 11.795 4.728-11.795h6.633v.403l-1.916 1.837c-.165.126-.247.333-.213.538v13.5c-.034.205.048.412.213.538l1.87 1.837v.403h-9.41v-.403l1.937-1.882c.19-.19.19-.247.19-.538v-10.91l-5.39 13.688h-.729l-6.275-13.688v9.174c-.052.385.076.774.347 1.052l2.52 3.058v.403h-7.148v-.403l2.52-3.058c.27-.278.39-.667.32-1.052v-10.61z" />
+                                    </svg>
+                                  )}
+                                  {platform === 'link' && (
+                                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                    </svg>
+                                  )}
+                                </span>
+
+                                {/* Display name */}
+                                <span>{displayName}</span>
+                              </a>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
 
+                    {/* Research Interests with Header */}
                     {userData.researchInterests.length > 0 && (
                       <div className="mb-3">
-                        <div className="text-muted small fw-semibold mb-2">Research Interests</div>
+                        <div className="text-muted small fw-semibold mb-2" style={{
+                          color: '#5f6368',
+                          letterSpacing: '0.3px',
+                          textTransform: 'uppercase',
+                          fontSize: '11px'
+                        }}>
+                          RESEARCH INTERESTS
+                        </div>
                         <div className="d-flex gap-2 flex-wrap">
                           {userData.researchInterests.map((interest, idx) => (
-                            <span key={idx} className="badge research-interest-badge">
+                            <span key={idx} className="research-interest-badge">
                               {interest}
                             </span>
                           ))}
@@ -1534,10 +1618,29 @@ const handleSaveProfile = async (updatedData) => {
                   {/* Upload Paper button - ONLY FOR OWN PROFILE */}
                   {isOwnProfile && (
                     <button
-                      className="btn btn-primary fw-semibold d-flex align-items-center gap-2"
+                      className="btn btn-outline-primary fw-semibold d-flex align-items-center gap-2"
                       onClick={() => setIsUploadModalOpen(true)}
+                      style={{
+                        padding: '6px 16px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        whiteSpace: 'nowrap',
+                        borderWidth: '1px',
+                        borderRadius: '4px',
+                        borderColor: '#1f5e3a',
+                        color: '#1f5e3a',
+                        backgroundColor: '#fff'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#1f5e3a';
+                        e.currentTarget.style.color = '#fff';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#fff';
+                        e.currentTarget.style.color = '#1f5e3a';
+                      }}
                     >
-                      <span className="fs-5">+</span>
+                      <span style={{ fontSize: '16px', lineHeight: 1 }}>+</span>
                       <span>Upload Paper</span>
                     </button>
                   )}

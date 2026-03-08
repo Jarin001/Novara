@@ -170,25 +170,36 @@ span.small {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
-  background-color: #f5f5f5;
-  border-radius: 20px;
+  padding: 6px 14px;
+  background-color: #e8f5e9; /* Same light green as research interests */
+  border-radius: 30px;
   text-decoration: none;
-  color: #333;
+  color: #1f5e3a; /* Dark green text */
   font-size: 13px;
-  transition: all 0.2s;
-  border: 1px solid #e0e0e0;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  border: 1px solid #c8e6c9;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .social-link:hover {
-  background-color: #e8f5e9;
+  background-color: #c8e6c9; /* Slightly darker on hover */
   border-color: #1f5e3a;
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(31, 94, 58, 0.1);
+  box-shadow: 0 4px 8px rgba(31, 94, 58, 0.15);
 }
+
+/* Platform-specific icon colors - keep brand colors for icons only */
+.social-link.github svg { color: #333; }
+.social-link.linkedin svg { color: #0A66C2; }
+.social-link.twitter svg { color: #1DA1F2; }
+.social-link.scholar svg { color: #4285F4; }
+.social-link.orcid svg { color: #A6CE39; }
+.social-link.medium svg { color: #000000; }
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .research-interest-badge,
   .social-link {
     padding: 4px 10px;
     font-size: 12px;
@@ -203,18 +214,21 @@ span.small {
 /* Research Interest Badges */
 .research-interest-badge {
   font-size: 13px;
-  color: #ffffff;
-  background-color: #1f5e3a;
-  border: 1px solid #16432a;
+  color: #1f5e3a; /* Dark green text */
+  background-color: #e8f5e9; /* Light green background */
+  border: 1px solid #c8e6c9; /* Subtle border */
   padding: 6px 14px;
   border-radius: 16px;
   cursor: pointer;
-  transition: background-color 0.2s;
+  transition: all 0.2s ease;
   font-weight: 500;
 }
 
 .research-interest-badge:hover {
-  background-color: #16432a;
+  background-color: #c8e6c9; /* Slightly darker on hover */
+  border-color: #1f5e3a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(31, 94, 58, 0.15);
 }
 
 /* Section Titles */
