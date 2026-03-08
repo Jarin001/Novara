@@ -45,12 +45,25 @@ export const getUserProfile = async () => {
     });
     
     const data = await handleResponse(response);
-    return data.user;
+    
+    // IMPORTANT: Map the snake_case from backend to camelCase for frontend
+    return {
+      id: data.user.id,
+      name: data.user.name,
+      email: data.user.email,
+      affiliation: data.user.affiliation,
+      research_interests: data.user.research_interests || [],
+      socialLinks: data.user.social_links || [], // ← Add this line to map social_links to socialLinks
+      profile_picture_url: data.user.profile_picture_url,
+      created_at: data.user.created_at,
+      updated_at: data.user.updated_at
+    };
   } catch (error) {
     console.error('Error fetching user profile:', error);
     throw error;
   }
 };
+
 
 /**
  * Update user profile
