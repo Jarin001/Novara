@@ -660,6 +660,7 @@ const ResearchLibrary = () => {
   const [sortBy, setSortBy] = useState("dateAdded");
   const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
   const [showEditSidebar, setShowEditSidebar] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [editingLibrary, setEditingLibrary] = useState(null);
   const [sharingLibrary, setSharingLibrary] = useState(null);
@@ -1643,30 +1644,52 @@ const ResearchLibrary = () => {
         {/* Sidebar */}
         <div
           style={{
-            width: "256px",
+            width: isSidebarCollapsed ? "40px" : "256px",
             backgroundColor: "white",
             borderRight: "1px solid #e5e7eb",
             display: "flex",
             flexDirection: "column",
+            transition: "width 0.2s ease",
+            overflow: "hidden",
+            flexShrink: 0,
           }}
         >
-          <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb" }}>
-            <h2
+          <div style={{ padding: "16px", borderBottom: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {!isSidebarCollapsed && (
+              <h2
+                style={{
+                  fontSize: "1.0rem",
+                  fontWeight: 600,
+                  color: "#6b7280",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  margin: "0",
+                  textAlign: "left",
+                }}
+              >
+                {/* Libraries */}
+              </h2>
+            )}
+            <button
+              onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
+              title={isSidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
               style={{
-                fontSize: "1.0rem",
-                fontWeight: 600,
+                background: "none",
+                border: "none",
+                cursor: "pointer",
+                padding: "2px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
                 color: "#6b7280",
-                textTransform: "uppercase",
-                letterSpacing: "0.05em",
-                margin: "0",
-                textAlign: "left",
+                marginLeft: isSidebarCollapsed ? "auto" : undefined,
               }}
             >
-              Libraries
-            </h2>
+              {isSidebarCollapsed ? <ChevronRight size={18} /> : <ChevronDown size={18} style={{ transform: "rotate(90deg)" }} />}
+            </button>
           </div>
 
-          <div style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ flex: 1, overflowY: "auto", display: isSidebarCollapsed ? "none" : undefined }}>
             {/* All Papers */}
             <div
               key="all"
@@ -2259,7 +2282,7 @@ const ResearchLibrary = () => {
             )}
           </div>
 
-          <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
+          {!isSidebarCollapsed && <div style={{ padding: "16px", borderTop: "1px solid #e5e7eb" }}>
             <button
               onClick={() => setShowNewLibraryModal(true)}
               style={{
@@ -2283,7 +2306,7 @@ const ResearchLibrary = () => {
               <Plus size={18} />
               New Library
             </button>
-          </div>
+          </div>}
         </div>
 
         {/* Papers List */}
