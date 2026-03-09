@@ -28,7 +28,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import CitationModal from "../components/CitationModal";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, useLocation } from "react-router-dom";
 
 // API Base URL
 const API_BASE_URL =
@@ -682,6 +682,7 @@ const ResearchLibrary = () => {
   const [error, setError] = useState("");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const location = useLocation();
 
   // Get auth token
   const getAuthToken = () => {
@@ -1229,15 +1230,14 @@ const ResearchLibrary = () => {
       }
 
       // Remove library from sharedWithMe array
+
       setSharedWithMe((prev) => prev.filter((lib) => lib.id !== id));
 
-      if (selectedLibrary === id) {
-        setSelectedLibrary("all");
-      }
-
+      setSelectedLibrary("all");
       setShowEditSidebar(false);
       setEditingLibrary(null);
       setError("");
+      navigate("/library"); // clears the ?id= param
       alert("You have successfully left the library");
     } catch (err) {
       console.error("Error leaving library:", err);
@@ -1468,10 +1468,12 @@ const ResearchLibrary = () => {
     fetchLibraries();
   }, []);
 
-  useEffect(() => {
+useEffect(() => {
   const idFromUrl = searchParams.get("id");
-  if (idFromUrl) {
-    setSelectedLibrary(idFromUrl);
+  const idFromState = location.state?.libraryId;
+  const idToSelect = idFromUrl || idFromState;
+  if (idToSelect) {
+    setSelectedLibrary(idToSelect);
   }
 }, [myLibraries, sharedWithOthers, sharedWithMe]);
 
