@@ -65,7 +65,7 @@ const getNotifications = async (req, res) => {
 
     if (libraryShareNotifs.length > 0) {
       const libraryIds = libraryShareNotifs.map(n => n.reference_id);
-      
+
       // Check which libraries the user has access to
       const { data: userLibraries } = await supabaseClient
         .from('user_libraries')
@@ -79,15 +79,15 @@ const getNotifications = async (req, res) => {
 
       notifications.forEach(n => {
         if (n.type === 'library_share' && n.reference_id) {
-          // Check if message indicates it was declined
           if (n.message && n.message.includes('declined the invitation')) {
             n.status = 'declined';
-          }
-          // If user has access to this library, they accepted it
-          else if (acceptedLibraryIds.has(n.reference_id)) {
+          } else if (acceptedLibraryIds.has(n.reference_id)) {
+            n.status = 'accepted';
+          } else if (n.is_read) {
+            // Already read but no access = left or removed, keep as accepted to hide buttons
             n.status = 'accepted';
           }
-          // Otherwise it's still pending
+          // Only show pending if notification is unread and no access yet
         }
       });
     }
