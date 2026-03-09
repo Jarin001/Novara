@@ -2152,7 +2152,7 @@ import {
 } from "lucide-react";
 import Navbar from "../components/Navbar";
 import CitationModal from "../components/CitationModal";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 // API Base URL
 const API_BASE_URL =
@@ -2755,6 +2755,7 @@ const ResearchLibrary = () => {
   });
   const [error, setError] = useState("");
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
 
   // Get auth token
   const getAuthToken = () => {
@@ -3540,6 +3541,13 @@ const ResearchLibrary = () => {
   useEffect(() => {
     fetchLibraries();
   }, []);
+
+  useEffect(() => {
+  const idFromUrl = searchParams.get("id");
+  if (idFromUrl) {
+    setSelectedLibrary(idFromUrl);
+  }
+}, [myLibraries, sharedWithOthers, sharedWithMe]);
 
   // Fetch papers when selected library changes
   useEffect(() => {
