@@ -2141,7 +2141,82 @@ const UserProfile = () => {
         </>
       )}
 
-      {/* Save Modal - Same as ResultsPage */}
+      {/* Create New Library Modal */}
+      {showNewLibraryModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 3000
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: 8,
+            padding: '24px',
+            width: '90%',
+            maxWidth: '400px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: 18, fontWeight: 600, color: '#333' }}>
+              Create New Library
+            </h3>
+            <input
+              type="text"
+              value={newLibraryName}
+              onChange={(e) => setNewLibraryName(e.target.value)}
+              placeholder="Library name"
+              autoFocus
+              onKeyPress={(e) => e.key === 'Enter' && handleCreateLibrary()}
+              style={{
+                width: '100%',
+                padding: '10px 12px',
+                border: '1px solid #ddd',
+                borderRadius: 4,
+                fontSize: 14,
+                marginBottom: '16px',
+                boxSizing: 'border-box',
+                outline: 'none'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setShowNewLibraryModal(false); setNewLibraryName(''); }}
+                style={{
+                  padding: '8px 16px',
+                  background: '#f0f0f0',
+                  color: '#333',
+                  border: '1px solid #ddd',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateLibrary}
+                disabled={!newLibraryName.trim() || creatingLibrary}
+                style={{
+                  padding: '8px 16px',
+                  background: newLibraryName.trim() && !creatingLibrary ? '#3E513E' : '#ccc',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: newLibraryName.trim() && !creatingLibrary ? 'pointer' : 'not-allowed',
+                  fontSize: 12,
+                  fontWeight: 500
+                }}
+              >
+                {creatingLibrary ? 'Creating...' : 'Create'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Modal */}
       {saveOpen && saveItem && (
         <div style={{
           position: 'fixed',
@@ -2151,6 +2226,7 @@ const UserProfile = () => {
           zIndex: 2000
         }}>
           <div
+            className="save-modal"
             style={{
               width: '500px',
               maxWidth: '90vw',
@@ -2166,9 +2242,7 @@ const UserProfile = () => {
               padding: '20px 24px',
               borderBottom: '1px solid #e0e0e0'
             }}>
-              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>
-                Save to Library
-              </h2>
+              <h2 style={{ margin: 0, fontSize: 20, fontWeight: 600, color: '#333' }}>Save to Library</h2>
               <button
                 onClick={closeSave}
                 style={{
@@ -2190,13 +2264,49 @@ const UserProfile = () => {
             </div>
 
             <div style={{ padding: '24px' }}>
-              <div style={{ marginBottom: 24 }}>
-                <div style={{ fontSize: 16, fontWeight: 600, color: '#333', marginBottom: 8 }}>
+              <div style={{ marginBottom: 20 }}>
+                <h3 style={{
+                  margin: 0,
+                  fontSize: 15,
+                  fontWeight: 600,
+                  color: '#333',
+                  marginBottom: 6,
+                  lineHeight: 1.4
+                }}>
                   {saveItem.title}
-                </div>
-                <div style={{ fontSize: 13, color: '#666' }}>
-                  {saveItem.authors}
-                </div>
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: 12,
+                  color: '#666',
+                  lineHeight: 1.4
+                }}>
+                  {(() => {
+                    const authorsArr = Array.isArray(saveItem.authors)
+                      ? saveItem.authors
+                      : typeof saveItem.authors === 'string'
+                        ? saveItem.authors.split(',').map(a => a.trim())
+                        : [];
+                    return authorsArr.slice(0, 2).map(a => typeof a === 'object' ? a.name : a).join(', ')
+                      + (authorsArr.length > 2 ? ' + others' : '');
+                  })()}
+                  {saveItem.venue ? ' • ' + (Array.isArray(saveItem.venue) ? saveItem.venue.join(', ') : saveItem.venue) : ''}
+                  {saveItem.year || saveItem.date ? ' • ' + (saveItem.year || saveItem.date || 'n.d.') : ''}
+                </p>
+                {saveItem.fieldsOfStudy && saveItem.fieldsOfStudy.length > 0 && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                    {saveItem.fieldsOfStudy.slice(0, 3).map((field, idx) => (
+                      <span key={idx} style={{ background: '#e8f4f8', padding: '2px 6px', borderRadius: 3, fontSize: 10, color: '#2c5c6d' }}>
+                        {field}
+                      </span>
+                    ))}
+                    {saveItem.fieldsOfStudy.length > 3 && (
+                      <span style={{ background: '#e8f4f8', padding: '2px 6px', borderRadius: 3, fontSize: 10, color: '#2c5c6d' }}>
+                        +{saveItem.fieldsOfStudy.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div style={{ marginBottom: 20 }}>
@@ -2204,158 +2314,141 @@ const UserProfile = () => {
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: 12
+                  marginBottom: 10
                 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: '#444' }}>
-                    Select Libraries
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#444' }}>
+                    Select libraries to save to:
+                    {paperInLibraries.length > 0 && (
+                      <span style={{ fontSize: 12, color: '#3E513E', fontWeight: 500, marginLeft: 8 }}>
+                        ({paperInLibraries.length} already saved)
+                      </span>
+                    )}
                   </div>
                   <button
                     onClick={() => setShowNewLibraryModal(true)}
                     style={{
-                      background: 'transparent',
-                      border: '1px solid #3E513E',
-                      color: '#3E513E',
+                      fontSize: 12,
+                      padding: '4px 8px',
+                      background: '#f0f0f0',
+                      color: '#333',
+                      border: '1px solid #ddd',
                       borderRadius: 4,
-                      padding: '6px 12px',
-                      fontSize: 13,
-                      fontWeight: 500,
-                      cursor: 'pointer'
+                      cursor: 'pointer',
+                      fontWeight: 500
                     }}
                   >
-                    + New Library
+                    + New
                   </button>
                 </div>
 
-                {librariesLoading ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-                    Loading libraries...
+                {checkingPaperInLibraries ? (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: '#666',
+                    background: '#f9f9f9',
+                    borderRadius: 4,
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    <p style={{ margin: 0, fontSize: 13 }}>Please Wait...</p>
                   </div>
-                ) : checkingPaperInLibraries ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-                    Checking libraries...
-                  </div>
-                ) : userLibraries.length === 0 ? (
-                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
-                    No libraries yet. Create one to get started!
+                ) : availableLibraries.length === 0 ? (
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                    color: '#666',
+                    background: '#f9f9f9',
+                    borderRadius: 4,
+                    border: '1px solid #e0e0e0'
+                  }}>
+                    <p style={{ margin: '0 0 10px 0', fontSize: 13 }}>
+                      You haven't created any libraries yet.
+                    </p>
+                    <button
+                      onClick={() => setShowNewLibraryModal(true)}
+                      style={{
+                        padding: '8px 16px',
+                        background: '#3E513E',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 4,
+                        cursor: 'pointer',
+                        fontSize: 12,
+                        fontWeight: 500
+                      }}
+                    >
+                      Create Library
+                    </button>
                   </div>
                 ) : (
                   <div style={{
-                    maxHeight: 280,
+                    maxHeight: 200,
                     overflowY: 'auto',
                     border: '1px solid #e0e0e0',
                     borderRadius: 4
                   }}>
-                    {userLibraries.map(lib => (
-                      <div
-                        key={lib.id}
-                        onClick={() => toggleLibrarySelection(lib)}
-                        style={{
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          borderBottom: '1px solid #f0f0f0',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                          background: selectedLibraries.some(l => l.id === lib.id) ? '#f0f7f0' : 'white'
-                        }}
-                        onMouseEnter={(e) => {
-                          if (!selectedLibraries.some(l => l.id === lib.id)) {
-                            e.currentTarget.style.background = '#f8f9fa';
-                          }
-                        }}
-                        onMouseLeave={(e) => {
-                          if (!selectedLibraries.some(l => l.id === lib.id)) {
-                            e.currentTarget.style.background = 'white';
-                          }
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedLibraries.some(l => l.id === lib.id)}
-                          onChange={() => { }}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 500, color: '#333' }}>
-                            {lib.name}
-                          </div>
-                          <div style={{ fontSize: 12, color: '#666' }}>
-                            {lib.paper_count || 0} papers
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    {availableLibraries.map((library, index) => {
+                      const isAlreadySaved = paperInLibraries.some(l => l.id === library.id);
+                      const isSelected = selectedLibraries.some(l => l.id === library.id);
+                      return (
+                        <label
+                          key={library.id}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: '10px 14px',
+                            borderBottom: index < availableLibraries.length - 1 ? '1px solid #f0f0f0' : 'none',
+                            cursor: 'pointer',
+                            backgroundColor: isSelected ? '#f0f7f0' : 'transparent',
+                            transition: 'background-color 0.2s',
+                            position: 'relative'
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleLibrarySelection(library)}
+                            style={{ marginRight: 10 }}
+                          />
+                          <span style={{
+                            fontSize: 13,
+                            color: isAlreadySaved ? '#3E513E' : '#333',
+                            fontWeight: isAlreadySaved ? 600 : 400
+                          }}>
+                            {library.name}
+                            {isAlreadySaved && (
+                              <span style={{ fontSize: 11, color: '#666', fontWeight: 400, marginLeft: 8, fontStyle: 'italic' }}>
+                                (already saved)
+                              </span>
+                            )}
+                          </span>
+                          {isAlreadySaved && !isSelected && (
+                            <span style={{
+                              position: 'absolute',
+                              right: '14px',
+                              fontSize: 11,
+                              color: '#d32f2f',
+                              fontWeight: 500,
+                              backgroundColor: '#ffebee',
+                              padding: '2px 6px',
+                              borderRadius: 3
+                            }}>
+                              Will be removed
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
-              {showNewLibraryModal && (
-                <div style={{
-                  marginBottom: 20,
-                  padding: 16,
-                  background: '#f8f9fa',
-                  borderRadius: 4,
-                  border: '1px solid #e0e0e0'
-                }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 12, color: '#333' }}>
-                    Create New Library
-                  </div>
-                  <input
-                    type="text"
-                    value={newLibraryName}
-                    onChange={(e) => setNewLibraryName(e.target.value)}
-                    placeholder="Library name"
-                    style={{
-                      width: '100%',
-                      padding: '8px 12px',
-                      border: '1px solid #d0d0d0',
-                      borderRadius: 4,
-                      fontSize: 14,
-                      marginBottom: 12
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleCreateLibrary();
-                      }
-                    }}
-                  />
-                  <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-                    <button
-                      onClick={() => {
-                        setShowNewLibraryModal(false);
-                        setNewLibraryName('');
-                      }}
-                      style={{
-                        padding: '6px 16px',
-                        background: 'transparent',
-                        border: '1px solid #d0d0d0',
-                        borderRadius: 4,
-                        cursor: 'pointer',
-                        fontSize: 13
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleCreateLibrary}
-                      disabled={creatingLibrary || !newLibraryName.trim()}
-                      style={{
-                        padding: '6px 16px',
-                        background: creatingLibrary || !newLibraryName.trim() ? '#cccccc' : '#3E513E',
-                        color: '#fff',
-                        border: 'none',
-                        borderRadius: 4,
-                        cursor: creatingLibrary || !newLibraryName.trim() ? 'not-allowed' : 'pointer',
-                        fontSize: 13
-                      }}
-                    >
-                      {creatingLibrary ? 'Creating...' : 'Create'}
-                    </button>
-                  </div>
-                </div>
-              )}
+              <div style={{ height: '1px', background: '#e0e0e0', marginBottom: 16 }} />
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 12, color: '#666' }}>
+                  {selectedLibraries.length} of {availableLibraries.length} {selectedLibraries.length === 1 ? 'library' : 'libraries'} selected
+                </div>
                 <button
                   onClick={handleSavePaper}
                   disabled={selectedLibraries.length === 0 && paperInLibraries.length === 0}
