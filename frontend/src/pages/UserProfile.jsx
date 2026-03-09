@@ -94,6 +94,7 @@ const UserProfile = () => {
   const [followersList, setFollowersList] = useState([]);
   const [followingList, setFollowingList] = useState([]);
   const [loadingFollowList, setLoadingFollowList] = useState(false);
+  const [modalFollowStates, setModalFollowStates] = useState({});
 
   // Save modal state (from ResultsPage)
   const [saveOpen, setSaveOpen] = useState(false);
@@ -344,13 +345,27 @@ const UserProfile = () => {
       const response = await fetch(
         `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/followers`
       );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch followers');
-      }
-
+      if (!response.ok) throw new Error('Failed to fetch followers');
       const data = await response.json();
-      setFollowersList(data.followers || []);
+      const followers = data.followers || [];
+      setFollowersList(followers);
+
+      // Seed follow states by cross-referencing who the viewer already follows
+      const token = localStorage.getItem('access_token');
+      if (token && isOwnProfile) {
+        const followingRes = await fetch(
+          `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/following`
+        );
+        if (followingRes.ok) {
+          const followingData = await followingRes.json();
+          const followingIds = new Set((followingData.following || []).map(f => f.id));
+          const seeds = {};
+          followers.forEach(f => {
+            seeds[f.id] = { isFollowing: followingIds.has(f.id), loading: false };
+          });
+          setModalFollowStates(seeds);
+        }
+      }
     } catch (error) {
       console.error('Error fetching followers:', error);
       setFollowersList([]);
@@ -392,11 +407,49 @@ const UserProfile = () => {
 
     setFollowersModalType(type);
     setShowFollowersModal(true);
+    setModalFollowStates({}); // reset on open
 
     if (type === 'followers') {
       await fetchFollowersList(targetUserId);
     } else {
       await fetchFollowingList(targetUserId);
+    }
+  };
+
+  const handleModalFollow = async (e, targetUserId, isCurrentlyFollowing) => {
+    e.stopPropagation();
+
+    setModalFollowStates(prev => ({
+      ...prev,
+      [targetUserId]: { ...prev[targetUserId], loading: true }
+    }));
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const url = `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/${isCurrentlyFollowing ? 'unfollow' : 'follow'}`;
+      const method = isCurrentlyFollowing ? 'DELETE' : 'POST';
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) throw new Error('Failed');
+
+      setModalFollowStates(prev => ({
+        ...prev,
+        [targetUserId]: { isFollowing: !isCurrentlyFollowing, loading: false }
+      }));
+
+      setFollowStatus(prev => ({
+        ...prev,
+        followingCount: isCurrentlyFollowing ? prev.followingCount - 1 : prev.followingCount + 1
+      }));
+    } catch (err) {
+      setModalFollowStates(prev => ({
+        ...prev,
+        [targetUserId]: { ...prev[targetUserId], loading: false }
+      }));
     }
   };
 
@@ -2513,6 +2566,31 @@ const UserProfile = () => {
                               </div>
                             )}
                           </div>
+
+                          {isOwnProfile && (() => {
+                            const state = modalFollowStates[follower.id] || { isFollowing: false, loading: false };
+                            return (
+                              <button
+                                onClick={(e) => handleModalFollow(e, follower.id, state.isFollowing)}
+                                disabled={state.loading}
+                                style={{
+                                  flexShrink: 0,
+                                  padding: '5px 14px',
+                                  borderRadius: '20px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  cursor: state.loading ? 'not-allowed' : 'pointer',
+                                  border: state.isFollowing ? '1px solid #ccc' : '1px solid #3E513E',
+                                  background: state.isFollowing ? '#fff' : '#3E513E',
+                                  color: state.isFollowing ? '#555' : '#fff',
+                                  transition: 'all 0.2s',
+                                  minWidth: '80px'
+                                }}
+                              >
+                                {state.loading ? '...' : state.isFollowing ? 'Following' : 'Follow'}
+                              </button>
+                            );
+                          })()}
                         </div>
                       ))
                     )
@@ -2572,7 +2650,6 @@ const UserProfile = () => {
                               </svg>
                             )}
                           </div>
-
                           {/* User Info */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: '600', fontSize: '15px', color: '#333' }}>
@@ -2584,6 +2661,31 @@ const UserProfile = () => {
                               </div>
                             )}
                           </div>
+
+                          {isOwnProfile && (() => {
+                            const state = modalFollowStates[following.id] || { isFollowing: true, loading: false };
+                            return (
+                              <button
+                                onClick={(e) => handleModalFollow(e, following.id, state.isFollowing)}
+                                disabled={state.loading}
+                                style={{
+                                  flexShrink: 0,
+                                  padding: '5px 14px',
+                                  borderRadius: '20px',
+                                  fontSize: '13px',
+                                  fontWeight: '600',
+                                  cursor: state.loading ? 'not-allowed' : 'pointer',
+                                  border: state.isFollowing ? '1px solid #ccc' : '1px solid #3E513E',
+                                  background: state.isFollowing ? '#fff' : '#3E513E',
+                                  color: state.isFollowing ? '#555' : '#fff',
+                                  transition: 'all 0.2s',
+                                  minWidth: '80px'
+                                }}
+                              >
+                                {state.loading ? '...' : state.isFollowing ? 'Following' : 'Follow'}
+                              </button>
+                            );
+                          })()}
                         </div>
                       ))
                     )

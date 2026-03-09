@@ -493,40 +493,50 @@ exports.shareLibrary = async (req, res) => {
         .json({ message: `Library is already shared with ${recipient?.name || 'this user'}` });
     }
 
-    // Check for existing pending or declined notifications
-    const { data: existingNotification } = await supabaseClient
+    // Check for any existing library_share notifications for this recipient+library
+    const { data: existingNotifications } = await supabaseClient
       .from("notifications")
       .select("id, message")
       .eq("user_id", recipient_id)
-      .eq("actor_id", sender.id)
       .eq("reference_id", library_id)
-      .eq("type", "library_share")
-      .maybeSingle();
+      .eq("type", "library_share");
 
-    // If there's an existing notification
-    if (existingNotification) {
-      // Check if this was a declined invitation (by checking message content)
-      if (existingNotification.message && existingNotification.message.includes('declined the invitation')) {
-        // Delete the old declined notification so we can send a new one
-        await supabaseClient
-          .from("notifications")
-          .delete()
-          .eq("id", existingNotification.id);
-          
-        console.log('Deleted old declined notification, creating new one');
-        // Continue to create new notification below
-      } else {
-        // It's a pending notification
-        const { data: recipient } = await supabaseClient
-          .from("users")
-          .select("name")
-          .eq("id", recipient_id)
-          .single();
-          
-        return res.status(400).json({ 
-          message: `An invitation is already pending for ${recipient?.name || 'this user'}` 
-        });
+    if (existingNotifications && existingNotifications.length > 0) {
+      // Check if any notification is still truly pending (user hasn't left/been removed)
+      const hasPending = existingNotifications.some(n => 
+        n.message && !n.message.includes('declined the invitation')
+      );
+
+      if (hasPending) {
+        // Verify user actually still has no access (could have left or been removed)
+        const { data: currentAccess } = await supabaseClient
+          .from("user_libraries")
+          .select("id")
+          .eq("user_id", recipient_id)
+          .eq("library_id", library_id)
+          .maybeSingle();
+
+        if (currentAccess) {
+          // User still has access — truly duplicate
+          const { data: recipientData } = await supabaseClient
+            .from("users")
+            .select("name")
+            .eq("id", recipient_id)
+            .single();
+
+          return res.status(400).json({
+            message: `An invitation is already pending for ${recipientData?.name || 'this user'}`
+          });
+        }
       }
+
+      // Delete ALL old library_share notifications for this recipient+library
+      await supabaseClient
+        .from("notifications")
+        .delete()
+        .eq("user_id", recipient_id)
+        .eq("reference_id", library_id)
+        .eq("type", "library_share");
     }
 
     // Get library info
@@ -576,14 +586,17 @@ exports.acceptSharedLibrary = async (req, res) => {
 
     if (!recipient) return res.status(404).json({ message: "User not found" });
 
-    // First, get the notification to find who shared it
-    const { data: notification } = await supabaseClient
+    // First, get the most recent notification to find who shared it
+    const { data: notifList } = await supabaseClient
       .from("notifications")
       .select("id, actor_id")
       .eq("user_id", recipient.id)
       .eq("reference_id", library_id)
       .eq("type", "library_share")
-      .single();
+      .order("created_at", { ascending: false })
+      .limit(1);
+
+    const notification = notifList?.[0];
 
     if (!notification || !notification.actor_id) {
       return res.status(404).json({ message: "Library invitation not found" });
