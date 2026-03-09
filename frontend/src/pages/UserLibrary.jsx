@@ -3303,15 +3303,14 @@ const ResearchLibrary = () => {
       }
 
       // Remove library from sharedWithMe array
+
       setSharedWithMe((prev) => prev.filter((lib) => lib.id !== id));
 
-      if (selectedLibrary === id) {
-        setSelectedLibrary("all");
-      }
-
+      setSelectedLibrary("all");
       setShowEditSidebar(false);
       setEditingLibrary(null);
       setError("");
+      navigate("/library"); // clears the ?id= param
       alert("You have successfully left the library");
     } catch (err) {
       console.error("Error leaving library:", err);
