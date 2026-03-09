@@ -610,15 +610,22 @@ const UserProfile = () => {
           const data = await response.json();
           console.log(' User libraries fetched on mount:', data);
 
-          // Handle both response formats - same as PaperDetails
           let libraries = [];
           if (data.my_libraries && Array.isArray(data.my_libraries)) {
             libraries = data.my_libraries.map(lib => ({
               id: lib.id,
               name: lib.name,
-              role: lib.role,
+              role: 'creator',
               paper_count: lib.paper_count
             }));
+          }
+          if (data.shared_with_others && Array.isArray(data.shared_with_others)) {
+            libraries = [...libraries, ...data.shared_with_others.map(lib => ({
+              id: lib.id,
+              name: lib.name,
+              role: 'creator',
+              paper_count: lib.paper_count
+            }))];
           }
           if (data.shared_with_me && Array.isArray(data.shared_with_me)) {
             libraries = [...libraries, ...data.shared_with_me.map(lib => ({
@@ -634,6 +641,7 @@ const UserProfile = () => {
           }
 
           console.log('Libraries loaded on mount:', libraries.length, libraries);
+          setIsAuthenticated(true);
           setUserLibraries(libraries);
         } else if (response.status === 401) {
           console.log('Unauthorized - clearing auth');
