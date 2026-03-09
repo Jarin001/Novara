@@ -2194,6 +2194,7 @@ const ShareLibraryModal = ({
       setError("");
       const token = localStorage.getItem("access_token");
 
+      console.log("Searching for:", searchQuery);
       const response = await fetch(
         `${API_BASE_URL}/api/users/search?query=${encodeURIComponent(searchQuery)}`,
         {
@@ -2203,14 +2204,17 @@ const ShareLibraryModal = ({
         },
       );
 
+      console.log("Search response status:", response.status);
+      
       if (!response.ok) throw new Error("Failed to search users");
 
       const data = await response.json();
-      // Filter out already selected users
-      const filteredResults = (data.authors || []).filter(
-        (user) => !selectedUsers.find((u) => u.id === user.id),
-      );
-      setSearchResults(filteredResults);
+      console.log("Search results received:", data);
+      
+      // Keep all results, don't filter out selected users
+      const results = data.authors || [];
+      console.log("Search results:", results);
+      setSearchResults(results);
     } catch (err) {
       console.error("Error searching users:", err);
       setError("Failed to search users");
@@ -2220,11 +2224,10 @@ const ShareLibraryModal = ({
   };
 
   const handleSelectUser = (user) => {
-    if (!selectedUsers.find((u) => u.id === user.id)) {
+    const isAlreadySelected = selectedUsers.find((u) => u.id === user.id);
+    if (!isAlreadySelected) {
       setSelectedUsers([...selectedUsers, user]);
     }
-    setSearchQuery("");
-    setSearchResults([]);
   };
 
   const handleRemoveUser = (userId) => {
@@ -2405,70 +2408,14 @@ const ShareLibraryModal = ({
           )}
         </div>
 
-        {/* Selected Users */}
-        {selectedUsers.length > 0 && (
-          <div style={{ marginBottom: "16px" }}>
-            <p
-              style={{
-                fontSize: "0.875rem",
-                color: "#374151",
-                fontWeight: 500,
-                marginBottom: "8px",
-              }}
-            >
-              Selected Users ({selectedUsers.length})
-            </p>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {selectedUsers.map((user) => (
-                <div
-                  key={user.id}
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    padding: "4px 8px 4px 12px",
-                    backgroundColor: "#E8EDE8",
-                    borderRadius: "16px",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  <span style={{ color: "#3E513E" }}>{user.name}</span>
-                  <button
-                    onClick={() => handleRemoveUser(user.id)}
-                    style={{
-                      padding: "2px",
-                      border: "none",
-                      background: "transparent",
-                      borderRadius: "50%",
-                      cursor: "pointer",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.backgroundColor =
-                        "rgba(0,0,0,0.1)")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.backgroundColor = "transparent")
-                    }
-                  >
-                    <X size={14} style={{ color: "#3E513E" }} />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Search Input */}
-        <div style={{ marginBottom: "16px", position: "relative" }}>
+        <div style={{ marginBottom: "16px" }}>
           <div style={{ position: "relative" }}>
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search users by name..."
+              placeholder="Search for people and groups"
               style={{
                 width: "100%",
                 padding: "10px 12px 10px 36px",
@@ -2489,124 +2436,190 @@ const ShareLibraryModal = ({
               }}
             />
           </div>
+        </div>
 
-          {/* Search Results Dropdown */}
-          {searchQuery.length >= 2 && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                right: 0,
-                backgroundColor: "white",
-                border: "1px solid #e5e7eb",
-                borderRadius: "8px",
-                marginTop: "4px",
-                maxHeight: "240px",
-                overflowY: "auto",
-                zIndex: 10,
-                boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
-              }}
-            >
-              {loading ? (
-                <div
-                  style={{
-                    padding: "12px",
-                    textAlign: "center",
-                    color: "#6b7280",
-                  }}
-                >
-                  Searching...
-                </div>
-              ) : searchResults.length > 0 ? (
-                searchResults.map((user) => (
-                  <div
-                    key={user.id}
-                    onClick={() => handleSelectUser(user)}
+        {/* Users List with Checkboxes */}
+        <div
+          style={{
+            maxHeight: "300px",
+            overflowY: "auto",
+            marginBottom: "16px",
+            border: "1px solid #e5e7eb",
+            borderRadius: "8px",
+            backgroundColor: "#fafafa",
+          }}
+        >
+          {loading ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+              Searching...
+            </div>
+          ) : searchQuery.length >= 2 && searchResults.length === 0 && selectedUsers.length === 0 ? (
+            <div style={{ padding: "16px", textAlign: "center", color: "#6b7280" }}>
+              No users found
+            </div>
+          ) : searchQuery.length >= 2 ? (
+            // Show selected users first, then search results (excluding duplicates)
+            [
+              ...selectedUsers,
+              ...searchResults.filter(u => !selectedUsers.find(su => su.id === u.id))
+            ].map((user) => (
+              <div
+                key={user.id}
+                style={{
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  borderBottom: "1px solid #e5e7eb",
+                  cursor: "pointer",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f3f4f6";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                {user.profile_picture_url ? (
+                  <img
+                    src={user.profile_picture_url}
+                    alt={user.name}
                     style={{
-                      padding: "10px 12px",
-                      cursor: "pointer",
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      backgroundColor: "#E8EDE8",
                       display: "flex",
                       alignItems: "center",
-                      gap: "8px",
-                      borderBottom: "1px solid #f3f4f6",
+                      justifyContent: "center",
+                      color: "#3E513E",
+                      fontSize: "16px",
+                      fontWeight: 500,
+                      flexShrink: 0,
                     }}
-                    onMouseOver={(e) =>
-                      (e.currentTarget.style.backgroundColor = "#f9fafb")
-                    }
-                    onMouseOut={(e) =>
-                      (e.currentTarget.style.backgroundColor = "white")
-                    }
                   >
-                    {user.profile_picture_url ? (
-                      <img
-                        src={user.profile_picture_url}
-                        alt={user.name}
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          borderRadius: "50%",
-                          objectFit: "cover",
-                        }}
-                      />
-                    ) : (
-                      <div
-                        style={{
-                          width: "32px",
-                          height: "32px",
-                          borderRadius: "50%",
-                          backgroundColor: "#E8EDE8",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#3E513E",
-                          fontSize: "14px",
-                          fontWeight: 500,
-                        }}
-                      >
-                        {user.name.charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: 500,
-                          color: "#111827",
-                        }}
-                      >
-                        {user.name}
-                      </div>
-                      {user.affiliation && (
-                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
-                          {user.affiliation}
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      style={{
-                        padding: "4px",
-                        border: "none",
-                        background: "transparent",
-                        borderRadius: "4px",
-                        cursor: "pointer",
-                      }}
-                    >
-                      <UserPlus size={16} style={{ color: "#3E513E" }} />
-                    </button>
+                    {user.name.charAt(0).toUpperCase()}
                   </div>
-                ))
-              ) : (
-                <div
-                  style={{
-                    padding: "12px",
-                    textAlign: "center",
-                    color: "#6b7280",
-                  }}
-                >
-                  No users found
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>
+                    {user.name}
+                  </div>
+                  {user.affiliation && (
+                    <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                      {user.affiliation}
+                    </div>
+                  )}
                 </div>
-              )}
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.some((u) => u.id === user.id)}
+                  onChange={() => {
+                    const isSelected = selectedUsers.some((u) => u.id === user.id);
+                    if (isSelected) {
+                      handleRemoveUser(user.id);
+                    } else {
+                      handleSelectUser(user);
+                    }
+                  }}
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
+            ))
+          ) : selectedUsers.length > 0 ? (
+            // Show selected users when search is cleared
+            selectedUsers.map((user) => (
+              <div
+                key={user.id}
+                style={{
+                  padding: "12px 16px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  borderBottom: "1px solid #e5e7eb",
+                  cursor: "pointer",
+                }}
+                onMouseOver={(e) => {
+                  e.currentTarget.style.backgroundColor = "#f3f4f6";
+                }}
+                onMouseOut={(e) => {
+                  e.currentTarget.style.backgroundColor = "transparent";
+                }}
+              >
+                {user.profile_picture_url ? (
+                  <img
+                    src={user.profile_picture_url}
+                    alt={user.name}
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      objectFit: "cover",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <div
+                    style={{
+                      width: "40px",
+                      height: "40px",
+                      borderRadius: "50%",
+                      backgroundColor: "#E8EDE8",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#3E513E",
+                      fontSize: "16px",
+                      fontWeight: 500,
+                      flexShrink: 0,
+                    }}
+                  >
+                    {user.name.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: "14px", fontWeight: 500, color: "#111827" }}>
+                    {user.name}
+                  </div>
+                  {user.affiliation && (
+                    <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                      {user.affiliation}
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="checkbox"
+                  checked={true}
+                  onChange={() => {
+                    handleRemoveUser(user.id);
+                  }}
+                  style={{
+                    width: "20px",
+                    height: "20px",
+                    cursor: "pointer",
+                    flexShrink: 0,
+                  }}
+                />
+              </div>
+            ))
+          ) : (
+            <div style={{ padding: "16px", textAlign: "center", color: "#9ca3af", fontSize: "14px" }}>
+              Type to search for users
             </div>
           )}
         </div>
