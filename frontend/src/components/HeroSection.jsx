@@ -9,10 +9,10 @@ export default function HeroSection() {
         {/* HERO TEXT */}
         <div className="hero-text mb-5">
           <h1 className="display-5 fw-bold">
-            Organize your research, effortlessly
+            Your All-in-one Research Companion
           </h1>
           <p className="lead text-muted">
-            Read, annotate, cite, and collaborate on research papers — all in one place.
+            Save papers. Build libraries. Share knowledge.
           </p>
         </div>
 
