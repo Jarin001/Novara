@@ -138,12 +138,28 @@ const IconBtn = ({ onClick, title, hoverColor, children }) => {
 };
 
 /* ─── Avatar ─────────────────────────────────────────────── */
-const Avatar = ({ name = '?', size = 28 }) => {
+const Avatar = ({ name = '?', size = 28, profilePicUrl = null }) => {
+  const [imgError, setImgError] = useState(false);
   const initials = (name || '?').split(' ').filter(Boolean).map(w => w[0]).join('').toUpperCase().slice(0, 2);
   const palette  = ['#4a7c59','#5b6abf','#b5654a','#7c4a7c','#4a7c7c','#8a6f2e','#4a5e7c'];
   let hash = 0;
-  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  for (let i = 0; i < (name || '').length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
   const color = palette[Math.abs(hash) % palette.length];
+
+  if (profilePicUrl && !imgError) {
+    return (
+      <img
+        src={profilePicUrl}
+        alt={name}
+        onError={() => setImgError(true)}
+        style={{
+          width: size, height: size, borderRadius: '50%',
+          objectFit: 'cover', flexShrink: 0, userSelect: 'none',
+          border: '1.5px solid #e8e8e8',
+        }}
+      />
+    );
+  }
   return (
     <div style={{
       width: size, height: size, borderRadius: '50%', background: color, color: '#fff',
@@ -194,8 +210,8 @@ const relativeTime = (dateStr) => {
 /* ═══════════════════════════════════════════════════════════
    NOTE SIDEBAR
 ═══════════════════════════════════════════════════════════ */
-const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply, onDeleteReply, onEditReply, onDeleteNote }) => {
-  const [showComposer, setShowComposer] = useState(false);
+const NoteSidebar = ({ note, currentUserName, currentUserId, currentUserPic, userPicMap, onClose, onAddReply, onDeleteReply, onEditReply, onDeleteNote }) => {
+  const [showComposer, setShowComposer] = useState(true); // auto-open on first open
   const [replyText, setReplyText]       = useState('');
   const [editingIdx, setEditingIdx]     = useState(null);
   const [editingText, setEditingText]   = useState('');
@@ -203,7 +219,13 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
   const editRef     = useRef(null);
   const bottomRef   = useRef(null);
 
-  useEffect(() => { setShowComposer(false); setReplyText(''); setEditingIdx(null); setEditingText(''); }, [note?._id]);
+  // When a new note opens: auto-open composer only if it has no replies yet
+  useEffect(() => {
+    const hasReplies = (note?.replies?.length || 0) > 0;
+    setShowComposer(!hasReplies);
+    setReplyText(''); setEditingIdx(null); setEditingText('');
+  }, [note?._id]);
+
   useEffect(() => { if (showComposer) textareaRef.current?.focus(); }, [showComposer]);
   useEffect(() => { if (editingIdx !== null) editRef.current?.focus(); }, [editingIdx]);
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [note?.replies?.length]);
@@ -219,6 +241,13 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
     setEditingIdx(null); setEditingText('');
   };
 
+  // Close: if note has no replies, auto-delete it then close
+  const handleClose = () => {
+    const hasReplies = (note?.replies?.length || 0) > 0;
+    if (note && !hasReplies) onDeleteNote(note._id);
+    onClose();
+  };
+
   /* empty state */
   if (!note) return (
     <div style={{ width: '100%', background: '#fafafa', borderLeft: '1px solid #e8e8e8', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 32, gap: 12 }}>
@@ -228,7 +257,7 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
         <line x1="16" y1="13" x2="8" y2="13"/>
         <line x1="16" y1="17" x2="8" y2="17"/>
       </svg>
-      <span style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.6, color: '#ccc' }}>Click a note icon<br/>to view its thread</span>
+      <span style={{ fontSize: 12, textAlign: 'center', lineHeight: 1.6, color: '#ccc' }}>No notes created</span>
     </div>
   );
 
@@ -241,14 +270,17 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
       <div style={{ padding: '12px 14px', borderBottom: '1px solid #ececec', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#333', letterSpacing: 0.3 }}>NOTE THREAD</span>
         <div style={{ display: 'flex', gap: 6 }}>
-          <button onClick={() => setShowComposer(v => !v)} title="Add comment" style={{
-            border: `1px solid ${showComposer ? '#3E513E' : '#e0e0e0'}`,
-            background: showComposer ? '#f0f4f0' : 'none',
-            borderRadius: 5, cursor: 'pointer', color: showComposer ? '#3E513E' : '#888',
-            width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 18, transition: 'all 0.15s',
-          }}>+</button>
-          <button onClick={onClose} title="Close" style={{
+          {/* Only show + button if there are already replies (composer auto-opens when empty) */}
+          {replies.length > 0 && (
+            <button onClick={() => setShowComposer(v => !v)} title="Add comment" style={{
+              border: `1px solid ${showComposer ? '#3E513E' : '#e0e0e0'}`,
+              background: showComposer ? '#f0f4f0' : 'none',
+              borderRadius: 5, cursor: 'pointer', color: showComposer ? '#3E513E' : '#888',
+              width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 18, transition: 'all 0.15s',
+            }}>+</button>
+          )}
+          <button onClick={handleClose} title="Close" style={{
             background: 'none', border: '1px solid #e0e0e0', borderRadius: 5,
             cursor: 'pointer', color: '#999', width: 26, height: 26,
             display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
@@ -259,37 +291,14 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
       {/* Thread */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 4px' }}>
 
-        {/* Original note */}
-        <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8e8e8', padding: '12px', marginBottom: 8, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', borderLeft: `4px solid ${note.color || '#FFFF00'}` }}>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <Avatar name={note.userName || '?'} size={26} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 3 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{note.userName || 'Unknown'}</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                  <span style={{ fontSize: 10, color: '#bbb' }}>{relativeTime(note.createdAt)}</span>
-                  {note.userId === currentUserId && (
-                    <IconBtn onClick={() => onDeleteNote(note._id)} title="Delete note" hoverColor="red">
-                      <IconTrash size={13} />
-                    </IconBtn>
-                  )}
-                </div>
-              </div>
-              {note.content?.trim() && (
-                <div style={{ fontSize: 13, color: '#333', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>{note.content}</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Replies */}
+        {/* Replies only — original note card removed */}
         {replies.map((reply, idx) => {
           const isOwner   = reply.userId === currentUserId;
           const isEditing = editingIdx === idx;
           return (
             <div key={idx} style={{ background: '#fff', borderRadius: 10, border: '1px solid #e8e8e8', padding: '10px 12px', marginBottom: 6, marginLeft: 10, boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
               <div style={{ display: 'flex', gap: 8 }}>
-                <Avatar name={reply.userName || '?'} size={22} />
+                <Avatar name={reply.userName || '?'} size={22} profilePicUrl={userPicMap?.[reply.userId] || null} />
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                     <span style={{ fontSize: 12, fontWeight: 700, color: '#222', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -341,7 +350,7 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
         {showComposer && (
           <div style={{ background: '#fff', borderRadius: 10, border: '1px solid #3E513E', padding: '10px 12px', marginBottom: 6, marginLeft: 10, boxShadow: '0 2px 8px rgba(62,81,62,0.1)' }}>
             <div style={{ display: 'flex', gap: 8 }}>
-              <Avatar name={currentUserName} size={22} />
+              <Avatar name={currentUserName} size={22} profilePicUrl={currentUserPic || null} />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#3E513E' }}>{currentUserName}</span>
                 <textarea ref={textareaRef} value={replyText}
@@ -357,7 +366,7 @@ const NoteSidebar = ({ note, currentUserName, currentUserId, onClose, onAddReply
                   onBlur={e => e.target.style.borderColor = '#e0e0e0'}
                 />
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 10, color: '#bbb' }}>⌘↵ to send · Esc to cancel</span>
+                  <span style={{ fontSize: 10, color: '#bbb' }}></span>
                   <div style={{ display: 'flex', gap: 5 }}>
                     <button onClick={() => { setShowComposer(false); setReplyText(''); }}
                       style={{ padding: '4px 10px', background: '#f0f0f0', border: '1px solid #ddd', borderRadius: 5, fontSize: 11, cursor: 'pointer', color: '#555' }}>Cancel</button>
@@ -401,6 +410,7 @@ const PDFViewer = () => {
   const [currentColor, setCurrentColor] = useState('#FFFF00');
   const [selectedAnnotation, setSelectedAnnotation] = useState(null);
   const [hoveredAnnotationId, setHoveredAnnotationId] = useState(null);
+  const [userPicMap, setUserPicMap]     = useState({}); // { userId -> profile_picture_url }
 
   const [sidebarNoteId, setSidebarNoteId] = useState(null);
   const [sidebarWidth, setSidebarWidth]   = useState(300);
@@ -422,6 +432,8 @@ const PDFViewer = () => {
 
   // Resolve once at mount — will be stable for this session
   const { name: currentUserName, id: currentUserId } = resolveCurrentUser();
+  // Current user's profile pic — comes from userPicMap once loaded
+  const currentUserPic = userPicMap[currentUserId] || null;
 
   const sidebarNote = sidebarNoteId
     ? annotations.find(a => a._id === sidebarNoteId) || null
@@ -474,14 +486,40 @@ const PDFViewer = () => {
     return () => { socket.disconnect(); socketRef.current = null; };
   }, [paperId]);
 
-  /* ── Fetch annotations ───────────────────────────────── */
+  /* ── Fetch annotations then profile pictures ────────────── */
   useEffect(() => {
     if (!paperId) return;
     (async () => {
       try {
         const res = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/annotations/${paperId}`);
-        if (res.ok) setAnnotations(await res.json());
-      } catch (e) { console.error(e); }
+        if (!res.ok) return;
+        const data = await res.json();
+        setAnnotations(data);
+
+        // Collect all unique userIds across annotations + their replies
+        const userIds = new Set();
+        data.forEach(a => {
+          if (a.userId) userIds.add(a.userId);
+          (a.replies || []).forEach(r => { if (r.userId) userIds.add(r.userId); });
+        });
+        if (userIds.size === 0) return;
+
+        // Batch-fetch profile pictures from Supabase via our backend
+        const res2 = await fetch(
+          `${process.env.REACT_APP_BACKEND_URL}/api/users/profile-pictures`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ userIds: [...userIds] }),
+          }
+        );
+        if (res2.ok) {
+          const pics = await res2.json(); // [{ auth_id, profile_picture_url }]
+          const map = {};
+          pics.forEach(u => { if (u.auth_id && u.profile_picture_url) map[u.auth_id] = u.profile_picture_url; });
+          setUserPicMap(map);
+        }
+      } catch (e) { console.error('[PDFViewer] fetch annotations error:', e); }
     })();
   }, [paperId]);
 
@@ -565,6 +603,10 @@ const PDFViewer = () => {
       if (res.ok) {
         const a = await res.json();
         const withName = { ...a, userName: a.userName || currentUserName, replies: a.replies || [] };
+        // Ensure current user's pic is in the map
+        if (currentUserId && currentUserPic) {
+          setUserPicMap(prev => ({ ...prev, [currentUserId]: currentUserPic }));
+        }
         setAnnotations(prev => [...prev, withName]);
         return withName;
       }
@@ -676,9 +718,17 @@ const PDFViewer = () => {
         <React.Fragment key={ann._id}>
           <div style={{ position: 'absolute', left: `${x*100}%`, top: `${y*100}%`, width: `${width*100}%`, height: `${height*100}%`, backgroundColor: ann.color || '#FFFF00', opacity: isActive ? 0.62 : 0.45, mixBlendMode: 'multiply', pointerEvents: 'none', transition: 'opacity 0.15s', outline: isActive ? `2px solid ${ann.color || '#FFFF00'}` : 'none', outlineOffset: 1 }} />
           <div
-            onClick={e => { e.stopPropagation(); setSidebarNoteId(prev => prev === ann._id ? null : ann._id); setSelectedAnnotation(null); }}
-            onMouseEnter={() => setHoveredAnnotationId(ann._id)}
-            onMouseLeave={() => setHoveredAnnotationId(null)}
+            onClick={e => {
+              e.stopPropagation();
+              setSelectedAnnotation(null);
+              const isClosing = sidebarNoteId === ann._id;
+              if (isClosing && (ann.replies?.length || 0) === 0) {
+                // closing an empty note — auto-delete it
+                deleteAnnotation(ann._id);
+              } else {
+                setSidebarNoteId(prev => prev === ann._id ? null : ann._id);
+              }
+            }}
             style={{ position: 'absolute', left: `${x*100}%`, top: `${y*100}%`, transform: 'translate(-2px, -100%)', cursor: 'pointer', pointerEvents: 'auto', zIndex: 20 }}
           >
             <NoteIcon color={ann.color || '#FFFF00'} active={isActive} />
@@ -687,7 +737,6 @@ const PDFViewer = () => {
                 {ann.replies.length > 9 ? '9+' : ann.replies.length}
               </div>
             )}
-            {isHovered && !isActive && <HoverTooltip userName={ann.userName} color={ann.color} />}
           </div>
         </React.Fragment>
       );
@@ -771,6 +820,8 @@ const PDFViewer = () => {
                   note={sidebarNote}
                   currentUserName={currentUserName}
                   currentUserId={currentUserId}
+                  currentUserPic={currentUserPic}
+                  userPicMap={userPicMap}
                   onClose={() => setSidebarNoteId(null)}
                   onAddReply={handleAddReply}
                   onDeleteReply={handleDeleteReply}
