@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import './UserProfile.css';
 import EditProfileModal from './EditProfileModal';
@@ -94,7 +94,6 @@ const UserProfile = () => {
   const [followersList, setFollowersList] = useState([]);
   const [followingList, setFollowingList] = useState([]);
   const [loadingFollowList, setLoadingFollowList] = useState(false);
-  const [modalFollowStates, setModalFollowStates] = useState({});
 
   // Save modal state (from ResultsPage)
   const [saveOpen, setSaveOpen] = useState(false);
@@ -106,6 +105,11 @@ const UserProfile = () => {
   const [showNewLibraryModal, setShowNewLibraryModal] = useState(false);
   const [newLibraryName, setNewLibraryName] = useState('');
   const [creatingLibrary, setCreatingLibrary] = useState(false);
+  // Track which libraries the paper is already saved in
+  const [paperInLibraries, setPaperInLibraries] = useState([]);
+  const [checkingPaperInLibraries, setCheckingPaperInLibraries] = useState(false);
+  // Cache for paper-in-library checks
+  const paperInLibraryCache = useRef(new Map());
 
   // User data with CLEAN defaults
   const [userData, setUserData] = useState({
@@ -345,27 +349,13 @@ const UserProfile = () => {
       const response = await fetch(
         `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/followers`
       );
-      if (!response.ok) throw new Error('Failed to fetch followers');
-      const data = await response.json();
-      const followers = data.followers || [];
-      setFollowersList(followers);
 
-      // Seed follow states by cross-referencing who the viewer already follows
-      const token = localStorage.getItem('access_token');
-      if (token && isOwnProfile) {
-        const followingRes = await fetch(
-          `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/following`
-        );
-        if (followingRes.ok) {
-          const followingData = await followingRes.json();
-          const followingIds = new Set((followingData.following || []).map(f => f.id));
-          const seeds = {};
-          followers.forEach(f => {
-            seeds[f.id] = { isFollowing: followingIds.has(f.id), loading: false };
-          });
-          setModalFollowStates(seeds);
-        }
+      if (!response.ok) {
+        throw new Error('Failed to fetch followers');
       }
+
+      const data = await response.json();
+      setFollowersList(data.followers || []);
     } catch (error) {
       console.error('Error fetching followers:', error);
       setFollowersList([]);
@@ -407,49 +397,11 @@ const UserProfile = () => {
 
     setFollowersModalType(type);
     setShowFollowersModal(true);
-    setModalFollowStates({}); // reset on open
 
     if (type === 'followers') {
       await fetchFollowersList(targetUserId);
     } else {
       await fetchFollowingList(targetUserId);
-    }
-  };
-
-  const handleModalFollow = async (e, targetUserId, isCurrentlyFollowing) => {
-    e.stopPropagation();
-
-    setModalFollowStates(prev => ({
-      ...prev,
-      [targetUserId]: { ...prev[targetUserId], loading: true }
-    }));
-
-    try {
-      const token = localStorage.getItem('access_token');
-      const url = `${process.env.REACT_APP_BACKEND_URL}/api/users/${targetUserId}/${isCurrentlyFollowing ? 'unfollow' : 'follow'}`;
-      const method = isCurrentlyFollowing ? 'DELETE' : 'POST';
-
-      const response = await fetch(url, {
-        method,
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-      });
-
-      if (!response.ok) throw new Error('Failed');
-
-      setModalFollowStates(prev => ({
-        ...prev,
-        [targetUserId]: { isFollowing: !isCurrentlyFollowing, loading: false }
-      }));
-
-      setFollowStatus(prev => ({
-        ...prev,
-        followingCount: isCurrentlyFollowing ? prev.followingCount - 1 : prev.followingCount + 1
-      }));
-    } catch (err) {
-      setModalFollowStates(prev => ({
-        ...prev,
-        [targetUserId]: { ...prev[targetUserId], loading: false }
-      }));
     }
   };
 
@@ -996,24 +948,149 @@ const UserProfile = () => {
     URL.revokeObjectURL(url);
   };
 
-  // SAVE MODAL FUNCTIONS 
+  // SAVE MODAL FUNCTIONS (matching ResultsPage)
+
+  const availableLibraries = isAuthenticated && userLibraries.length > 0
+    ? userLibraries
+    : [];
+
+  // Check if paper is already saved in libraries (matching ResultsPage)
+  const checkIfPaperInLibraries = async (s2PaperId) => {
+    if (!s2PaperId) return { libraries: [], internalPaperId: null };
+
+    const cacheKey = `${s2PaperId}_${userLibraries.length}`;
+    if (paperInLibraryCache.current.has(cacheKey)) {
+      console.log('Using cached paper-in-library result');
+      return paperInLibraryCache.current.get(cacheKey);
+    }
+
+    try {
+      setCheckingPaperInLibraries(true);
+      const token = localStorage.getItem('access_token');
+
+      console.log('Checking if paper is in libraries for s2PaperId:', s2PaperId);
+
+      // Try getAllUserPapers endpoint
+      try {
+        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/user/papers`, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const papers = data.papers || [];
+          const foundPaper = papers.find(p => p.s2_paper_id === s2PaperId);
+
+          if (foundPaper && foundPaper.library_ids && foundPaper.library_ids.length > 0) {
+            const foundLibraries = availableLibraries.filter(lib =>
+              foundPaper.library_ids.includes(lib.id)
+            );
+            console.log('Paper is in libraries (from getAllUserPapers):', foundLibraries);
+            const result = {
+              libraries: foundLibraries,
+              internalPaperId: foundPaper.paper_id || foundPaper.id
+            };
+            paperInLibraryCache.current.set(cacheKey, result);
+            return result;
+          }
+        }
+      } catch (endpointError) {
+        console.log('getAllUserPapers endpoint not available, using library-by-library check');
+      }
+
+      // Fallback: check each library individually
+      let internalPaperId = null;
+
+      const libraryChecks = availableLibraries.map(async (library) => {
+        try {
+          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${library.id}/papers`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const papers = data.papers || [];
+            const foundPaper = papers.find(p => p.s2_paper_id === s2PaperId);
+            if (foundPaper) {
+              if (!internalPaperId) internalPaperId = foundPaper.id;
+              return library;
+            }
+          }
+          return null;
+        } catch (error) {
+          console.error(`Error checking library ${library.name}:`, error);
+          return null;
+        }
+      });
+
+      const results = await Promise.all(libraryChecks);
+      const foundLibraries = results.filter(lib => lib !== null);
+      console.log('Paper found in libraries (fallback):', foundLibraries);
+      const result = { libraries: foundLibraries, internalPaperId };
+      paperInLibraryCache.current.set(cacheKey, result);
+      return result;
+
+    } catch (error) {
+      console.error('Error checking if paper is in libraries:', error);
+      return { libraries: [], internalPaperId: null };
+    } finally {
+      setCheckingPaperInLibraries(false);
+    }
+  };
+
   const openSave = async (paper) => {
-    // Anyone can click Save, but they need to be logged in to actually save
     const token = localStorage.getItem('access_token');
     if (!token) {
-      alert('Please log in to save papers');
+      alert('Please log in to save papers to libraries');
       navigate('/login');
       return;
     }
-    setSaveItem(paper);
+
+    const saveItemWithPdf = {
+      ...paper,
+      pdf_url: paper.pdf_url || paper.pdfUrl || paper.openAccessPdf?.url || ''
+    };
+    setSaveItem(saveItemWithPdf);
     setSelectedLibraries([]);
+    setPaperInLibraries([]);
     setSaveOpen(true);
+
+    const paperId = paper.paperId || paper.s2_paper_id || paper.id;
+    if (paperId) {
+      console.log('Opening save modal for paper:', paper.title);
+      setCheckingPaperInLibraries(true);
+
+      const result = await checkIfPaperInLibraries(paperId);
+      console.log('Paper check result:', result);
+      setPaperInLibraries(result.libraries);
+
+      const enhancedSaveItem = { ...saveItemWithPdf, internalPaperId: result.internalPaperId };
+      setSaveItem(enhancedSaveItem);
+
+      const alreadySavedLibraries = availableLibraries.filter(lib =>
+        result.libraries.some(savedLib => savedLib.id === lib.id)
+      );
+      console.log('Pre-selecting libraries:', alreadySavedLibraries);
+      setSelectedLibraries(alreadySavedLibraries);
+
+      setCheckingPaperInLibraries(false);
+    }
   };
 
   const closeSave = () => {
     setSaveOpen(false);
     setSaveItem(null);
     setSelectedLibraries([]);
+    setPaperInLibraries([]);
+    setCheckingPaperInLibraries(false);
     setShowNewLibraryModal(false);
     setNewLibraryName('');
   };
@@ -1052,9 +1129,12 @@ const UserProfile = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUserLibraries(prev => [...prev, data.library]);
+        const newLibObj = { id: data.library.id, name: data.library.name, role: 'creator' };
+        setUserLibraries(prev => [...prev, newLibObj]);
+        setSelectedLibraries(prev => [...prev, newLibObj]);
         setNewLibraryName('');
         setShowNewLibraryModal(false);
+        paperInLibraryCache.current.clear();
       } else {
         const errorData = await response.json();
         alert(errorData.error || 'Failed to create library');
@@ -1083,10 +1163,19 @@ const UserProfile = () => {
     return '';
   };
 
+  // Full add+remove logic matching ResultsPage's handleSaveToLibraries
   const handleSavePaper = async () => {
-    if (selectedLibraries.length === 0) {
-      alert('Please select at least one library');
+    if (selectedLibraries.length === 0 && paperInLibraries.length === 0) {
+      alert('Please select at least one library to save the paper to');
       return;
+    }
+
+    if (selectedLibraries.length === 0 && paperInLibraries.length > 0) {
+      const confirmRemove = window.confirm(
+        'You have deselected all libraries. This will remove the paper from all ' +
+        paperInLibraries.length + ' libraries it was saved in. Continue?'
+      );
+      if (!confirmRemove) return;
     }
 
     if (!saveItem) return;
@@ -1094,88 +1183,132 @@ const UserProfile = () => {
     const token = localStorage.getItem('access_token');
     if (!token) {
       alert('Please log in to save papers');
+      navigate('/login');
       return;
     }
 
-    try {
-      const bibtex = await fetchPaperBibtex(saveItem.paperId || saveItem.s2_paper_id || saveItem.id);
+    const s2PaperId = saveItem.paperId || saveItem.s2_paper_id || saveItem.id;
+    if (!s2PaperId) {
+      alert('Cannot save paper: missing paper ID');
+      return;
+    }
 
-      // Prepare paper data in the correct format 
-      const paperData = {
-        s2_paper_id: saveItem.paperId || saveItem.s2_paper_id || saveItem.id,
-        title: saveItem.title || '',
-        venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
-        published_year: saveItem.year || new Date().getFullYear(),
-        citation_count: saveItem.citationCount || saveItem.citations || saveItem.citation_count || 0,
-        fields_of_study: saveItem.fieldsOfStudy || saveItem.fields_of_study || [],
-        abstract: saveItem.abstract || '',
-        bibtex: bibtex || '',
-        authors: (() => {
-          // Handle different author formats
-          if (Array.isArray(saveItem.authors)) {
-            return saveItem.authors.map(a => ({
-              name: typeof a === 'object' ? (a.name || '') : a,
-              affiliation: typeof a === 'object' ? (a.affiliation || '') : ''
-            }));
-          } else if (typeof saveItem.authors === 'string') {
-            // If authors is a comma-separated string, split it
-            return saveItem.authors.split(',').map(name => ({
-              name: name.trim(),
-              affiliation: ''
-            }));
-          }
-          return [];
-        })(),
-        reading_status: 'unread',
-        user_note: '',
-        external_ids: saveItem.externalIds || {}
-      };
+    const internalPaperId = saveItem.internalPaperId;
+    const bibtex = await fetchPaperBibtex(s2PaperId);
 
-      console.log(' Saving paper with data:', paperData);
+    const paperData = {
+      s2_paper_id: s2PaperId,
+      title: saveItem.title || 'Untitled',
+      venue: Array.isArray(saveItem.venue) ? saveItem.venue[0] : saveItem.venue || '',
+      published_year: saveItem.year || new Date().getFullYear(),
+      citation_count: saveItem.citationCount || saveItem.citations || saveItem.citation_count || 0,
+      fields_of_study: saveItem.fieldsOfStudy || saveItem.fields_of_study || [],
+      abstract: (() => {
+        if (typeof saveItem.abstract === 'string') return saveItem.abstract;
+        if (Array.isArray(saveItem.abstract)) return saveItem.abstract[0] || '';
+        return '';
+      })(),
+      bibtex: bibtex || '',
+      authors: (() => {
+        if (Array.isArray(saveItem.authors)) {
+          return saveItem.authors.map(a => ({
+            name: typeof a === 'object' ? (a.name || '') : a,
+            affiliation: typeof a === 'object' ? (a.affiliation || '') : ''
+          }));
+        } else if (typeof saveItem.authors === 'string') {
+          return saveItem.authors.split(',').map(name => ({ name: name.trim(), affiliation: '' }));
+        }
+        return [];
+      })(),
+      reading_status: 'unread',
+      user_note: '',
+      pdf_url: saveItem.pdf_url || saveItem.pdfUrl || saveItem.openAccessPdf?.url || ''
+    };
 
-      // Save to each selected library (using library objects now)
-      let savedCount = 0;
-      let failedCount = 0;
-      const failedLibraries = [];
+    const librariesToAdd = selectedLibraries.filter(lib =>
+      !paperInLibraries.some(savedLib => savedLib.id === lib.id)
+    );
+    const librariesToRemove = paperInLibraries.filter(savedLib =>
+      !selectedLibraries.some(lib => lib.id === savedLib.id)
+    );
 
-      for (const library of selectedLibraries) {
+    console.log('Libraries to add to:', librariesToAdd.map(l => l.name));
+    console.log('Libraries to remove from:', librariesToRemove.map(l => l.name));
+
+    let addedCount = 0;
+    let removedCount = 0;
+    let failedAdditions = [];
+    let failedRemovals = [];
+
+    const operations = [];
+
+    for (const library of librariesToAdd) {
+      operations.push((async () => {
         try {
           const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${library.id}/papers`, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
             body: JSON.stringify(paperData)
           });
-
-          if (response.ok) {
-            savedCount++;
-            const result = await response.json();
-            console.log(`Paper saved to library ${library.name}:`, result);
+          if (response.ok || response.status === 409) {
+            addedCount++;
           } else {
-            const errorData = await response.json();
-            console.error(`Failed to save to library ${library.name}:`, errorData);
-            failedLibraries.push(`${library.name}: ${errorData.message || 'Unknown error'}`);
-            failedCount++;
+            let errorMessage = `HTTP ${response.status}`;
+            try { const e = await response.json(); errorMessage = e.message || e.error || errorMessage; } catch (_) {}
+            failedAdditions.push(`${library.name}: ${errorMessage}`);
           }
         } catch (error) {
-          console.error(`Error saving to library ${library.name}:`, error);
-          failedLibraries.push(`${library.name}: ${error.message}`);
-          failedCount++;
+          failedAdditions.push(`${library.name}: ${error.message}`);
         }
-      }
-
-      if (savedCount > 0) {
-        alert(`Paper saved to ${savedCount} librar${savedCount === 1 ? 'y' : 'ies'}!${failedCount > 0 ? `\n\nFailed to save to ${failedCount} librar${failedCount === 1 ? 'y' : 'ies'}:\n${failedLibraries.join('\n')}` : ''}`);
-        closeSave();
-      } else {
-        alert(`Failed to save paper:\n${failedLibraries.join('\n')}`);
-      }
-    } catch (error) {
-      console.error('Error saving paper:', error);
-      alert('Failed to save paper. Please try again.');
+      })());
     }
+
+    for (const library of librariesToRemove) {
+      operations.push((async () => {
+        try {
+          const paperIdToDelete = internalPaperId || s2PaperId;
+          const response = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${library.id}/papers/${paperIdToDelete}`, {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+          });
+          if (response.ok) {
+            removedCount++;
+          } else if (response.status === 404 && paperIdToDelete !== s2PaperId) {
+            const fallback = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/libraries/${library.id}/papers/${s2PaperId}`, {
+              method: 'DELETE',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+            });
+            if (fallback.ok) removedCount++;
+          } else if (response.status !== 404) {
+            let errorMessage = `HTTP ${response.status}`;
+            try { const e = await response.json(); errorMessage = e.message || e.error || errorMessage; } catch (_) {}
+            failedRemovals.push(`${library.name}: ${errorMessage}`);
+          }
+        } catch (error) {
+          failedRemovals.push(`${library.name}: ${error.message}`);
+        }
+      })());
+    }
+
+    await Promise.all(operations);
+    paperInLibraryCache.current.clear();
+
+    let message = '';
+    if (addedCount > 0 || removedCount > 0) {
+      message = '✓ Library updates completed!\n';
+      if (addedCount > 0) message += `• Added to ${addedCount} librar${addedCount === 1 ? 'y' : 'ies'}\n`;
+      if (removedCount > 0) message += `• Removed from ${removedCount} librar${removedCount === 1 ? 'y' : 'ies'}\n`;
+    } else {
+      message = 'No changes were made.\n';
+    }
+    if (failedAdditions.length > 0 || failedRemovals.length > 0) {
+      message += '\nSome operations failed:\n';
+      if (failedAdditions.length > 0) message += `Failed to add: ${failedAdditions.join(', ')}\n`;
+      if (failedRemovals.length > 0) message += `Failed to remove: ${failedRemovals.join(', ')}\n`;
+    }
+
+    alert(message.trim());
+    closeSave();
   };
 
   // Navigation function for paper clicks
@@ -2089,6 +2222,10 @@ const UserProfile = () => {
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
                     Loading libraries...
                   </div>
+                ) : checkingPaperInLibraries ? (
+                  <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
+                    Checking libraries...
+                  </div>
                 ) : userLibraries.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '20px 0', color: '#666' }}>
                     No libraries yet. Create one to get started!
@@ -2213,19 +2350,20 @@ const UserProfile = () => {
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
                   onClick={handleSavePaper}
-                  disabled={selectedLibraries.length === 0}
+                  disabled={selectedLibraries.length === 0 && paperInLibraries.length === 0}
                   style={{
                     padding: '8px 20px',
-                    background: selectedLibraries.length === 0 ? '#cccccc' : '#3E513E',
+                    background: (selectedLibraries.length === 0 && paperInLibraries.length === 0) ? '#cccccc' : '#3E513E',
                     color: '#fff',
                     border: 'none',
                     borderRadius: 4,
-                    cursor: selectedLibraries.length === 0 ? 'not-allowed' : 'pointer',
+                    cursor: (selectedLibraries.length === 0 && paperInLibraries.length === 0) ? 'not-allowed' : 'pointer',
                     fontSize: 13,
-                    fontWeight: 500
+                    fontWeight: 500,
+                    transition: 'background-color 0.2s',
                   }}
                 >
-                  Save to {selectedLibraries.length > 0 ? `${selectedLibraries.length} ` : ''}Library{selectedLibraries.length !== 1 ? 'ies' : ''}
+                  {selectedLibraries.length === 0 && paperInLibraries.length > 0 ? 'Remove from All Libraries' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -2566,31 +2704,6 @@ const UserProfile = () => {
                               </div>
                             )}
                           </div>
-
-                          {isOwnProfile && (() => {
-                            const state = modalFollowStates[follower.id] || { isFollowing: false, loading: false };
-                            return (
-                              <button
-                                onClick={(e) => handleModalFollow(e, follower.id, state.isFollowing)}
-                                disabled={state.loading}
-                                style={{
-                                  flexShrink: 0,
-                                  padding: '5px 14px',
-                                  borderRadius: '20px',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  cursor: state.loading ? 'not-allowed' : 'pointer',
-                                  border: state.isFollowing ? '1px solid #ccc' : '1px solid #3E513E',
-                                  background: state.isFollowing ? '#fff' : '#3E513E',
-                                  color: state.isFollowing ? '#555' : '#fff',
-                                  transition: 'all 0.2s',
-                                  minWidth: '80px'
-                                }}
-                              >
-                                {state.loading ? '...' : state.isFollowing ? 'Following' : 'Follow'}
-                              </button>
-                            );
-                          })()}
                         </div>
                       ))
                     )
@@ -2650,6 +2763,7 @@ const UserProfile = () => {
                               </svg>
                             )}
                           </div>
+
                           {/* User Info */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontWeight: '600', fontSize: '15px', color: '#333' }}>
@@ -2661,31 +2775,6 @@ const UserProfile = () => {
                               </div>
                             )}
                           </div>
-
-                          {isOwnProfile && (() => {
-                            const state = modalFollowStates[following.id] || { isFollowing: true, loading: false };
-                            return (
-                              <button
-                                onClick={(e) => handleModalFollow(e, following.id, state.isFollowing)}
-                                disabled={state.loading}
-                                style={{
-                                  flexShrink: 0,
-                                  padding: '5px 14px',
-                                  borderRadius: '20px',
-                                  fontSize: '13px',
-                                  fontWeight: '600',
-                                  cursor: state.loading ? 'not-allowed' : 'pointer',
-                                  border: state.isFollowing ? '1px solid #ccc' : '1px solid #3E513E',
-                                  background: state.isFollowing ? '#fff' : '#3E513E',
-                                  color: state.isFollowing ? '#555' : '#fff',
-                                  transition: 'all 0.2s',
-                                  minWidth: '80px'
-                                }}
-                              >
-                                {state.loading ? '...' : state.isFollowing ? 'Following' : 'Follow'}
-                              </button>
-                            );
-                          })()}
                         </div>
                       ))
                     )
