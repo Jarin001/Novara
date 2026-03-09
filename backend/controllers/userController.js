@@ -82,6 +82,25 @@ const uploadProfilePicture = async (req, res) => {
       });
     }
 
+    // Validate file extension
+    const fileExt = fileName.split('.').pop().toLowerCase();
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+    if (!allowedExtensions.includes(fileExt)) {
+      return res.status(400).json({ 
+        error: 'Unsupported file type. Please upload a JPG, PNG, GIF, or WebP image.' 
+      });
+    }
+
+    // Fix MIME type mapping — "jpg" is not a valid MIME type, "jpeg" is
+    const mimeMap = {
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      png: 'image/png',
+      gif: 'image/gif',
+      webp: 'image/webp'
+    };
+    const contentType = mimeMap[fileExt];
+
     const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(base64Data, 'base64');
 
@@ -91,14 +110,27 @@ const uploadProfilePicture = async (req, res) => {
       });
     }
 
-    const fileExt = fileName.split('.').pop();
+    // Delete old profile picture from storage before uploading new one
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('profile_picture_url')
+      .eq('auth_id', authId)
+      .single();
+
+    if (currentUser?.profile_picture_url) {
+      const oldPath = currentUser.profile_picture_url.split('/avatars/')[1];
+      if (oldPath) {
+        await supabase.storage.from('avatars').remove([decodeURIComponent(oldPath)]);
+      }
+    }
+
     const uniqueFileName = `${authId}-${Date.now()}.${fileExt}`;
     const filePath = `${authId}/${uniqueFileName}`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { error: uploadError } = await supabase.storage
       .from('avatars')
       .upload(filePath, buffer, {
-        contentType: `image/${fileExt}`,
+        contentType,   // now correctly e.g. "image/jpeg" not "image/jpg"
         upsert: true
       });
 
@@ -133,7 +165,20 @@ const removeProfilePicture = async (req, res) => {
     const authId = req.user.id;
     const supabase = req.supabase;
 
-    // Update user profile to remove profile picture URL
+    // Fetch current picture URL so we can delete the actual file from storage
+    const { data: currentUser } = await supabase
+      .from('users')
+      .select('profile_picture_url')
+      .eq('auth_id', authId)
+      .single();
+
+    if (currentUser?.profile_picture_url) {
+      const oldPath = currentUser.profile_picture_url.split('/avatars/')[1];
+      if (oldPath) {
+        await supabase.storage.from('avatars').remove([decodeURIComponent(oldPath)]);
+      }
+    }
+
     const { data: userData, error: updateError } = await supabase
       .from('users')
       .update({ profile_picture_url: null })
@@ -151,7 +196,6 @@ const removeProfilePicture = async (req, res) => {
     errorHandler(res, error, 'Failed to remove profile picture');
   }
 };
-
 
 // Get public profile of any user with publications
 const getPublicUserProfile = async (req, res) => {
