@@ -2983,20 +2983,18 @@ useEffect(() => {
             padding: "24px",
           }}
         >
-<div
-  style={{
-    backgroundColor: "white",
-    borderRadius: "12px",
-    padding: "24px",
-    width: "90%",
-    maxWidth: "500px",
-    maxHeight: "90vh", /* Add this line */
-    display: "flex",    /* Add this line */
-    flexDirection: "column", /* Add this line */
-    boxShadow:
-      "0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)",
-  }}
->
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "16px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.25)",
+              width: "100%",
+              maxWidth: "896px",
+              height: "85vh",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
             {/* Header */}
             <div
               style={{
