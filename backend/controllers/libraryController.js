@@ -514,6 +514,8 @@ exports.shareLibrary = async (req, res) => {
           .select("id")
           .eq("user_id", recipient_id)
           .eq("library_id", library_id)
+
+          
           .maybeSingle();
 
         if (currentAccess) {

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './UploadPaperModal.css';
 
 const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
+  const backendUrl = process.env.REACT_APP_BACKEND_URL || 'http://localhost:5000';
   const [paperId, setPaperId] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [paperDetails, setPaperDetails] = useState(null);
@@ -20,7 +21,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
     try {
       const token = localStorage.getItem('access_token');
 
-      const response = await fetch('http://localhost:5000/api/papers/preview', {
+      const response = await fetch(`${backendUrl}/api/papers/preview`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +77,7 @@ const UploadPaperModal = ({ isOpen, onClose, onConfirm }) => {
     try {
       const token = localStorage.getItem('access_token');
 
-      const response = await fetch('http://localhost:5000/api/papers/publications', {
+      const response = await fetch(`${backendUrl}/api/papers/publications`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

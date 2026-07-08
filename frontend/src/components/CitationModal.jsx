@@ -5,7 +5,7 @@ const CitationModal = ({
   isOpen, 
   onClose, 
   paper,
-  API_BASE_URL = "http://localhost:5000"
+  API_BASE_URL = process.env.REACT_APP_BACKEND_URL || "http://localhost:5000"
 }) => {
   const [citeFormats, setCiteFormats] = useState([]);
   const [citeFormat, setCiteFormat] = useState('bibtex');
