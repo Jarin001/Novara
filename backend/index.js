@@ -328,7 +328,23 @@ const { URL } = require('url');
 const app = express();
 
 // Middleware
-app.use(cors({ origin: 'https://novara-frontend-djyn.onrender.com' }));
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://novara-frontend-djyn.onrender.com'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // allow requests with no origin (like Postman, curl, server-to-server)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS: ' + origin));
+    }
+  },
+  credentials: true
+}));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 connectDB();
