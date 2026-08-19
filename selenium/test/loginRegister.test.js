@@ -59,9 +59,7 @@ describe("Login and Register Tests", function () {
 
     await loginButton.click();
 
-    await driver.sleep(5000);
-
-    const currentUrl = await driver.getCurrentUrl();
+    await driver.wait(until.urlContains("/search"), 5000);
 
     assert.ok(currentUrl.includes("/search"));
 
@@ -103,9 +101,8 @@ describe("Login and Register Tests", function () {
     await loginButton.click();
 
     // Check validation message
-    const emailInput = await driver.findElement(By.css('input[name="email"]'));
-    const validationMessage =
-      await emailInput.getAttribute("validationMessage");
+    const emailInput = await driver.findElement(By.name('email'));
+    const validationMessage = await emailInput.getAttribute("validationMessage");
 
     assert.ok(validationMessage, "Email field should show validation error");
 
@@ -132,7 +129,6 @@ describe("Login and Register Tests", function () {
     );
 
     const headingText = await heading.getText();
-
 
     assert.strictEqual(headingText, "Create Account");
 
@@ -197,14 +193,16 @@ describe("Login and Register Tests", function () {
 
   // TEST 9 - Password mismatch
 
-it("should display error for mismatched passwords", async function () {
+  it("should display error for mismatched passwords", async function () {
     await driver.get("http://localhost:3000/register");
 
     const name = await driver.findElement(By.name("name"));
     const email = await driver.findElement(By.name("email"));
     const affiliation = await driver.findElement(By.name("affiliation"));
     const password = await driver.findElement(By.name("password"));
-    const confirmPassword = await driver.findElement(By.name("confirmPassword"));
+    const confirmPassword = await driver.findElement(
+      By.name("confirmPassword"),
+    );
     const registerButton = await driver.findElement(By.css(".auth-submit-btn"));
 
     await name.sendKeys("Test Student");
@@ -216,15 +214,15 @@ it("should display error for mismatched passwords", async function () {
     await registerButton.click();
 
     const error = await driver.wait(
-        until.elementLocated(By.css(".alert.alert-danger")),
-        5000
+      until.elementLocated(By.css(".alert.alert-danger")),
+      5000,
     );
 
     const errorText = await error.getText();
     console.log("Error:", errorText);
 
     assert.strictEqual(errorText, "Passwords do not match!");
-});
+  });
 
   // TEST 10 - Invalid email registration
 
@@ -260,7 +258,6 @@ it("should display error for mismatched passwords", async function () {
 
     assert.ok(errorText.length > 0);
 
-    // Only for watching the result
     await driver.sleep(3000);
   });
 
