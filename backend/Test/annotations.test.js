@@ -352,3 +352,80 @@ test('Return 400 when findByIdAndDelete throws', async () => {
   expect(res.status).toHaveBeenCalledWith(400);
   expect(res.json).toHaveBeenCalledWith({ error: 'delete failed' });
 });
+
+// ── updateAnnotation (new edge/negative cases) ────────────────────────
+
+test('Negative case — Update — malformed ObjectId returns 400 CastError', async () => {
+  // "123" is not 24 hex chars — Mongoose throws CastError immediately before
+  // even querying the DB. This is CORRECT behavior, worth documenting.
+  Annotations.findByIdAndUpdate.mockRejectedValue(
+    new Error('Cast to ObjectId failed for value "123" at path "_id"')
+  );
+
+  const req = mockReqWithIo({ params: { id: '123' }, body: { content: 'test' } });
+  const res = mockRes();
+
+  await annotationController.updateAnnotation(req, res);
+
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ error: expect.stringContaining('Cast to ObjectId failed') })
+  );
+});
+
+test('Edge case — Update — well-formed but nonexistent ObjectId crashes to 400 instead of clean 404 (BUG)', async () => {
+  // "64b000000000000000000000" is valid ObjectId format — Mongoose queries the DB
+  // and gets null back (no error). Then annotation.toObject() crashes with
+  // TypeError, landing in catch as 400 instead of the correct 404.
+  Annotations.findByIdAndUpdate.mockResolvedValue(null); // valid query, nothing found
+
+  const req = mockReqWithIo({
+    params: { id: '64b000000000000000000000' },
+    body: { content: 'test' },
+  });
+  const res = mockRes();
+
+  await annotationController.updateAnnotation(req, res);
+
+  // BUG: currently returns 400 with "Cannot read properties of null (reading 'toObject')"
+  // Expected: should return 404 "Annotation not found" with a null-check before .toObject()
+  expect(res.status).toHaveBeenCalledWith(404);
+});
+
+// ── deleteAnnotation (new edge/negative cases) ────────────────────────
+
+test('Edge case — Delete — well-formed but nonexistent ObjectId returns false-positive 200 (BUG)', async () => {
+  // findByIdAndDelete returns null when nothing is found — no error thrown.
+  // The controller never inspects the return value, so it always claims success.
+  Annotations.findByIdAndDelete.mockResolvedValue(null);
+
+  const req = mockReqWithIo({ params: { id: '64b000000000000000000000' } });
+  const res = mockRes();
+
+  await annotationController.deleteAnnotation(req, res);
+
+  // BUG: currently returns 200 { "success": true } even though nothing was deleted.
+  // Expected: should return 404 so callers can distinguish a real deletion from a no-op.
+  // Confirming the bug — this assertion documents the incorrect behavior:
+  expect(res.json).toHaveBeenCalledWith({ success: true });
+  // Once fixed, replace the above with:
+  // expect(res.status).toHaveBeenCalledWith(404);
+});
+
+test('Negative case — Delete — malformed ObjectId returns 400 CastError', async () => {
+  // "abc" is not a valid ObjectId — Mongoose throws CastError immediately.
+  // This is CORRECT behavior, worth documenting alongside the nonexistent-ID case.
+  Annotations.findByIdAndDelete.mockRejectedValue(
+    new Error('Cast to ObjectId failed for value "abc" at path "_id"')
+  );
+
+  const req = mockReqWithIo({ params: { id: 'abc' } });
+  const res = mockRes();
+
+  await annotationController.deleteAnnotation(req, res);
+
+  expect(res.status).toHaveBeenCalledWith(400);
+  expect(res.json).toHaveBeenCalledWith(
+    expect.objectContaining({ error: expect.stringContaining('Cast to ObjectId failed') })
+  );
+});
